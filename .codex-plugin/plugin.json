@@ -1,0 +1,27 @@
+{
+  "name": "saas-idea-brainstorm",
+  "version": "1.1.0",
+  "description": "Autonomous SaaS idea validation pipeline: takes a raw idea through framing, competitive scan, market validation, feasibility verification, positioning, and MVP scope lock. Produces a Validated, Hypothesis, or Pre-feasibility MVP Pack with strictly graded evidence (A/B/C/D). Analysis mode runs with no integrations; user-installed MCP servers/CLIs (scraping, hosting, analytics, payments, email) unlock higher-autonomy rungs after authenticated probes.",
+  "author": {
+    "name": "vuong.dam"
+  },
+  "license": "MIT",
+  "homepage": "https://github.com/vuongdam2k01/SaaS-idea-brainstorm",
+  "repository": "https://github.com/vuongdam2k01/SaaS-idea-brainstorm",
+  "keywords": [
+    "saas",
+    "validation",
+    "customer-development",
+    "lean-startup",
+    "mvp",
+    "positioning"
+  ],
+  "skills": "./skills/",
+  "hooks": "./hooks/hooks.json",
+  "interface": {
+    "displayName": "SaaS Idea Brainstorm",
+    "shortDescription": "Raw idea to a locked, evidence-graded MVP spec.",
+    "longDescription": "Drives a raw SaaS idea through framing, competitive scan, market validation, feasibility verification, positioning, and MVP scope lock, refusing to call anything validated that isn't. Built first for Claude Code; see plugin/codex-parity.md in this repo for what differs on Codex (subagent setup, hook availability, no config-on-enable prompt).",
+    "category": "Productivity"
+  }
+}

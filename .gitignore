@@ -1,0 +1,10 @@
+# Sensitive raw material per idea (transcripts, real names, payments)
+ideas/*/private/*
+!ideas/*/private/.gitkeep
+
+# Internal dogfood test run (simulated founder, quarantined data) - not a real
+# user idea, kept locally for reference, excluded from the shipped release.
+ideas/proposal-draft/
+
+node_modules/
+.DS_Store

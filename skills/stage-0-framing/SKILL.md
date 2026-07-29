@@ -1,0 +1,39 @@
+---
+name: stage-0-framing
+description: Stage 0 of the SaaS validation pipeline - turn a raw idea into a testable hypothesis set. Use when an idea in ideas/<slug>/ is at stage 0 - problem framing, lean canvas, market type, beachhead ICP, assumption map, kill criteria.
+user-invocable: false
+---
+
+Stage 0: framing. Load `method-rules` first; read `state.json` for the idea. Goal: a raw idea becomes a falsifiable hypothesis set, and we know exactly what must be tested first. This stage is elicitation + structuring — work WITH the user; your drafts are `[GUESS]` until they confirm or evidence backs them. Artifact templates: [templates.md](templates.md).
+
+## 0.0 Idea brief → `idea-brief.md`
+
+Before decomposing anything, complete the idea brief (created at new-idea; template in [templates.md](templates.md)): raw idea verbatim (immutable), refined articulation of **what it is**, for whom, **how it's imagined to work** (the solution concept), vision & rough roadmap (Blank: the first product spec comes from the founders' vision, and earlyvangelists buy the whole vision, not just v1 — so the vision must be written down: it is the thing this pipeline tests), why now / why this founder (reach, expertise, willingness to serve this segment daily), constraints, and the founder's definition of success. Elicit from the user; your drafts stay `[GUESS]`. The brief is a **living document** with an evolution log — every pivot the pipeline forces gets recorded there with its evidence trail.
+
+## 0.1 Separate the problem from the solution → `problem-hypothesis.md`
+
+Raw ideas arrive as solutions ("I want to build app X"). Extract the implied problem by interviewing the user: **Who** — in **what situation** — trying to **achieve what outcome** — **blocked by what** — currently **paying what cost** (hours, money, risk, emotion). Also: **trigger & frequency** (frequency × intensity × available budget = real opportunity size; a once-a-year problem can't feed a subscription). If their statement still contains the solution, point it out and rewrite — and everything solution-flavored you strip out goes INTO `idea-brief.md` (solution concept / vision sections), **captured, not discarded**. Finish with the falsifiability question: "what observation would prove us wrong?" Done when: statement contains no solution AND has a refutation condition.
+
+## 0.2 Lean Canvas → `lean-canvas.md`
+
+Draft all 9 cells yourself from what you heard — every cell labeled `[GUESS]`. Then walk the user through: which cells have real backing? Only they upgrade a label. The canvas's real purpose is exposing which cells are blank guesses.
+
+## 0.3 Market type
+
+Research briefly (WebSearch) + ask (AskUserQuestion): existing / re-segmented (niche or low-cost) / new / clone (Blank's types). State the strategic consequence in the canvas: market type changes validation focus (existing → "why would they leave their current tool"; new → "do they even recognize the problem"; new markets can be flat for years — do not judge them by existing-market traction bars).
+
+## 0.4 Beachhead + ICP + 20 real names → `beachhead-icp.md`
+
+List 4–8 candidate segments; score each 1–5 on pain / ability to pay / **your reach** / decision speed. Reach must not be the weakest axis of the chosen beachhead — distribution is the binding constraint. Then define the ICP with Blank's 5-tier earlyvangelist scale: (1) has the problem → (2) knows it → (3) actively searching with a timetable → (4) has cobbled an interim solution → (5) has or can quickly get budget. **Only tiers 4–5 are true earlyvangelists**; feedback from tiers 1–2 is near-worthless. Then 20 real prospects: research them from public sources — never invent people; the user adds prospects from their own network. **Privacy split**: identities + profile URLs + contacts go ONLY into `private/contacts.md`; the public tracker records each prospect as `P<n>` with a segment descriptor and origin type. Fewer than 20 findable prospects is itself a signal about reach.
+
+## 0.5 Assumption map → `assumption-map.md`
+
+Generate assumptions in "We believe that…" form across ALL categories — Desirability / Feasibility / Viability (+ Usability, Ethical per Torres). Don't debate which category an assumption belongs to; categories exist to generate coverage. Place on the deadly × unknown matrix; the deadly+unknown corner is the priority queue. For each: design the **cheapest test that could refute it** (not the nicest test to confirm it) as a Test Card — *We believe that / To verify we will / And measure / We are right if…* — with the threshold filled BEFORE running. AI-core products: "the model reaches usable quality on real customer data" is a **deadly feasibility assumption** — rank it with the top demand assumptions and note that stage 3 (Verify) starts in parallel with stage 2 because of it. Copy the reference thresholds from `state.json` and let the user adjust — but do NOT set `signed_date` here: the signing itself happens in gate-check's F signing ceremony (which sets `signed_date`, locks kill-criteria, and appends the threshold-snapshot row in one step).
+
+## 0.6 Kill criteria → `kill-criteria.md`
+
+Run a premortem with the user: imagine the idea dead in 6 months — why? Convert each cause into a criterion in **state + date** form: "if not [measurable X] by [date Y] → stop". Add a budget criterion if any paid actions are possible. Write to the file (`status: draft` — the F signing ceremony locks it); mirror **EVERY criterion, including the budget one,** into `state.json.kill_criteria` — the state index is what deadline surfacing reads; a criterion missing there silently blows its date (dogfood finding). Any deliberately deferred threshold (e.g. `r1_eval_pass_pct: null`) must carry an explicit load-by date in its criterion text and later be loaded via a `thresholds.revisions` entry.
+
+## Gate F
+
+Update `state.json` (artifacts index, statuses `ready`). Tell the user gate F is ready and run the gate-check skill (F requires: idea brief complete with vision and constraints; no-solution hypothesis with refutation condition; labeled canvas; market type; 20 names; every deadly assumption has a test + threshold; kill criteria signed). Meanwhile, stage 1 (competitive scan) can start immediately after 0.1 — offer to kick it off in parallel.

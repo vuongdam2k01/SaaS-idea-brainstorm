@@ -1,0 +1,14 @@
+{
+  "name": "saas-idea-brainstorm",
+  "owner": {
+    "name": "vuong.dam"
+  },
+  "description": "Marketplace for the saas-idea-brainstorm plugin: autonomous SaaS idea validation from raw idea to locked MVP spec.",
+  "plugins": [
+    {
+      "name": "saas-idea-brainstorm",
+      "source": "./",
+      "description": "Autonomous SaaS idea validation pipeline: raw idea to locked MVP spec (Validated, Hypothesis, or Pre-feasibility MVP Pack) with strictly graded evidence and adversarial gates."
+    }
+  ]
+}

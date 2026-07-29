@@ -1,0 +1,27 @@
+{
+  "name": "saas-idea-brainstorm",
+  "displayName": "SaaS Idea Brainstorm",
+  "version": "1.1.0",
+  "description": "Autonomous SaaS idea validation pipeline: takes a raw idea through framing, competitive scan, market validation, feasibility verification, positioning, and MVP scope lock. Produces a Validated, Hypothesis, or Pre-feasibility MVP Pack with strictly graded evidence (A/B/C/D). Analysis mode runs with no integrations; user-installed MCP servers/CLIs (scraping, hosting, analytics, payments, email) unlock higher-autonomy rungs after authenticated probes.",
+  "author": {
+    "name": "vuong.dam"
+  },
+  "license": "MIT",
+  "keywords": [
+    "saas",
+    "validation",
+    "customer-development",
+    "lean-startup",
+    "mvp",
+    "positioning"
+  ],
+  "userConfig": {
+    "ads_budget_cap_usd": {
+      "type": "number",
+      "title": "Paid-traffic budget cap in USD (optional)",
+      "description": "Hard planning cap for paid-traffic experiments in market-evidence mode. Enforced by the pipeline's outward-action policy (budget preflight + journaled spends), not by ad platforms. 0 (default) disables all paid traffic.",
+      "default": 0,
+      "min": 0
+    }
+  }
+}
