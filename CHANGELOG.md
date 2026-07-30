@@ -2,8 +2,8 @@
 
 The full working record (design rounds, adversarial review transcripts, dogfood run reports, the
 multi-session conflict inventory and its resolution log) was development residue and has been removed
-from the working tree — it remains recoverable in git history at commit `b7a7e09` and earlier
-(`git show b7a7e09:plugin/conflicts-inventory.md`, etc.).
+from the working tree — it remains recoverable in git history at commit `fd7732b` and earlier
+(`git show fd7732b:plugin/conflicts-inventory.md`, etc.).
 
 ## v1.3.0 — 2026-07-30 · conflict resolution + consolidation
 
