@@ -6,7 +6,7 @@
  * written after a session in which parallel edits broke the syntax of three
  * scripts (including a fail-open hook, so nothing surfaced) and two test
  * suites each covered only "their" half of a duplicated mechanism
- * (conflicts-inventory P1/P2, X1/X3). Run it after any bulk edit and before
+ * (the 2026-07-30 conflict pass — CHANGELOG.md v1.3.0). Run it after any bulk edit and before
  * any commit.
  *
  * Checks, in order (all must pass):

@@ -222,7 +222,7 @@ function build(outDir) {
 }
 
 if (require.main === module) {
-  // Default OUTSIDE the repo (conflicts-inventory C13): a generated fixture is a
+  // Default OUTSIDE the repo (v1.3.0): a generated fixture is a
   // real `ideas/<slug>/state.json` tree, which the session-start sentinel would
   // pick up as a real idea if it ever landed inside a user's working repo.
   const out = process.argv[2] ||

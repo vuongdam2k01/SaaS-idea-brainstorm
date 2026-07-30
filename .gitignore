@@ -2,13 +2,11 @@
 ideas/*/private/*
 !ideas/*/private/.gitkeep
 
-# Internal dogfood workspaces (simulated founder, quarantined data) - not real
-# user ideas. Kept OUTSIDE ideas/ so the session-start sentinel ("state.json with
-# pipeline_version beside it under ideas/") never reports them as user ideas —
-# the state-schema rule "never inside the plugin" stays true without exceptions
-# (conflicts-inventory C1). Kept locally for reference, excluded from release.
-dogfood/*/
-!dogfood/README.md
+# Internal dogfood workspaces live OUTSIDE this repo entirely (archived at
+# ../SaaS-idea-brainstorm-dogfood-archive). If one is ever recreated here, keep
+# it out of ideas/ (the session-start sentinel would report it as a user idea)
+# and out of git:
+dogfood/
 
 node_modules/
 .DS_Store

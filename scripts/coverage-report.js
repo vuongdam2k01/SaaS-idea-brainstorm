@@ -67,7 +67,7 @@ const REQUIREMENTS = [
   { id: "prospect-cells-and-floor", where: "gate-contracts F", tier: "code", by: "validate-beachhead.js (cells, dedup, observed_at, floor; run #3 checks absorbed)" },
   { id: "r1-run-contract-preregistered", where: "gate-contracts R1", tier: "code", by: "validate-run-contract.js (exit 0 required BEFORE the scored run)" },
   { id: "sampling-frame-hash-verified", where: "gate-contracts V1", tier: "code", by: "artifact-manifest.js verify (invoked by gate-check)" },
-  { id: "codex-agent-parity", where: "codex-parity.md", tier: "code", by: "sync-codex-agents.js --check" },
+  { id: "codex-agent-parity", where: "codex port parity contract", tier: "code", by: "sync-codex-agents.js --check" },
 
   // ---- gate predicates that only a reader can judge
   { id: "problem-has-no-solution", where: "gate-contracts F", tier: "agent", by: "gatekeeper" },
@@ -98,15 +98,15 @@ const REQUIREMENTS = [
   { id: "no-cross-domain-recertification", where: "method-rules §12", tier: "agent", by: "gatekeeper check 14" },
 
   // ---- rules nothing checks at all
-  // Dispositioned per conflicts D1 (2026-07-30). Five are INTENTIONAL prose — the
+  // Dispositioned in v1.3.0. Five are INTENTIONAL prose — the
   // `by` field says why code cannot or should not hold them. Three are DEBT,
-  // tracked in plugin/outstanding-work.md; do not mistake them for decisions.
+  // deferred deliberately; do not mistake them for decisions.
   { id: "two-identical-failures-stop", where: "method-rules §13", tier: "prose", by: "intentional — 'identical failure' is a semantic judgement; a code equality check would invite laundering the second failure into a variant" },
   { id: "outward-action-per-approval", where: "method-rules §7", tier: "prose", by: "intentional — the runtime permission layer is the enforcement point; duplicating it in-plugin would create a second, weaker authority" },
-  { id: "budget-preflight", where: "method-rules §7", tier: "prose", by: "DEBT — state.budget is data; nothing blocks a spend. Candidate for a gate-check Layer 1 check (outstanding-work)" },
-  { id: "charter-playback-at-each-gate", where: "method-rules §9", tier: "prose", by: "DEBT — gate-check could refuse a verdict without a journaled playback marker (outstanding-work)" },
+  { id: "budget-preflight", where: "method-rules §7", tier: "prose", by: "DEBT — state.budget is data; nothing blocks a spend. Candidate for a gate-check Layer 1 check" },
+  { id: "charter-playback-at-each-gate", where: "method-rules §9", tier: "prose", by: "DEBT — gate-check could refuse a verdict without a journaled playback marker" },
   { id: "interpretation-never-promoted", where: "stage-0", tier: "prose", by: "intentional — whether a sentence is interpretation is itself interpretation; the intake classification table + gatekeeper are the honest layer for it" },
-  { id: "instrumentation-check-before-run", where: "stage-2", tier: "prose", by: "DEBT — an experiment kit could carry a checkable instrumentation checklist artifact (outstanding-work)" },
+  { id: "instrumentation-check-before-run", where: "stage-2", tier: "prose", by: "DEBT — an experiment kit could carry a checkable instrumentation checklist artifact" },
   { id: "consent-before-material-enters", where: "method-rules §7", tier: "prose", by: "intentional — the manifest is required at V1; its truthfulness is unknowable to any file check (same limit as `self_authored`)" },
   { id: "deletion-never-automatic", where: "method-rules §7", tier: "prose", by: "intentional by design — nothing in the plugin deletes; adding enforcement would mean adding deletion code" },
 ];

@@ -12,7 +12,7 @@ Ba nguyên tắc làm nên nó:
 - **Ngưỡng được ký trước khi chạy phép thử.** Sau nghi thức ký tại cửa F, sửa một ngưỡng đòi hỏi bạn phê duyệt tường minh và một bản revision được ghi lại.
 - **Cửa trượt thì quay lui.** Không bao giờ tiến tới trên một giả định đã gãy. Trượt mà rõ hướng là kết quả tốt.
 
-Repository: <https://github.com/vuongdam2k01/SaaS-idea-brainstorm> · MIT · v1.2.0
+Repository: <https://github.com/vuongdam2k01/SaaS-idea-brainstorm> · MIT · version hiện tại: xem [plugin.json](.claude-plugin/plugin.json) + [CHANGELOG.md](CHANGELOG.md)
 
 ---
 
@@ -36,7 +36,7 @@ npx codex-marketplace add vuongdam2k01/SaaS-idea-brainstorm
 
 Mọi tài liệu quy phạm (state schema, artifact schema, gate contracts, maintenance rules, và templates của từng stage) được ship dưới dạng **skill nạp được**, không phải file nằm cạnh một skill. Đây là chủ ý: bản cài từ marketplace nằm ở `~/.claude/plugins/cache/...`, ngoài allowed directories của phiên, nên bất cứ thứ gì skill chỉ đọc được bằng đường dẫn tương đối trên đĩa sẽ không đọc được đúng lúc người dùng thật cài theo đúng hướng dẫn. Không cần `--add-dir`, không cần nới quyền, không cần cấu hình gì.
 
-Skills và hooks chạy y nguyên trên cả hai CLI; bốn agent nghiên cứu/audit đóng gói riêng dạng `.codex/agents/*.toml` cho Codex. Các khác biệt nền tảng đáng biết nằm ở [plugin/codex-parity.md](plugin/codex-parity.md).
+Skills và hooks chạy y nguyên trên cả hai CLI; bốn agent nghiên cứu/audit đóng gói riêng dạng `.codex/agents/*.toml` cho Codex. Thân agent được giữ y hệt từng byte giữa hai nền tảng bằng `scripts/sync-codex-agents.js --check`.
 
 Khởi động CLI ngay trong repo bạn muốn chứa workspace ý tưởng — artifact được ghi vào `ideas/<slug>/` tương đối so với thư mục làm việc, không bao giờ nằm trong plugin. Node.js trên PATH chạy ba hook và trình ghi state; không có nó thì chúng fail open kèm thông báo hiện rõ, ngoài ra không hỏng gì.
 
@@ -233,9 +233,8 @@ Phương pháp cũng tồn tại dưới dạng tài liệu thuần. Tạo `idea
 | `tests/` | `hook-tests.js` + `pipeline-contract-tests.js` — hai bộ test hồi quy (test đầu tiên: `node --check` mọi file `.js`) |
 | `evals/` | **Chỉ dành cho dev.** Fixture gieo lỗi + grader đo tỉ lệ bắt của gatekeeper ở tầng diễn giải (`run-gatekeeper-eval.js`). Generator ghi vào thư mục temp của HĐH, không bao giờ ghi trong repo |
 | `process/` | Phương pháp (tiếng Việt): pipeline, foundations, build-and-launch, research-verification. Mang tính giải thích — lệch thì skill thắng |
-| `plugin/` | Tài liệu thiết kế — bắt đầu từ `plugin/README.md`: nó nói file nào còn hiệu lực, file nào là lịch sử đóng băng |
+| `CHANGELOG.md` | Thay đổi theo từng bản phát hành; toàn bộ hồ sơ thiết kế/review nằm trong lịch sử git |
 | `templates/` · `ideas/` | Template dùng tay (bản render của các skill template); các workspace ý tưởng |
-| `dogfood/` | Workspace dogfood nội bộ (gitignore, xem README trong đó) — cố ý KHÔNG nằm dưới `ideas/` |
 
 ```bash
 node scripts/preflight.js
@@ -267,6 +266,6 @@ Một lệnh, bốn kiểm: quét cú pháp mọi file `.js`, cả hai bộ test
 
 Được lắp ráp và kiểm chứng dựa trên tài liệu gốc chứ không dựa vào bản tóm tắt: Customer Development của Steve Blank (earlyvangelist là thang năm tầng — chỉ tầng 4–5 mới đạt), khung giả định desirability/feasibility/viability của Strategyzer, *The Mom Test*, Running Lean của Ash Maurya (10–15 cuộc phỏng vấn), thứ tự thành phần định vị của April Dunford cùng lưu ý của bà rằng định vị pre-product là một luận điểm, dự kiến sẽ sai một phần, JOLT Effect về các thương vụ mất vào "không quyết định", và thực hành đánh giá LLM của Hamel Husain và Shreya Shankar (error-analysis trước, khoảng 100 trace kèm quy tắc dừng — không phải "100 golden case").
 
-Dấu vết kiểm toán nằm ngay trong repo. `process/research-verification.md` ghi các nhánh nghiên cứu và các chỉnh sửa đã áp, gồm cả hai con số thống kê bịa bị phát hiện và loại bỏ. `plugin/codex-review.md` ghi các vòng review đối kháng, mọi lỗ hổng được chứng minh đều thành test hồi quy vĩnh viễn. `plugin/dogfood-report.md` ghi lượt chạy thật đầu tiên — trong đó gatekeeper đánh trượt một cửa hoàn toàn chính xác.
+Dấu vết kiểm toán nằm ngay trong repo. `process/research-verification.md` ghi các nhánh nghiên cứu và các chỉnh sửa đã áp, gồm cả hai con số thống kê bịa bị phát hiện và loại bỏ. Các vòng review đối kháng và báo cáo dogfood nằm trong lịch sử git (tóm tắt: `CHANGELOG.md`) — mọi lỗ hổng được chứng minh đều thành test hồi quy vĩnh viễn, và lượt chạy thật đầu tiên kết thúc bằng việc gatekeeper đánh trượt một cửa hoàn toàn chính xác.
 
 MIT — xem [LICENSE](LICENSE).

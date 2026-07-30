@@ -1,7 +1,7 @@
 # Stage 4 — Positioning (Dunford — order mandatory, no rearrange)
 
 > **Manual-mode rendering.** The normative producer of these artifact shapes is the plugin skill
-> `stage-4-*-templates` (skills win on any disagreement — conflicts-inventory C2). Load-bearing table
+> `stage-4-*-templates` (skills win on any disagreement). Load-bearing table
 > headers here are fixture-checked against the validators by `tests/pipeline-contract-tests.js`.
 
 

@@ -8,7 +8,7 @@ user-invocable: false
 
 The single source of truth for everything that happens to an idea AFTER its MVP scope is locked:
 drift, reconciliation, current-truth projections, cycles, and validation runs. Design converged via
-adversarial review (see `plugin/maintenance-design.md` in the plugin repo). Read together with
+adversarial review (design record in the plugin repo's git history). Read together with
 the `method-rules-gate-contracts` skill, the `method-rules-artifact-schema` skill, and
 the `method-rules-state-schema` skill.
 

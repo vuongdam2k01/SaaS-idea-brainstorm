@@ -2,7 +2,7 @@
 /**
  * Regenerate `.codex/agents/*.toml` from `agents/*.md` (saas-idea-brainstorm plugin).
  *
- * `plugin/codex-parity.md` claims the Codex agent bodies are the Claude bodies
+ * The Codex parity contract says the Codex agent bodies are the Claude bodies
  * verbatim. That claim silently went stale the moment an agent gained a new check
  * on the Claude side — which is exactly what happened when the gatekeeper grew its
  * independence / usability / claim / privacy / manifest / cross-domain checks. Two

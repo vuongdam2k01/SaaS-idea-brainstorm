@@ -114,13 +114,13 @@ function main(argv) {
   if (zero.length) {
     process.stdout.write(
       `\nUNDEFENDED: ${zero.map((r) => r.fixture).join(", ")} — never caught in ${opts.runs} run(s). ` +
-        `Add to plugin/failure-modes.md with detector \`nothing\`; a sterner prompt is not the fix, ` +
+        `Record it (detector \`nothing\`); a sterner prompt is not the fix, ` +
         `moving the shape into a script is.\n`
     );
   }
   process.stdout.write(
     "\nThis is a keyword-matched floor, not a precise rate. Read a sample with --verbose before quoting it, " +
-      "and record whatever you measure in plugin/failure-modes.md §1 so the enforcement map stops saying \"unknown\".\n"
+      "and record whatever you measure (see evals/README.md) so the enforcement map stops saying \"unknown\".\n"
   );
 
   if (opts.json) {

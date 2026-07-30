@@ -40,7 +40,7 @@ function mkIdea(slug, state) {
 
 // ===========================================================================
 // FIRST, before anything else: every shipped .js file must parse.
-// Conflicts-inventory P1: a bulk edit once broke the syntax of three scripts
+// A bulk edit once broke the syntax of three scripts
 // including validate-artifact.js — and because hooks fail open, the plugin kept
 // "running" with zero enforcement, silently. Five lines of node --check is the
 // cheapest possible tripwire for exactly that failure.
@@ -926,7 +926,7 @@ console.log("== validate-beachhead ==");
   check("VB forum handle is not reach => not countable", r.j.errors.some((e) => /P5\b/.test(e.msg) && /does not permit an expected reply/.test(e.msg)));
   check("VB none of the five counted", r.j.qualifying === 0);
 
-  // Run #3 checks, absorbed from validate-prospect-tracker.js (conflicts X1).
+  // Run #3 checks, absorbed from validate-prospect-tracker.js (v1.3.0).
   r = vb(mkBeach([
     "| P1 | vn wedding shop | 4 | is a competitor with its own shipped product | E1 | acme.example | 2026-07-25 | work email, replies expected | contacted |",
     "| P2 | vn wedding shop | 4 | mentioned in a toplist roundup of studios | E2 | b.example | 2026-07-25 | work email, replies expected | contacted |",
@@ -968,7 +968,7 @@ console.log("== validate-beachhead ==");
   check("VB pre-run#2 template => missing-column error", r.code === 1 && hasErr(r, "missing-column"));
 
   // …but the SAME old shape in a pre-1.2.0 workspace is legacy-accepted without a
-  // count (LEGACY_RUNGS precedent — conflicts C10: a format change must not fail
+  // count (LEGACY_RUNGS precedent — a format change must not fail
   // in-flight ideas retroactively).
   const dl = path.join(TMP, "vblegacy");
   fs.mkdirSync(dl, { recursive: true });

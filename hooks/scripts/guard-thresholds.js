@@ -139,7 +139,7 @@ process.stdin.on("end", () => {
           "This edit would make state.json unparsable JSON. Fix the edit instead of writing a broken state file."
         );
       }
-      // Truncation guard (conflicts D3): dogfood run #2 wrote state.json directly
+      // Truncation guard (v1.3.0): dogfood run #2 wrote state.json directly
       // 21/21 times and truncated it once. A direct edit that DROPS a load-bearing
       // top-level key is a corruption, not an update — route it through
       // scripts/state-write.js, which schema-validates and keeps a .bak.

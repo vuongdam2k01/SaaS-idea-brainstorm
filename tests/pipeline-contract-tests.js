@@ -271,7 +271,7 @@ console.log("== run-#3 absorbed contracts ==");
     /research-raw-competitor-scanner/.test(gc));
   check("the F tracker must pass the prospect validator and contact is not a predicate",
     /validate-beachhead/.test(gc) && /NOT an F predicate/.test(gc));
-  check("only ONE prospect validator ships (conflicts X1: two made gate F unpassable)",
+  check("only ONE prospect validator ships (v1.3.0: two made gate F unpassable)",
     !fs.existsSync(path.join(ROOT, "scripts", "validate-prospect-tracker.js")));
   check("V2 requires a reproducible ChatGPT-gap record",
     /reproducible/.test(gc) && /failure criterion written BEFORE judging/.test(gc));
@@ -286,7 +286,7 @@ console.log("== run-#3 absorbed contracts ==");
 }
 
 // ---------------------------------------------------------------------------
-// The run #3 tracker checks now live inside validate-beachhead.js (conflicts X1:
+// The run #3 tracker checks now live inside validate-beachhead.js (v1.3.0:
 // two validators over one table made gate F unpassable — this suite and
 // hook-tests each tested only "their" validator, which is how it slipped by).
 console.log("== prospect validator (merged run #3 checks) ==");
@@ -407,7 +407,7 @@ console.log("== the shipped producers agree with the validator ==");
 }
 
 // ---------------------------------------------------------------------------
-console.log("== one version, declared once (conflicts C5) ==");
+console.log("== one version, declared once ==");
 {
   // plugin.json is the ONLY place the current version is declared. Docs stopped
   // self-declaring; the remaining literals are the pipeline_version values that
@@ -436,7 +436,7 @@ console.log("== one version, declared once (conflicts C5) ==");
 // ---------------------------------------------------------------------------
 console.log("== threshold vocabulary: hook and verifier stay identical ==");
 {
-  // Conflicts C9: THRESHOLD_FIELDS is declared in BOTH guard-thresholds.js (hook)
+  // v1.3.0: THRESHOLD_FIELDS is declared in BOTH guard-thresholds.js (hook)
   // and verify-threshold-snapshot.js (script), and the sealed-field set carries a
   // different NAME in each (NON_REVISABLE vs SEALED). Two hand-kept copies of one
   // vocabulary is the exact mechanism that caused the template blocker twice —
@@ -463,7 +463,7 @@ console.log("== threshold vocabulary: hook and verifier stay identical ==");
 // ---------------------------------------------------------------------------
 console.log("== decision-log type enum covers every ordered row type ==");
 {
-  // Conflicts C8: gate-check ordered a `signing-blocked` row while the closed
+  // v1.3.0 fix: gate-check ordered a `signing-blocked` row while the closed
   // `type` enum did not list it — and decision-log has no validator, so the
   // mismatch drifted silently. The enum line must cover every type any skill
   // instructs the model to append.
@@ -479,7 +479,7 @@ console.log("== decision-log type enum covers every ordered row type ==");
 console.log("== the prospect-table producers agree with validate-beachhead ==");
 {
   // Same mechanism as the ledger block above, applied to the table that caused
-  // conflicts X2: the stage-0 template emitted one shape while a second validator
+  // v1.3.0: the stage-0 template emitted one shape while a second validator
   // required another, so every by-the-book run failed gate F. Every producer of
   // the prospect table must generate a table the ONE validator accepts.
   const producers = [

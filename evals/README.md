@@ -62,7 +62,7 @@ per fixture per repetition — so start with `--runs 3` before asking for 10.
 
 ## Reading the result
 
-- **Catch rate near 1.0** — record it in `plugin/failure-modes.md` §1 and say so in the README.
+- **Catch rate near 1.0** — record it in `CHANGELOG.md` and say so in the README.
   It is still a rate, not a guarantee; the map should read `gatekeeper (measured 0.9x)`.
 - **Catch rate below ~0.8** — the interpretation layer is not defended, whatever the checklist
   says. The fix is not a sterner prompt: it is moving as much of the shape as possible into a

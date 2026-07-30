@@ -6,7 +6,7 @@
  * `validate-prospect-tracker.js` (2026-07-30) after two parallel dogfood runs
  * independently found the same weakness and two parallel fixes produced two
  * validators with incompatible column sets — making gate F unpassable (see
- * plugin/conflicts-inventory.md X1/X2). One validator, one table shape.
+ * CHANGELOG.md v1.3.0). One validator, one table shape.
  *
  * What each run taught it:
  * - Run #2: six rows labelled "Tier 4 (est.)" — five were advice in the

@@ -12,7 +12,7 @@ Three rules make it work:
 - **Thresholds are signed before tests run.** After the signing ceremony at gate F, changing one takes your explicit approval and a recorded revision.
 - **A failed gate goes backwards.** Never forward on a broken assumption. Failing with a clear direction is a good outcome.
 
-Repository: <https://github.com/vuongdam2k01/SaaS-idea-brainstorm> · MIT · v1.2.0
+Repository: <https://github.com/vuongdam2k01/SaaS-idea-brainstorm> · MIT · current version: see [plugin.json](.claude-plugin/plugin.json) + [CHANGELOG.md](CHANGELOG.md)
 
 ---
 
@@ -36,7 +36,7 @@ npx codex-marketplace add vuongdam2k01/SaaS-idea-brainstorm
 
 Every normative document (state schema, artifact schema, gate contracts, maintenance rules, and each stage's templates) ships as its own **loadable skill**, not as a file next to a skill. That is deliberate: a marketplace install lives in `~/.claude/plugins/cache/...`, outside the session's allowed directories, so anything a skill can only reach by reading a sibling path off disk is unreadable exactly when a real user installs it the documented way. No `--add-dir`, no permission widening, nothing to configure.
 
-Skills and hooks run unmodified on both CLIs; the four research/audit agents ship as `.codex/agents/*.toml` for Codex. Platform differences worth knowing are in [plugin/codex-parity.md](plugin/codex-parity.md).
+Skills and hooks run unmodified on both CLIs; the four research/audit agents ship as `.codex/agents/*.toml` for Codex. The agent bodies are kept byte-identical across both platforms by `scripts/sync-codex-agents.js --check`.
 
 Start the CLI in the repo where you want your idea workspaces to live — artifacts are written to `ideas/<slug>/` relative to the working directory, never inside the plugin. Node.js on PATH powers three hooks and the state writer; without it they fail open with a visible notice and nothing else breaks.
 
@@ -233,9 +233,8 @@ The methodology also exists as plain documents. Create `ideas/<your-idea>/`, cop
 | `tests/` | `hook-tests.js` + `pipeline-contract-tests.js` — the regression suites (first case: `node --check` on every shipped `.js`) |
 | `evals/` | **Dev-only.** Seeded-defect fixtures + graders measuring the gatekeeper's catch rate on interpretation-layer failures (`run-gatekeeper-eval.js`). Fixture generator writes to the OS temp dir, never into a repo |
 | `process/` | The methodology (Vietnamese): pipeline, foundations, build-and-launch, research-verification. Explanatory — skills win on conflict |
-| `plugin/` | Design documents — start at `plugin/README.md`, which says which files are live vs frozen history |
+| `CHANGELOG.md` | What changed in each release; the full design/review record lives in git history |
 | `templates/` · `ideas/` | Manual-use templates (rendering of the template skills); idea workspaces |
-| `dogfood/` | Internal dogfood run workspaces (gitignored, see its README) — deliberately not under `ideas/` |
 
 ```bash
 node scripts/preflight.js
@@ -267,6 +266,6 @@ One command, four checks: syntax-sweep every shipped `.js`, both test suites, an
 
 Assembled and source-verified against primary sources rather than summaries: Steve Blank's Customer Development (earlyvangelist as a five-level hierarchy — only levels 4–5 qualify), Strategyzer's desirability/feasibility/viability assumption mapping, *The Mom Test*, Ash Maurya's Running Lean (10–15 interviews), April Dunford's positioning component order and her caveat that pre-product positioning is a thesis expected to be partly wrong, the JOLT Effect on "no decision" losses, and the LLM evaluation practice of Hamel Husain and Shreya Shankar (error-analysis first, ~100 traces with a stop rule — not "100 golden cases").
 
-The audit trail is in the repo. `process/research-verification.md` records the research branches and the corrections applied, including two fabricated statistics that were found and removed. `plugin/codex-review.md` records the adversarial review rounds, with every proven bypass turned into a permanent regression test. `plugin/dogfood-report.md` records the first real run — in which the gatekeeper correctly failed a gate.
+The audit trail survives. `process/research-verification.md` records the research branches and the corrections applied, including two fabricated statistics that were found and removed. The adversarial review rounds and dogfood run reports live in git history (see `CHANGELOG.md` for the summary) — every proven bypass became a permanent regression test, and the first real run ended with the gatekeeper correctly failing a gate.
 
 MIT — see [LICENSE](LICENSE).

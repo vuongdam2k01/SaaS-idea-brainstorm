@@ -21,7 +21,7 @@
   "interface": {
     "displayName": "SaaS Idea Brainstorm",
     "shortDescription": "Raw idea to a locked, evidence-graded MVP spec.",
-    "longDescription": "Drives a raw SaaS idea through framing, competitive scan, market validation, feasibility verification, positioning, and MVP scope lock, refusing to call anything validated that isn't. Built first for Claude Code; see plugin/codex-parity.md in this repo for what differs on Codex (subagent setup, hook availability, no config-on-enable prompt).",
+    "longDescription": "Drives a raw SaaS idea through framing, competitive scan, market validation, feasibility verification, positioning, and MVP scope lock, refusing to call anything validated that isn't. Built first for Claude Code; on Codex the four agents ship as .codex/agents/*.toml kept byte-identical by scripts/sync-codex-agents.js (differences: subagent setup, hook availability, no config-on-enable prompt).",
     "category": "Productivity"
   }
 }
