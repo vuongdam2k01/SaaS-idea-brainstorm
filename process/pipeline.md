@@ -16,6 +16,7 @@ Goal: convert vague idea into structured testable hypothesis set, know exactly w
 - Identify **trigger and frequency**: when does problem surface? Daily, monthly, only on event? Frequency × intensity × available budget = true problem scale, future revenue model (yearly problem hard to sustain subscription).
 - Test falsifiability: "what observation would prove me wrong?"
 - **Output:** one-page problem hypothesis. **Pass when:** statement has no solution in it, has disqualifying condition.
+- **Classify the intake first.** `[GUESS]` answers "is this backed?", not "where did this come from" — and at intake those differ. Every statement in the idea brief is classed `source-stated` (founder's own words) / `evidence-backed` (an E-id) / `interpretation` (your reading of what they said) / `assumption` / `unknown`. One rule makes it worth keeping: **the model may never promote its own `interpretation` to `source-stated`** — only the founder confirming it does that. Then split open questions into **blocking** (the answer changes actor, problem, outcome, scope, risk, or research order — each naming what it blocks) vs non-blocking. Gate F requires **zero unresolved blocking questions**, not zero unknowns: unknowns are the point of the pipeline; an unanswered blocker means we do not yet know what to test first, and research started in that state gets thrown away.
 
 ### 0.2. Build one-page Lean Canvas
 - Fill 9 boxes: problem, segment, unique value, solution, channels, revenue, costs, key metrics, unfair advantage.
@@ -68,6 +69,7 @@ Run immediately after 0.1, before interviews — findings shape interview questi
 
 ### 1.2. Profile key competitors
 - For each direct/indirect competitor of note: positioning, their ICP, pricing & revenue model, main channel, company age, health signals (update frequency, hiring, funding).
+- **Normalize before comparing, or you compare nothing.** Every price carries currency, tax basis, billing period (monthly vs annual-prepaid quietly differs ~20%), plan edition, seat/usage basis, locale, `observed_at`, and **list price kept apart from effective price** (promo/annual/enterprise quote). Every capability carries a state: `announced | beta | documented | generally-available | observed | withdrawn` — a launch post is not a shipped feature, and a withdrawn feature is a signal in the *opposite* direction. Syndicated announcements and aggregator write-ups **collapse to the original source**: five reposts are one source.
 
 ### 1.3. Mine negative reviews (1–3 stars)
 - Read and cluster by **unmet need**, preserve verbatim — this is gold: real need, customer language, free.
@@ -107,6 +109,9 @@ Core principle: validation is **observing real behavior**, not collecting praise
 - Map each finding back to assumption A# in map, update status (confirmed/rejected/unclear).
 - Update competitor map: **mark which competitors customer actually mentioned** (often: competitor you thought critical = unknown to customer; everyone uses Excel = true competitor).
 - Evidence ledger rule: every entry must have *who said, when, verbatim, which assumption*. Untraced = not evidence.
+- **Independence is computed, never declared.** Each row records `root_source_id` — the ORIGINAL source, not the page you read it on. Rows sharing a root are **one** source in every denominator, however many reposts carried the same complaint. Also per row: `scope_limits` (who/where/when it actually covers — blank means gates read it at its narrowest), `bearing` (`supports|contradicts|unclear`), and `supersedes` for a correction. **Rows are superseded, never deleted**, and a superseded row stops counting. Run `scripts/validate-evidence-ledger.js` before any gate that consumes the ledger; its `max_independent_count` is a hard ceiling on the denominator.
+- **The sampling frame lives in its own file** (`sampling-frame-v1.md`), hashed and journaled BEFORE collection starts. A "registered on" line inside the ledger is self-report — it can be edited once the numbers arrive and nothing would show it. Gate V1 re-verifies the hash: a frame edited after collection began fails exactly like a moved threshold.
+- **Participant data has a lifecycle, not just a location.** Any interactive contact gets a row in `private/participant-data-manifest.md` BEFORE their material enters an artifact: consent basis, what was recorded, allowed use, retention deadline, withdrawal state. Withdrawal means stop using it AND exclude that session from every denominator (excluded sessions are listed, never silently dropped).
 - End each call with **commitment & advancement** (Mom Test ch.5): person must give one of 3 "currency" — time (book next concrete call), credibility (introduce peer/boss), money (deposit, LOI). Call that got only praise = your interview failed. Log commitments, not sentiment.
 
 ### 2.4. Hunt tier-one signals
@@ -130,10 +135,13 @@ Core principle: validation is **observing real behavior**, not collecting praise
 ### 2.7. Mock/prototype no-code → test on people you interviewed
 - Cost building mock near zero now — validation unit shifts from "describe verbally" to "touch and try". Build for each direction.
 - Measure **behavior**, not praise: ask price? ask when available? ask to stay connected? bring colleague to see?
+- **Account for every session** — the Mom Test applies to a demo too, where the pull to sell is stronger than in an interview. Per session: the task as a **goal + context** (never interface instructions, never internal feature names), every **intervention** (any hint given), the outcome — `unassisted` / `rescued` (finished only after help) / `failed` / `abandoned` — plus confounds. **The denominator is valid sessions only**, and **`rescued` never counts as support**: coaching someone through a mock and recording success is how a team convinces itself a confusing product is usable. Findings are written observation → interpretation → impact → recommendation, so a reader can dispute the interpretation without losing the observation. A formative sample shows *that* a problem exists, never *how often*.
+- **A fourth outcome exists and it is not a softer failure: `invalid`.** The instrument failed, not the hypothesis — broken mock, tracking never fired, wrong audience, dead payment link, contaminated sample. An invalid run is repaired and re-run; its numbers never enter the ledger and never move a gate. Reporting instrumentation failure as market evidence ("we ran it and nobody converted") is one of the easiest ways to kill a good idea with a bug. Before any run that measures something, fire the event yourself first.
 - Benchmark against switching threshold: direction better enough to leave current solution? (Better 20% usually insufficient to absorb switching cost: data entry, habits, integrations.)
 
 ### 2.8. Smoke test / landing page
 - One value prop, one call-to-action, traffic to right ICP.
+- **Claim preflight before anything goes outward.** Every claim in the copy carries a disposition: `publish-as-fact` (supported within its stated scope, support cited) · `publish-with-qualification` (the condition appears in the copy itself, never diluted into a "may" or a footnote) · `test-as-proposition` (unproven, framed as what the product *will* do — this is the legitimate heart of a landing test) · `do-not-publish`. Testing propositions is the point; what is forbidden is fabricated **support**: invented customer results or testimonials, numbers with no measurement behind them, guarantees, security/compliance assurances, roadmap items written in the present tense, internal test figures presented as universal outcomes.
 - Pre-set threshold. Note: "20+ signup" is community heuristic without source — measure **payment-intent conversion** instead (signup→paid usually 5–15%; pre-order/deposit = strong). Landing/waitlist are weak signals (real case on Indie Hackers: 300+ waitlist → 3 paying). Signup is support play, not gate replacement.
 - Reference frame: **2/20/200 (Rob Walling)** — 2h screen idea → 20h landing+interviews → 200h MVP manual. Validation is risk reduction by tier, not binary pass/fail once.
 
@@ -246,6 +254,7 @@ Nuance: pre-product, you get **positioning thesis** — educated guess, expect p
 ### 4.5. Write and test pitch
 - **One sentence, customer verbatim from V1**: *"Unlike [real alternative], this [differentiator] for [ICP] because [proof]."*
 - **Test on real customers** — don't self-score.
+- If you A/B test messages, **vary exactly one thing per variant** (audience lead OR problem framing OR outcome OR mechanism OR proof). Change two and the result attributes to nothing.
 
 **▶ ADVANCEMENT:** alternatives from customer words + differentiator survives copycat test + pitch tested real.
 **LOCK:** official positioning — drives copy, neo price, feature order in scope.
@@ -275,6 +284,10 @@ Entrance condition: passed V3 (have payer) + R2 (value delivered) + Positioning 
 - **Code-understanding boundary**: zones you must 100% understand (money, user data, auth/permission) vs zones you can looser. Money/data/auth = non-negotiable.
 - **Event tracking plan**: event names established upfront, **must include aha event** (5.2). Cabling post-launch = data lost forever.
 
+### 5.4b. Minimum service promise (scope is only half the contract)
+- V3 collected real money, so people have expectations before a line of product code exists. Write the promises you can actually keep: who may use it, supported use cases and **explicitly unsupported** ones, beta disclosure, what data is collected + retention + deletion path, export/correction/recovery expectation, where a user reports a problem and who answers, what happens when it breaks, and what happens to their data if the product pauses or shuts down.
+- Two rules: **invent nothing** (no SLA percentage, uptime figure, or response time the founder has not agreed to — an unanswered field is `N/A because ___`, never a plausible-sounding guess), and **"minimum" never means minimum safety** — drop whatever does not protect value, learning, safety or an honest promise, but never security, privacy, data integrity, accessibility, or a way to report a problem. A build session cannot infer a service boundary from a feature list.
+
 ### 5.5. Freeze Definition of Done
 - Checklist for v1 complete, **freeze now** — before build, not during (you'll negotiate with yourself). Minimum: core loop end-to-end, real money + handle failure, user A can't see user B data, aha event fires, backup runs, pricing/terms/privacy pages, dogfood done.
 - Signature date locked.
@@ -301,5 +314,7 @@ Entrance condition: passed V3 (have payer) + R2 (value delivered) + Positioning 
 | **3. Verify** (parallel) | R1: 3.1–3.5 spike+error-analysis+eval+econ · R2: 3.6–3.9 concierge+measure+retention+log | R1: eval passes on real · R2: result matches promise | Promise scope → core loop + aha true |
 | **4. Positioning** | 4.1 best customers · 4.2 alternatives · 4.3 5 parts · 4.4 copycat · 4.5 pitch | Pitch clicks real customers | Official positioning |
 | **5. Scope Lock** | 5.1 loop traced · 5.2 aha named · 5.3 cut · 5.4 design · 5.5 DoD | All gate conditions | **Locked MVP scope** |
+
+Two more principles were added after an adversarial review against a full solo-dev agent team (see `plugin/solo-dev-comparison.md`): **(4)** evidence gathered for one gate may inform or reopen another, but never *satisfy* it — a landing conversion is not willingness to pay, an eval score is not delivered value, a usability observation is not problem prevalence; **(5)** when the same failure recurs twice with no new evidence between attempts, stop and hand control back rather than looping — a third identical attempt is not new information.
 
 Three principles run through every stage: **(1)** all evidence traces to real person or real data — AI everywhere except evidence source; **(2)** all pass/fail thresholds written pre-test, no post-hoc moving goalposts; **(3)** fail at gate N → go back to gate N-1 with fresh data, don't push forward on wrong guess.

@@ -4,7 +4,7 @@ description: Record that a post-LOCK SaaS idea's product reality has drifted fro
 argument-hint: "[idea-slug] [what changed]"
 ---
 
-Cheap, incremental drift declaration — the counterpart to the full `reconcile` skill. Load `method-rules` (see [maintenance-rules.md](../method-rules/maintenance-rules.md) §6). Never nag: declaring drift is good news for the system, not a debt.
+Cheap, incremental drift declaration — the counterpart to the full `reconcile` skill. Load `method-rules` **and then the `method-rules-maintenance-rules` skill** (§6 governs this skill) — it is deliberately NOT in the default bundle, so post-LOCK skills load it themselves. Never nag: declaring drift is good news for the system, not a debt.
 
 Idea slug = $0; free-text change description = rest of arguments (elicit if empty: what changed, roughly when, how they know — shipped code? config? pricing page?).
 

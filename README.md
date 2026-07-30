@@ -34,6 +34,8 @@ Repository: <https://github.com/vuongdam2k01/SaaS-idea-brainstorm> · MIT · v1.
 npx codex-marketplace add vuongdam2k01/SaaS-idea-brainstorm
 ```
 
+Every normative document (state schema, artifact schema, gate contracts, maintenance rules, and each stage's templates) ships as its own **loadable skill**, not as a file next to a skill. That is deliberate: a marketplace install lives in `~/.claude/plugins/cache/...`, outside the session's allowed directories, so anything a skill can only reach by reading a sibling path off disk is unreadable exactly when a real user installs it the documented way. No `--add-dir`, no permission widening, nothing to configure.
+
 Skills and hooks run unmodified on both CLIs; the four research/audit agents ship as `.codex/agents/*.toml` for Codex. Platform differences worth knowing are in [plugin/codex-parity.md](plugin/codex-parity.md).
 
 Start the CLI in the repo where you want your idea workspaces to live — artifacts are written to `ideas/<slug>/` relative to the working directory, never inside the plugin. Node.js on PATH powers three hooks and the state writer; without it they fail open with a visible notice and nothing else breaks.
@@ -99,7 +101,7 @@ It's a DAG, not a queue. Stage 1 begins right after task 0.1. Stage 3 runs along
 
 Every gate check runs three layers. **Formal**: prerequisites hold, artifacts exist at acceptable statuses, thresholds were signed before the evidence dates and still match the signed snapshot, grades are strictly A/B/C/D, no grade-D item counted, claims trace to evidence ids, the metric used the pre-registered denominator. **Adversarial**: the `gatekeeper` agent reads everything with fresh eyes and tries to fail the gate — findings reported verbatim, ranked, unsoftened. **Decision**: you approve, and the verdict lands in `decision-log.md`.
 
-The full contracts — required artifacts per gate, statuses, exact metrics — live in `skills/method-rules/gate-contracts.md`. That file is the law; skills are instructed not to improvise around it.
+The full contracts — required artifacts per gate, statuses, exact metrics — live in `skills/method-rules-gate-contracts/SKILL.md`. That file is the law; skills are instructed not to improvise around it.
 
 ---
 
@@ -158,6 +160,7 @@ ideas/support-digest/
 ├── idea-brief.md                 # raw idea verbatim + refined articulation + evolution log
 ├── founder-charter.md            # your intent, captured as it reveals itself; ships inside the pack
 ├── decision-log.md               # append-only: verdicts, pivots, revisions, spends
+├── audit-trail.md                # append-only: redacted gatekeeper findings, so a clone keeps the reasoning
 ├── problem-hypothesis.md · lean-canvas.md · beachhead-icp.md
 ├── assumption-map.md             # deadly assumptions with Test Cards and thresholds
 ├── kill-criteria.md              # locked at the F signing ceremony
@@ -168,19 +171,19 @@ ideas/support-digest/
 ├── positioning.md                # locked at gate P
 ├── mvp-pack/                     # the deliverable — copies, not references
 │   ├── mvp-spec.md · tech-design.md · definition-of-done.md
-│   ├── carry-forward.md · evidence-quality-report.md
+│   ├── carry-forward.md · evidence-quality-report.md · audit-trail.md
 │   └── eval/ · experiments/{landing,presell,concierge}/
 └── private/                      # its own .gitignore: *  and  !.gitignore
     ├── contacts.md               # P1, P2, … → real identities
     └── …                         # transcripts, snapshots, payment identities
 ```
 
-Every markdown artifact carries frontmatter that a hook validates — `artifact`, `idea`, `stage`, `gate`, `status` (draft/ready/locked), `evidence_grade`, `rung`, `pipeline_version`, `updated`. The evidence ledger is one table where each row traces to a real human, with retrieval provenance so a later failed spot-check can distinguish "the source changed" from "this was fabricated":
+Pipeline artifacts carry frontmatter that a hook validates — `artifact`, `idea`, `stage`, `gate`, `status` (draft/ready/locked), `evidence_grade`, `rung`, `pipeline_version`, `updated`. The journals are exempt by design and carry none: `decision-log.md`, `audit-trail.md`, `post-mortem.md`, the per-idea `README.md`, everything under `private/`, and `error-analysis/batch-NNN.md` worker traces. The evidence ledger is one table where each row traces to a real human, with retrieval provenance so a later failed spot-check can distinguish "the source changed" from "this was fabricated":
 
 ```markdown
-| id | date | source | type | url_or_ref | retrieved | via | verbatim_or_observation | assumption | grade | status |
-|----|------|--------|------|-----------|-----------|-----|-------------------------|------------|-------|--------|
-| E1 | 2026-07-29 | reddit u/… | community | https://… | 2026-07-29 | miner-run-3 | "exact quote" | A3 | B | confirms |
+| id | date | source | root_source_id | type | url_or_ref | retrieved | via | verbatim_or_observation | assumption | grade | bearing | scope_limits | relationship | supersedes |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| E1 | 2026-07-29 | reddit u/… | RS-thread-1f2a | community | https://… | 2026-07-29 | miner-run-3 | "exact quote" | A3 | B | supports | 1 user, US, 2025 | — | — |
 ```
 
 Artifacts are ground truth. `state.json` is only an index and can be rebuilt from them plus the decision log — if it's ever damaged, `status` offers to do exactly that.
@@ -225,7 +228,7 @@ The methodology also exists as plain documents. Create `ideas/<your-idea>/`, cop
 | Path | Contents |
 |---|---|
 | `.claude-plugin/` · `.codex-plugin/` | Plugin manifest, one per platform |
-| `skills/` | 15 skills — 8 commands (incl. post-LOCK `reconcile`, `declare-drift`, `run-validation`), 6 stages, and `method-rules` with `state-schema.md`, `artifact-schema.md`, `gate-contracts.md`, `maintenance-rules.md` |
+| `skills/` | 15 skills — 8 commands (incl. post-LOCK `reconcile`, `declare-drift`, `run-validation`), 6 stages, and `method-rules` with `method-rules-state-schema` skill, `method-rules-artifact-schema` skill, `method-rules-gate-contracts` skill, `method-rules-maintenance-rules` skill |
 | `agents/` · `.codex/agents/` · `hooks/` · `scripts/` | The four subagents, once as Claude Code markdown and once as Codex TOML; `hooks.json` (same file, both platforms) plus three Node scripts; the atomic state writer |
 | `tests/` | `hook-tests.js` — hook regression suite |
 | `process/` | The methodology (Vietnamese): pipeline, foundations, build-and-launch, research-verification |
@@ -242,7 +245,7 @@ The suite covers every adversarial-review finding, including a proven partial-ed
 
 ## When something goes wrong
 
-**A write was blocked over frontmatter.** One of the nine keys is missing or a value is outside its enum; the message names the key.
+**A repair was demanded over frontmatter.** One of the nine keys is missing or a value is outside its enum; the message names the key. The check runs *after* the write (`PostToolUse`), so the file is already on disk — the hook asks for it to be fixed rather than preventing it, and the fix is immediate.
 
 **An edit to a signed threshold was blocked.** Working as intended. Signed thresholds move only through an approved revision recorded in `state.thresholds.revisions` and mirrored to the decision log — ask for the revision explicitly, with a reason.
 

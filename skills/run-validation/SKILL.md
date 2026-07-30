@@ -4,7 +4,7 @@ description: Execute and adjudicate a signed post-LOCK validation run for a SaaS
 argument-hint: "[idea-slug] [run_id]"
 ---
 
-Execute a validation run whose spec was signed by `reconcile`. Load `method-rules` and read [maintenance-rules.md](../method-rules/maintenance-rules.md) §3–§4 — the claim-transition table is the law: **`supported` is reachable ONLY through this skill's signed-window verdict.**
+Execute a validation run whose spec was signed by `reconcile`. Load `method-rules` and read the `method-rules-maintenance-rules` skill §3–§4 — the claim-transition table is the law: **`supported` is reachable ONLY through this skill's signed-window verdict.**
 
 Idea slug = $0, run_id = $1 (if missing, list signed specs in `validation-runs/` whose window is open or expired-unadjudicated, and ask).
 

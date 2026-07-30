@@ -29,7 +29,7 @@
 
 > Market/behavioral/feasibility cells are lifted ONLY by a ledger id; intent cells (what the
 > founder wants) are lifted by explicit user confirmation. The founder confirming their own
-> guess about the market does not make it evidence (artifact-schema.md).
+> guess about the market does not make it evidence (the `method-rules-artifact-schema` skill).
 
 ## 0.3. Market Type
 

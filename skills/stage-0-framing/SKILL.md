@@ -4,11 +4,11 @@ description: Stage 0 of the SaaS validation pipeline - turn a raw idea into a te
 user-invocable: false
 ---
 
-Stage 0: framing. Load `method-rules` first; read `state.json` for the idea. Goal: a raw idea becomes a falsifiable hypothesis set, and we know exactly what must be tested first. This stage is elicitation + structuring — work WITH the user; your drafts are `[GUESS]` until they confirm or evidence backs them. Artifact templates: [templates.md](templates.md).
+Stage 0: framing. Load `method-rules` first; read `state.json` for the idea. Goal: a raw idea becomes a falsifiable hypothesis set, and we know exactly what must be tested first. This stage is elicitation + structuring — work WITH the user; your drafts are `[GUESS]` until they confirm or evidence backs them. Artifact templates: the `stage-0-framing-templates` skill.
 
 ## 0.0 Idea brief → `idea-brief.md`
 
-Before decomposing anything, complete the idea brief (created at new-idea; template in [templates.md](templates.md)): raw idea verbatim (immutable), refined articulation of **what it is**, for whom, **how it's imagined to work** (the solution concept), vision & rough roadmap (Blank: the first product spec comes from the founders' vision, and earlyvangelists buy the whole vision, not just v1 — so the vision must be written down: it is the thing this pipeline tests), why now / why this founder (reach, expertise, willingness to serve this segment daily), constraints, and the founder's definition of success. Elicit from the user; your drafts stay `[GUESS]`. The brief is a **living document** with an evolution log — every pivot the pipeline forces gets recorded there with its evidence trail.
+Before decomposing anything, complete the idea brief (created at new-idea; template in the `stage-0-framing-templates` skill): raw idea verbatim (immutable), refined articulation of **what it is**, for whom, **how it's imagined to work** (the solution concept), vision & rough roadmap (Blank: the first product spec comes from the founders' vision, and earlyvangelists buy the whole vision, not just v1 — so the vision must be written down: it is the thing this pipeline tests), why now / why this founder (reach, expertise, willingness to serve this segment daily), constraints, and the founder's definition of success. Elicit from the user; your drafts stay `[GUESS]`. The brief is a **living document** with an evolution log — every pivot the pipeline forces gets recorded there with its evidence trail.
 
 ## 0.0b Classify the intake, and rank what is actually blocking
 
@@ -32,6 +32,10 @@ outcome, scope, risk, or what to research first — each one names the section i
 AskUserQuestion; carry the rest. Gate F requires **zero unresolved blocking questions** — not zero
 unknowns. Unknowns are the point of the pipeline; unanswered blocking questions mean we do not yet
 know what to test first, and research started in that state gets thrown away.
+
+**Claim ids (applies from 0.0 onward).** Every decision-bearing market/behaviour/feasibility statement gets a stable id (`CL1`, `CL2`, …) and exactly ONE current epistemic label, recorded once in `idea-brief.md`. Any other artifact restating that claim **cites the id** and may not carry a stronger label than the registry row. Gate F Layer 1 compares labels across artifacts; a mismatch is a blocker.
+
+> Run #3: the claim "60-70% of young guests are invited by chat" was correctly disqualified as vendor marketing in `review-mining.md`, correctly labelled `[GUESS]` in `lean-canvas.md`, and stated as "Thực tế đã được ghi nhận" (recorded fact) with no label and no evidence id in `problem-hypothesis.md` — a file already promoted to `ready` for gate F. Two of three artifacts applied the rule; the labelling instructions were not the problem, the absence of a cross-artifact comparison was.
 
 ## 0.1 Separate the problem from the solution → `problem-hypothesis.md`
 

@@ -1,0 +1,19 @@
+# Does the gatekeeper recompute a headline derived number, and notice that its
+# caveat was dropped when the claim was promoted out of the raw trail?
+#
+# Run #2 original: a "~20x" traction asymmetry that its own citations did not
+# produce (real means ~32x and ~48x), across non-comparable periods, with the
+# caveat present in private/scan-raw and stripped from the artifact the founder
+# actually decided on. The gatekeeper called that "decorative self-criticism".
+name: gatekeeper-derived-number
+tags: [gatekeeper, interpretation-layer, gate-C, promotion]
+runs: 10
+scaffold_script: node evals/fixtures/build-fixtures.js "$CASE_TMP" && cp -r "$CASE_TMP/derived-number/." .
+prompt: |
+  Run the gate-F gatekeeper review for the idea at `ideas/derived-number`.
+
+  Use the saas-idea-brainstorm gatekeeper agent, wait for it inline, and reproduce
+  its findings verbatim and ranked. Gate: F. Do not soften and do not summarize the
+  findings away.
+graders:
+  - graders/recomputes-and-notices-stripped-caveat.md

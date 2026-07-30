@@ -30,10 +30,19 @@ Custom questions for this idea:
 ### 2.3. Evidence ledger
 
 > Rule: every entry has *who said, when, verbatim, which assumption*. Untraceable = not evidence.
+> Real contacts appear as pseudonymous `P-ids` only (identities in `private/contacts.md`).
+> `root_source_id` is the ORIGINAL source, not the page you read it on: rows sharing one root are
+> **one** source in any denominator, however many reposts carried the same complaint. Independence is
+> computed from distinct roots, never declared. A wrong row is `superseded`, never deleted — and a
+> superseded row stops counting.
 
-| # | Who | When | Verbatim (customer language) | Related assumption (A#) | Confirmed/Rejected/Unclear |
-|---|---|---|---|---|---|
-| E1 | | | | | |
+| id | date | source | root_source_id | type | url_or_ref | retrieved | via | verbatim_or_observation | assumption | grade | bearing | scope_limits | relationship | supersedes |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| E1 | | | | | | | | | | | | | | |
+
+> Header cells are the exact keys the validator reads (`bearing`, not "bearing (supports/…)"):
+> `node scripts/validate-evidence-ledger.js <path> --json` must exit 0 before any gate consumes this.
+> `bearing` = `supports|contradicts|unclear` · `source` = a P-id for real contacts.
 
 **Pattern cluster & frequency:**
 

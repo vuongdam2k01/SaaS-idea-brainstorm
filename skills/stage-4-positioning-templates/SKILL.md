@@ -1,3 +1,9 @@
+---
+name: stage-4-positioning-templates
+description: Artifact templates for stage 4 of the SaaS validation pipeline. Load when writing that stage's artifacts.
+user-invocable: false
+---
+
 # Stage 4 artifact template
 
 ## positioning.md
@@ -10,7 +16,7 @@ gate: P
 status: draft            # locked at gate P pass
 evidence_grade: B
 rung: <rung>
-pipeline_version: 1.1.0
+pipeline_version: 1.2.0
 updated: YYYY-MM-DD
 ---
 # Positioning THESIS (pre-product: expect revision once real customers arrive; do not tighten early)

@@ -34,7 +34,16 @@ function check(name, cond, detail) {
 }
 
 function tmpdir(prefix) {
-  return fs.mkdtempSync(path.join(os.tmpdir(), prefix));
+  // Fall back to a repo-local scratch dir when the system temp is not writable:
+  // a reviewer in a restricted sandbox could not execute this suite at all, which
+  // is worse than leaving a .tmp-tests/ directory behind.
+  try {
+    return fs.mkdtempSync(path.join(os.tmpdir(), prefix));
+  } catch {
+    const local = path.join(ROOT, ".tmp-tests");
+    fs.mkdirSync(local, { recursive: true });
+    return fs.mkdtempSync(path.join(local, prefix));
+  }
 }
 
 function runNode(script, args, opts = {}) {
@@ -100,6 +109,57 @@ console.log("== evidence-ledger validator: independence, supersession, grades ==
   const r3 = runNode("scripts/validate-evidence-ledger.js", [legacy, "--json"]);
   check("legacy `confirms` bearing is rejected with the new name", JSON.parse(r3.stdout).findings.some((f) => f.code === "legacy-bearing"));
 
+  // Edge cases found by probing the validator after it was written (round 10):
+  // every one of these silently over-counted independence or zeroed a count.
+  const probe = (name, body) => {
+    const p = path.join(dir, name + ".md");
+    fs.writeFileSync(p, body);
+    return JSON.parse(runNode("scripts/validate-evidence-ledger.js", [p, "--json"]).stdout);
+  };
+
+  const caseOnly = probe("case", header + row("E1", "RS-a") + row("E2", "rs-A") + row("E3", "RS-b"));
+  check(
+    "root ids differing only in case are ONE source",
+    caseOnly.summary.max_independent_count === 2,
+    `max_independent_count=${caseOnly.summary.max_independent_count} (RS-a and rs-A must collapse)`
+  );
+
+  const blankish = probe("blankish", header + row("E1", "n/a") + row("E2", "   ") + row("E3", "RS-b"));
+  check(
+    'placeholder root ids ("n/a", whitespace) are treated as missing, not as sources',
+    blankish.findings.filter((f) => f.code === "missing-root-source").length === 2
+  );
+
+  const cycle = probe("cycle", header + row("E1", "RS-a", "B", "supports", "—", "E2") + row("E2", "RS-b", "B", "supports", "—", "E1"));
+  check("a supersession loop is an error, not a silently empty ledger", cycle.findings.some((f) => f.code === "supersession-cycle"));
+
+  const multiTarget = probe(
+    "multitarget",
+    header + row("E1", "RS-a", "B", "supports", "—", "E2 E3") + row("E2", "RS-b", "B", "supports", "—", "E1") + row("E3", "RS-c")
+  );
+  check(
+    "a row superseding two rows is rejected (the extra edge used to hide a loop)",
+    multiTarget.findings.some((f) => f.code === "multiple-supersede-targets"),
+    JSON.stringify(multiTarget.findings.map((f) => f.code))
+  );
+
+  const retracted = probe("retracted", header + row("E1", "RS-a") + row("E2", "RS-b", "B", "supports", "—", "E1") + row("E3", "RS-c"));
+  check(
+    "a superseded row's source no longer raises the ceiling",
+    retracted.summary.max_independent_count === 2,
+    `max_independent_count=${retracted.summary.max_independent_count} (E1 was superseded, so RS-a must not count)`
+  );
+
+  const twoTables = probe(
+    "twotables",
+    header + row("E1", "RS-a") + "\n## Pain clusters\n| cluster | count / N | representative E-ids | notes |\n|---|---|---|---|\n| billing | 3/10 | E1 | x |\n"
+  );
+  check(
+    "the cluster table later in the same file is not parsed as evidence rows",
+    twoTables.errors === 0 && twoTables.summary.rows === 1,
+    `errors=${twoTables.errors} rows=${twoTables.summary.rows}`
+  );
+
   // A ledger still using the old `status` column must be told to rename it.
   const oldcol = path.join(dir, "oldcol.md");
   fs.writeFileSync(
@@ -112,6 +172,229 @@ console.log("== evidence-ledger validator: independence, supersession, grades ==
     "pre-1.2 ledger shape is rejected with the rename instruction",
     JSON.parse(r4.stdout).findings.some((f) => f.code === "legacy-status-column")
   );
+}
+
+// ---------------------------------------------------------------------------
+console.log("== marketplace install: no skill depends on reading a file off disk ==");
+{
+  // Dogfood run #3, first command ever issued against a real marketplace install:
+  //   Skill  method-rules                                      -> OK
+  //   Read   ~/.claude/plugins/cache/.../state-schema.md        -> DENIED
+  //   Bash   cat ".../state-schema.md"                          -> BLOCKED
+  //   Glob   **/state-schema.md                                 -> No files found
+  // and `/new-idea` created nothing at all. The Skill tool injects SKILL.md only;
+  // its siblings were reached by relative markdown link, which resolves inside the
+  // plugin cache — outside the session's allowed directories. Every earlier review
+  // ran INSIDE the repo, where those same paths resolve in the cwd, so no amount of
+  // reading the repo could surface it. This test is the standing substitute for an
+  // install a reviewer cannot perform from here.
+  const skillDirs = fs
+    .readdirSync(path.join(ROOT, "skills"), { withFileTypes: true })
+    .filter((e) => e.isDirectory())
+    .map((e) => e.name);
+
+  // 1) A skill package ships exactly one loadable unit: SKILL.md.
+  const withSiblings = skillDirs.filter((d) =>
+    fs.readdirSync(path.join(ROOT, "skills", d)).some((f) => f.endsWith(".md") && f !== "SKILL.md")
+  );
+  check(
+    "no skill package ships a sibling .md a marketplace install cannot read",
+    withSiblings.length === 0,
+    withSiblings.join(", ")
+  );
+
+  // 2) The normative documents are loadable skills, not loose files.
+  for (const s of [
+    "method-rules-state-schema",
+    "method-rules-artifact-schema",
+    "method-rules-gate-contracts",
+    "method-rules-maintenance-rules",
+  ]) {
+    check(`${s} is a loadable skill`, fs.existsSync(path.join(ROOT, "skills", s, "SKILL.md")));
+  }
+  for (const s of ["0-framing", "1-competitive", "2-validate", "3-verify", "4-positioning", "5-scope-lock"]) {
+    check(
+      `stage-${s} templates are a loadable skill`,
+      fs.existsSync(path.join(ROOT, "skills", `stage-${s}-templates`, "SKILL.md"))
+    );
+  }
+
+  // 3) No skill still points at a moved document by filename.
+  const stale = [];
+  for (const d of skillDirs) {
+    const body = fs.readFileSync(path.join(ROOT, "skills", d, "SKILL.md"), "utf8");
+    for (const doc of ["state-schema.md", "artifact-schema.md", "gate-contracts.md", "maintenance-rules.md", "templates.md"]) {
+      if (body.includes(doc)) stale.push(`${d} -> ${doc}`);
+    }
+  }
+  check("no skill references a moved document by filename", stale.length === 0, stale.join(", "));
+
+  // 4) Every skill name a skill tells you to load actually exists. A dangling
+  //    load instruction fails exactly like the original bug, just later.
+  const known = new Set(skillDirs);
+  const dangling = [];
+  for (const d of skillDirs) {
+    const body = fs.readFileSync(path.join(ROOT, "skills", d, "SKILL.md"), "utf8");
+    for (const m of body.matchAll(/`([a-z0-9-]+)`\s+skill/g)) {
+      const name = m[1];
+      if (/^(method-rules|stage-[0-5])/.test(name) && !known.has(name)) dangling.push(`${d} -> ${name}`);
+    }
+  }
+  check("every referenced skill name resolves to a shipped skill", dangling.length === 0, dangling.join(", "));
+}
+
+// ---------------------------------------------------------------------------
+console.log("== run-#3 absorbed contracts ==");
+{
+  const read = (p) => fs.readFileSync(path.join(ROOT, p), "utf8");
+  const gc = read("skills/method-rules-gate-contracts/SKILL.md");
+  const s5 = read("skills/stage-5-scope-lock/SKILL.md");
+  const s3 = read("skills/stage-3-verify/SKILL.md");
+  const gk = read("skills/gate-check/SKILL.md");
+  const mr = read("skills/method-rules/SKILL.md");
+
+  check("stage 5 aborts before generating anything when the predicate says NO PACK",
+    /5\.0 Entry guard/.test(s5) && /NO PACK/.test(s5) && /architecture-risk-preflight/.test(s5));
+  check("stage 5 names the sequencing inversion it prevents",
+    /before R1 had measured/.test(s5) || /unrun spike/.test(s5));
+  check("gate F blocks a generated criterion that adds a gate predicate",
+    /Contract-authorization check/.test(gk) && /funnel status ≥ contacted/.test(gk));
+  check("deferred thresholds bind to an event, not only a date",
+    /load_before_event/.test(gk));
+  check("the gatekeeper runs in advisory mode on a Layer 1 failure",
+    /advisory/.test(gk));
+  check("R1 requires a validated run contract before the scored run",
+    /run-contract\.json/.test(gc) && /validate-run-contract/.test(gc));
+  check("the run contract names the cost unit and bills retries",
+    /cost\.unit/.test(s3) && /retries included/.test(s3));
+  check("gate C requires the raw agent trails",
+    /research-raw-competitor-scanner/.test(gc));
+  check("the F tracker must pass the prospect validator and contact is not a predicate",
+    /validate-prospect-tracker/.test(gc) && /NOT an F predicate/.test(gc));
+  check("V2 requires a reproducible ChatGPT-gap record",
+    /reproducible/.test(gc) && /failure criterion written BEFORE judging/.test(gc));
+  check("method-rules carries a language rule",
+    /## 12\. Language/.test(mr) && /diacritics intact/.test(mr));
+  check("pseudonymity covers identifying evidence strings, not just names",
+    /Pseudonymity is nominal/.test(mr));
+
+  for (const s of ["scripts/validate-run-contract.js", "scripts/validate-prospect-tracker.js"]) {
+    check(`${s} ships and parses`, fs.existsSync(path.join(ROOT, s)));
+  }
+}
+
+// ---------------------------------------------------------------------------
+console.log("== prospect tracker validator ==");
+{
+  const dir = tmpdir("prospect-");
+  const hdr =
+    "| Pid | segment | tier | evidence_basis | resolved_ref | observed_at | reach_route |\n" +
+    "|---|---|---|---|---|---|---|\n";
+  const row = (pid, tier, basis, ref, seen = "2026-07-30", route = "phone") =>
+    `| ${pid} | seg | ${tier} | ${basis} | ${ref} | ${seen} | ${route} |\n`;
+
+  const run = (body, min) => {
+    const p = path.join(dir, "t" + Math.random().toString(36).slice(2) + ".md");
+    fs.writeFileSync(p, body);
+    const r = runNode("scripts/validate-prospect-tracker.js", [p, "--json", "--min", String(min)]);
+    return JSON.parse(r.stdout);
+  };
+  const codes = (o) => o.findings.map((f) => f.code);
+
+  let o = run(hdr + row("P1", "tier 4", "first-party page shows bespoke per-order work", "acme.example"), 15);
+  check("below the floor is an error, not a note", codes(o).includes("below-floor"));
+
+  o = run(hdr + row("P1", "tier 1–2 (ước tính)", "guessy", "a.example") + row("P2", "tier 4", "first-party", "b.example"), 1);
+  check("an estimated/uncertain tier is quarantined, not rounded up", o.summary.counted === 1);
+
+  o = run(hdr + row("P1", "tier 4", "is a competitor with its own product", "a.example"), 1);
+  check("'is a competitor' is rejected as tier-4 evidence", codes(o).includes("competitor-as-tier-evidence"));
+
+  o = run(hdr + row("P1", "tier 4", "listed in a toplist roundup", "a.example"), 1);
+  check("a listicle-only basis is rejected", codes(o).includes("listicle-only"));
+
+  o = run(hdr + row("P1", "tier 4", "first-party", "acme.example") + row("P2", "tier 5", "first-party", "ACME.example"), 1);
+  check("two rows resolving to one entity are caught", codes(o).includes("duplicate-entity"));
+
+  const okBody = hdr + Array.from({ length: 15 }, (_, i) => row("P" + (i + 1), "tier 4", "first-party page", "e" + i + ".example")).join("");
+  o = run(okBody, 15);
+  check("a clean 15-row tracker passes", o.errors === 0 && o.summary.counted === 15, JSON.stringify(codes(o)));
+  check("15–19 still raises the reach-risk warning", codes(o).includes("reach-risk"));
+}
+
+// ---------------------------------------------------------------------------
+console.log("== the shipped producers agree with the validator ==");
+{
+  // Codex's round-10 blocker: the stage-2 TEMPLATE emitted the old columns, so a
+  // normal run produced a ledger its own validator rejected. Generating the fixture
+  // FROM each producer is the only way that stays caught.
+  const producers = [
+    "skills/stage-2-validate-templates/SKILL.md",
+    "templates/2-validate.md",
+    "README.md",
+    "skills/method-rules-artifact-schema/SKILL.md",
+  ];
+  const dir = tmpdir("producers-");
+  const sample = {
+    id: "E1",
+    date: "2026-07-01",
+    source: "P1",
+    root_source_id: "RS-thread-1",
+    type: "community",
+    url_or_ref: "https://example.test/1",
+    retrieved: "2026-07-01",
+    via: "miner-run-1",
+    verbatim_or_observation: '"exact quote"',
+    assumption: "A1",
+    grade: "B",
+    bearing: "supports",
+    scope_limits: "1 user, US, 2025",
+    relationship: "—",
+    supersedes: "—",
+  };
+  for (const rel of producers) {
+    const text = fs.readFileSync(path.join(ROOT, rel), "utf8");
+    const header = text
+      .split(/\r?\n/)
+      .find((l) => /^\|\s*id\s*\|/.test(l.trim()) && /root_source_id/.test(l) && /grade/.test(l));
+    if (!header) {
+      check(`${rel} publishes a v1.2 ledger header`, false, "no header row containing id + root_source_id + grade");
+      continue;
+    }
+    const keys = header
+      .trim()
+      .replace(/^\|/, "")
+      .replace(/\|$/, "")
+      .split("|")
+      .map((c) => c.trim());
+    // BOTH directions. Checking only "are the producer's columns known?" let a
+    // producer that DROPPED columns pass — which is how the root template shipped
+    // without its four provenance columns. A fixture that can only catch renames
+    // is not a fixture against divergence.
+    const unknown = keys.filter((k) => !(k in sample));
+    const missing = Object.keys(sample).filter((k) => !keys.includes(k));
+    if (unknown.length || missing.length) {
+      check(
+        `${rel} emits exactly the documented ledger columns`,
+        false,
+        [unknown.length ? `unknown/renamed: ${unknown.join(", ")}` : null, missing.length ? `MISSING: ${missing.join(", ")}` : null]
+          .filter(Boolean)
+          .join(" · ")
+      );
+      continue;
+    }
+    const gen =
+      `${header.trim()}\n|${keys.map(() => "---").join("|")}|\n` +
+      `| ${keys.map((k) => sample[k]).join(" | ")} |\n`;
+    const genPath = path.join(dir, rel.replace(/[\\/]/g, "_") + ".ledger.md");
+    fs.writeFileSync(genPath, gen);
+    const out = JSON.parse(runNode("scripts/validate-evidence-ledger.js", [genPath, "--json"]).stdout);
+    check(
+      `a ledger generated from ${rel} validates clean`,
+      out.errors === 0,
+      out.findings.filter((f) => f.level === "error").map((f) => `${f.code} ${f.message}`).join("; ")
+    );
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -166,8 +449,29 @@ console.log("== artifact manifest: one helper, two purposes, no drift ==");
   }
   check("unknown purpose is rejected", threw);
 
-  const missing = helper.verify(dir, { entries: [{ path: "gone.md", sha256: "x" }] });
+  // Shape is checked before the filesystem now, so give the entry a well-formed
+  // hash — otherwise this fixture would assert on malformed-entry-hash instead.
+  const missing = helper.verify(dir, {
+    manifest_version: "1.0",
+    purpose: "gate-input",
+    algorithm: "sha256",
+    expanded_dirs: [],
+    entries: [{ path: "gone.md", sha256: "a".repeat(64) }],
+    manifest_sha256: "b".repeat(64),
+  });
   check("a deleted artifact is reported", missing.some((p) => p.code === "missing-file"));
+
+  // `--out private/...` is what gate-check prescribes, and private/ does not exist
+  // in a fresh idea: an ENOENT there would block a gate for a reason unrelated to
+  // the artifacts under review. Found by dry-running the LOCK sequence.
+  {
+    const fresh = tmpdir("manifest-out-");
+    fs.writeFileSync(path.join(fresh, "a.md"), "x\n");
+    // argv order is: create <idea-dir> [flags] <paths...>
+    const r = runNode("scripts/artifact-manifest.js", ["create", fresh, "--purpose", "gate-input", "--out", "private/m.json", "a.md"]);
+    const wrote = fs.existsSync(path.join(fresh, "private", "m.json"));
+    check("--out creates its parent directory", wrote, `exit=${r.code} ${r.stderr.slice(0, 120)}`);
+  }
 
   // A file ADDED to an expanded directory leaves every hashed entry intact, so
   // without re-walking the directory the manifest would verify a set that grew.
@@ -199,6 +503,16 @@ console.log("== artifact manifest: one helper, two purposes, no drift ==");
   }
   if (symlinkRejected === null) console.log("  SKIP symlink rejection (no symlink privilege on this host)");
   else check("a symlinked target is rejected", symlinkRejected);
+
+  // Stripping expanded_dirs (a hand-edit, or a legacy manifest) would disable the
+  // added-file check silently. Absent coverage must be reported, not assumed fine.
+  const strippedManifest = JSON.parse(JSON.stringify(packManifest));
+  delete strippedManifest.expanded_dirs;
+  strippedManifest.manifest_sha256 = helper.manifestHash(strippedManifest);
+  check(
+    "a manifest without directory coverage is reported rather than trusted",
+    helper.verify(dir2, strippedManifest).some((p) => p.code === "missing-directory-coverage")
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -281,20 +595,96 @@ console.log("== privacy retention index: checkable, and non-sensitive by constru
     return runNode("scripts/state-write.js", [statePath], { input: JSON.stringify(obj) });
   };
 
-  const ok = write({ retention_duties: [{ participant_id: "P1", manifest_ref: "private/participant-data-manifest.md", delete_by: "2026-12-31", status: "active", last_checked_at: null }] });
+  const duty = (extra = {}) => ({
+    duty_id: "D1",
+    participant_id: "P1",
+    manifest_ref: "private/participant-data-manifest.md",
+    delete_by: "2026-12-31",
+    status: "active",
+    ...extra,
+  });
+
+  const ok = write({ retention_duties: [duty()] });
   check("a well-formed duty is accepted", ok.code === 0, ok.stderr.slice(0, 200));
 
-  const noDate = write({ retention_duties: [{ participant_id: "P1", status: "active" }] });
-  check("a duty with no delete_by is rejected (a date nobody can check is not a safeguard)", noDate.code === 1);
+  check(
+    "a duty with no duty_id is rejected",
+    write({ retention_duties: [{ participant_id: "P1", delete_by: "2026-12-31", status: "active" }] }).code === 1
+  );
+  check("duplicate duty_ids are rejected", write({ retention_duties: [duty(), duty()] }).code === 1);
+  check(
+    "a duty with no delete_by is rejected (a date nobody can check is not a safeguard)",
+    write({ retention_duties: [{ duty_id: "D1", participant_id: "P1", status: "active" }] }).code === 1
+  );
+  check(
+    "an impossible calendar date is rejected, not just a bad shape",
+    write({ retention_duties: [duty({ delete_by: "2026-02-30" })] }).code === 1
+  );
+  check(
+    "a non-pseudonymous participant id is rejected",
+    write({ retention_duties: [duty({ participant_id: "jane@example.com" })] }).code === 1
+  );
+  check("an out-of-enum duty status is rejected", write({ retention_duties: [duty({ status: "deleted" })] }).code === 1);
+  check(
+    'there is no "extended" status - an extension is an active duty with a new date',
+    write({ retention_duties: [duty({ status: "extended" })] }).code === 1
+  );
+  check(
+    "manifest_ref must point inside private/",
+    write({ retention_duties: [duty({ manifest_ref: "notes/whatever.md" })] }).code === 1
+  );
+  check(
+    "manifest_ref cannot escape private/ via ..",
+    write({ retention_duties: [duty({ manifest_ref: "private/../state.json" })] }).code === 1
+  );
 
-  const realName = write({ retention_duties: [{ participant_id: "P1", delete_by: "2026-12-31", status: "active", name: "Jane Doe" }] });
-  check("identifying data in state is rejected", realName.code === 1 && /private\/participant-data-manifest/.test(realName.stderr));
+  // An allowlist, because no blacklist covers every way to spell a name.
+  for (const key of ["name", "full_name", "contact_email", "participant_name", "profile_url", "anything_else"]) {
+    const r = write({ retention_duties: [duty({ [key]: "x" })] });
+    check(`unlisted key "${key}" is rejected (closed key set)`, r.code === 1 && new RegExp(key).test(r.stderr));
+  }
+  check(
+    "a nested object cannot smuggle data into an allowed key",
+    write({ retention_duties: [duty({ kind: { note: "Jane" } })] }).code === 1
+  );
 
-  const rawId = write({ retention_duties: [{ participant_id: "jane@example.com", delete_by: "2026-12-31", status: "active" }] });
-  check("a non-pseudonymous participant id is rejected", rawId.code === 1 && /pseudonymous/.test(rawId.stderr));
+  // Duties may change status; they may not vanish.
+  const writeOver = (first, second) => {
+    fs.writeFileSync(statePath, JSON.stringify({ ...base, ...first }));
+    return runNode("scripts/state-write.js", [statePath], { input: JSON.stringify({ ...base, ...second }) });
+  };
+  const live = { privacy: { retention_duties: [duty()] } };
+  check("dropping the privacy key cannot erase a live duty", writeOver(live, {}).code === 1);
+  check(
+    "emptying retention_duties cannot erase a live duty",
+    writeOver(live, { privacy: { retention_duties: [] } }).code === 1
+  );
+  check(
+    "a duty CAN be closed by setting status disposed",
+    writeOver(live, { privacy: { retention_duties: [duty({ status: "disposed" })] } }).code === 0
+  );
+  check(
+    "two duties for one participant are tracked separately (one cannot vanish)",
+    writeOver(
+      { privacy: { retention_duties: [duty(), duty({ duty_id: "D2", kind: "mock" })] } },
+      { privacy: { retention_duties: [duty()] } }
+    ).code === 1
+  );
+  // A legacy duty predating duty_id must have a legal one-time migration path.
+  check(
+    "a legacy duty without duty_id can be given one",
+    writeOver(
+      { privacy: { retention_duties: [{ participant_id: "P1", manifest_ref: "private/participant-data-manifest.md", delete_by: "2026-12-31", status: "active" }] } },
+      { privacy: { retention_duties: [duty()] } }
+    ).code === 0
+  );
 
-  const badStatus = write({ retention_duties: [{ participant_id: "P1", delete_by: "2026-12-31", status: "deleted" }] });
-  check("an out-of-enum duty status is rejected", badStatus.code === 1);
+  // An unreadable previous state must fail closed, not skip the check.
+  fs.writeFileSync(statePath, "{ this is not json");
+  check(
+    "an unparsable previous state fails closed",
+    runNode("scripts/state-write.js", [statePath], { input: JSON.stringify({ ...base, ...live }) }).code === 1
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -314,8 +704,8 @@ console.log("== session-start surfaces an overdue retention duty ==");
       kill_criteria: [],
       privacy: {
         retention_duties: [
-          { participant_id: "P3", manifest_ref: "private/participant-data-manifest.md", delete_by: "2020-01-01", status: "active" },
-          { participant_id: "P4", delete_by: "2020-01-01", status: "disposed" },
+          { duty_id: "D3", participant_id: "P3", manifest_ref: "private/participant-data-manifest.md", delete_by: "2020-01-01", status: "active" },
+          { duty_id: "D4", participant_id: "P4", delete_by: "2020-01-01", status: "disposed" },
         ],
       },
     })
@@ -336,35 +726,204 @@ console.log("== session-start surfaces an overdue retention duty ==");
 }
 
 // ---------------------------------------------------------------------------
+console.log("== pack verdict: prospective mode, real state shape, contract-exact ==");
+{
+  const dir = path.join(tmpdir("verdict-"), "demo");
+  fs.mkdirSync(dir, { recursive: true });
+  const statePath = path.join(dir, "state.json");
+  const stateWith = (over = {}, grade = "A") => {
+    const gates = {};
+    for (const g of ["F", "C", "V1", "V2", "V3", "R1", "R2", "P", "LOCK"])
+      gates[g] = { status: over[g] || "passed", evidence_floor: "B", passed_date: null, notes: "" };
+    gates.V3.evidence_grade_observed = grade;
+    fs.writeFileSync(statePath, JSON.stringify({ schema_version: "1.2.0", pipeline_version: "1.2.0", idea: "demo", gates }));
+    return statePath;
+  };
+
+  // The CLI must work against the DOCUMENTED state shape — the earlier fixture
+  // called verdict() directly and so missed that the reader looked for a field
+  // that did not exist in the schema.
+  let r = runNode("scripts/pack-verdict.js", [stateWith(), "--json"]);
+  check("CLI reads V3's grade from the documented state field", JSON.parse(r.stdout).verdict === "VALIDATED", r.stdout + r.stderr);
+
+  r = runNode("scripts/pack-verdict.js", [stateWith({ LOCK: "pending" }), "--json"]);
+  check("pre-LOCK without the flag is NO PACK", JSON.parse(r.stdout).verdict === "NO PACK");
+
+  r = runNode("scripts/pack-verdict.js", [stateWith({ LOCK: "pending" }), "--json", "--assuming-lock-pass"]);
+  const pro = JSON.parse(r.stdout);
+  check("stage 5 can compute the label before the gate runs", pro.verdict === "VALIDATED" && pro.prospective === true);
+
+  r = runNode("scripts/pack-verdict.js", [stateWith({}, "B"), "--json"]);
+  const inconsistent = JSON.parse(r.stdout);
+  check(
+    "V3 passed on a non-A grade is an inconsistency, not a quieter label",
+    inconsistent.verdict === "NO PACK" && /one of the two records is wrong/.test(inconsistent.reasons[0])
+  );
+
+  r = runNode("scripts/pack-verdict.js", [stateWith({ P: "open" }), "--json"]);
+  check("a gate open where the contract forbids open is NO PACK", JSON.parse(r.stdout).verdict === "NO PACK");
+
+  // The prospective label must stay marked until LOCK actually passes, or a
+  // VALIDATED stamp can outlive a gate that later failed.
+  const proJson = JSON.parse(runNode("scripts/pack-verdict.js", [stateWith({ LOCK: "failed" }), "--json", "--assuming-lock-pass"]).stdout);
+  check("a prospective verdict is flagged prospective even when LOCK has FAILED", proJson.prospective === true);
+  const finalJson = JSON.parse(runNode("scripts/pack-verdict.js", [stateWith(), "--json"]).stdout);
+  check("only a passed LOCK yields a non-prospective verdict", finalJson.prospective === false);
+  const gc = fs.readFileSync(path.join(ROOT, "skills", "gate-check", "SKILL.md"), "utf8");
+  check(
+    "gate-check blocks a final-looking label on an unpassed LOCK",
+    /PROSPECTIVE — LOCK not yet passed/.test(gc) && /is a blocker/.test(gc)
+  );
+  check("gate-check strips the marker only after recomputing without the flag", /WITHOUT `--assuming-lock-pass`/.test(gc));
+}
+
+// ---------------------------------------------------------------------------
+console.log("== waiting_on entries must be able to end ==");
+{
+  const dir = path.join(tmpdir("waiting-"), "demo");
+  fs.mkdirSync(dir, { recursive: true });
+  const statePath = path.join(dir, "state.json");
+  const base = {
+    schema_version: "1.2.0",
+    pipeline_version: "1.2.0",
+    idea: "demo",
+    gates: {},
+    thresholds: { signed_date: null, revisions: [] },
+    kill_criteria: [],
+    active: [],
+    waiting_on: [],
+    artifacts: {},
+    cycles: [{ id: "C1", status: "validation", parent: null, state: null }],
+    active_cycle: "C1",
+    maintenance: {
+      drift_declared_at: null,
+      active_reconcile: null,
+      last_reconcile: null,
+      current_baseline: null,
+      blocking_claims: [],
+      reality_sources: [],
+    },
+    health_criteria: [],
+    validation_runs: [],
+  };
+  const write = (waiting_on) => {
+    const obj = { ...base, waiting_on };
+    fs.writeFileSync(statePath, JSON.stringify(obj));
+    return runNode("scripts/state-write.js", [statePath], { input: JSON.stringify(obj) });
+  };
+  const full = {
+    what: "interview transcripts",
+    since: "2026-07-01",
+    needed_for: "V1",
+    resume_when: "3 transcripts land in private/",
+    owner: "founder",
+    expires_or_recheck_at: "2026-08-15",
+  };
+  check("a complete waiting_on entry is accepted", write([full]).code === 0);
+  check("an entry with no resume_when is rejected", write([{ ...full, resume_when: "" }]).code === 1);
+  check("an entry with no owner is rejected", write([{ ...full, owner: undefined }]).code === 1);
+  check("a bare string entry is rejected", write(["waiting for transcripts"]).code === 1);
+  check("an impossible recheck date is rejected", write([{ ...full, expires_or_recheck_at: "2026-13-01" }]).code === 1);
+
+  // The same rule must hold for a cycle FRAGMENT: validating only the root left a
+  // whole class of states unchecked.
+  const fragDir = path.join(path.dirname(statePath), "cycles", "C2");
+  fs.mkdirSync(fragDir, { recursive: true });
+  const fragPath = path.join(fragDir, "state.json");
+  const frag = (waiting_on) => {
+    const obj = {
+      cycle_id: "C2",
+      parent: "C1",
+      status: "validation",
+      mode: "analysis",
+      active: [],
+      gates: {},
+      thresholds: { signed_date: null, revisions: [] },
+      kill_criteria: [],
+      waiting_on,
+      artifacts: {},
+      validation_runs: [],
+      updated: "2026-07-30",
+    };
+    fs.writeFileSync(fragPath, JSON.stringify(obj));
+    return runNode("scripts/state-write.js", [fragPath], { input: JSON.stringify(obj) });
+  };
+  check("a fragment cycle's loose waiting_on entry is rejected too", frag(["legacy loose wait"]).code === 1);
+  check("a null recheck date is allowed (no deadline yet)", write([{ ...full, expires_or_recheck_at: null }]).code === 0);
+}
+
+// ---------------------------------------------------------------------------
+console.log("== manifest verification fails closed on shape ==");
+{
+  const helper = require(path.join(ROOT, "scripts", "artifact-manifest.js"));
+  const dir = tmpdir("mf-shape-");
+  fs.writeFileSync(path.join(dir, "a.md"), "x\n");
+  const m = helper.create(dir, ["a.md"], { purpose: "gate-input", id: "V1-01" });
+  const without = (key) => {
+    const c = JSON.parse(JSON.stringify(m));
+    delete c[key];
+    if (key !== "manifest_sha256") c.manifest_sha256 = helper.manifestHash(c);
+    return helper.verify(dir, c).map((p) => p.code);
+  };
+  check("a manifest with no self-hash is rejected", without("manifest_sha256").includes("missing-self-hash"));
+  check("a manifest with no algorithm is rejected", without("algorithm").includes("algorithm-mismatch"));
+  check("a manifest with no purpose is rejected", without("purpose").includes("invalid-purpose"));
+  check("a manifest with no version is rejected", without("manifest_version").includes("unsupported-manifest-version"));
+  const dup = JSON.parse(JSON.stringify(m));
+  dup.entries.push(dup.entries[0]);
+  dup.manifest_sha256 = helper.manifestHash(dup);
+  check("duplicate entries are rejected", helper.verify(dir, dup).some((p) => p.code === "duplicate-entry"));
+  const badHash = JSON.parse(JSON.stringify(m));
+  badHash.entries[0].sha256 = "not-a-hash";
+  badHash.manifest_sha256 = helper.manifestHash(badHash);
+  check("a malformed entry hash is rejected", helper.verify(dir, badHash).some((p) => p.code === "malformed-entry-hash"));
+}
+
+// ---------------------------------------------------------------------------
+console.log("== Codex agent bodies are generated, not hand-maintained ==");
+{
+  const r = runNode("scripts/sync-codex-agents.js", ["--check"]);
+  check(
+    "every .codex/agents/*.toml matches its agents/*.md source",
+    r.code === 0,
+    (r.stdout + r.stderr).trim().slice(0, 300)
+  );
+}
+
+// ---------------------------------------------------------------------------
 console.log("== pack label is derived from gate state, not prose ==");
 {
-  // The predicate lives in gate-contracts.md; this fixture pins the derivation
-  // so a hand-authored label can be caught by comparing against it.
-  const label = (gates, v3grade) => {
-    const all = ["V1", "V2", "V3", "R1", "R2", "P", "LOCK"];
-    const passed = (g) => gates[g] === "passed";
-    const resolved = (g) => gates[g] === "passed" || gates[g] === "open";
-    if (!resolved("LOCK") && !passed("LOCK")) return "NO PACK";
-    if (all.every(passed) && v3grade === "A") return "VALIDATED";
-    if (passed("R1") && ["V2", "V3", "R2"].some((g) => gates[g] === "open")) return "HYPOTHESIS";
-    if (gates.R1 === "open") return "PRE-FEASIBILITY HYPOTHESIS";
-    return "NO PACK";
+  // Tests the SHIPPED predicate (scripts/pack-verdict.js), not a copy of it — a
+  // fixture that reimplements the rule proves only that the fixture is consistent.
+  const { verdict } = require(path.join(ROOT, "scripts", "pack-verdict.js"));
+  const gates = (over = {}) => {
+    const g = {};
+    for (const name of ["V1", "V2", "V3", "R1", "R2", "P", "LOCK"]) g[name] = { status: over[name] || "passed" };
+    return g;
   };
-  const allPassed = { V1: "passed", V2: "passed", V3: "passed", R1: "passed", R2: "passed", P: "passed", LOCK: "passed" };
-  check("all passed + V3 grade A => VALIDATED", label(allPassed, "A") === "VALIDATED");
-  check("all passed but V3 grade B => not VALIDATED", label(allPassed, "B") !== "VALIDATED");
-  check("V3 open, R1 passed => HYPOTHESIS", label({ ...allPassed, V3: "open" }, "B") === "HYPOTHESIS");
+  check("all passed + V3 grade A => VALIDATED", verdict(gates(), "A").verdict === "VALIDATED");
   check(
-    "R1 open => PRE-FEASIBILITY, even if everything else passed",
-    label({ ...allPassed, R1: "open" }, "A") === "PRE-FEASIBILITY HYPOTHESIS"
+    "all passed but V3 grade B => NO PACK (the contract has no such pack; the records disagree)",
+    verdict(gates(), "B").verdict === "NO PACK" && /records is wrong/.test(verdict(gates(), "B").reasons[0])
   );
-  check("LOCK not reached => no pack", label({ ...allPassed, LOCK: "pending" }, "A") === "NO PACK");
+  check("V3 open, R1 passed => HYPOTHESIS", verdict(gates({ V3: "open" }), "B").verdict === "HYPOTHESIS");
+  check(
+    "R1 open => PRE-FEASIBILITY even if everything else passed with grade A",
+    verdict(gates({ R1: "open" }), "A").verdict === "PRE-FEASIBILITY HYPOTHESIS"
+  );
+  check("LOCK not reached => NO PACK", verdict(gates({ LOCK: "pending" }), "A").verdict === "NO PACK");
+  check("a failed gate => NO PACK", verdict(gates({ V1: "failed" }), "A").verdict === "NO PACK");
+  check(
+    "a gate open where the contract forbids open => NO PACK",
+    verdict(gates({ P: "open" }), "A").verdict === "NO PACK"
+  );
+  check("the verdict always reports the inputs it evaluated", verdict(gates(), "A").inputs.v3_evidence_grade === "A");
 }
 
 // ---------------------------------------------------------------------------
 console.log("== LOCK ordering is stated unambiguously in the contract files ==");
 {
-  const gc = fs.readFileSync(path.join(ROOT, "skills", "method-rules", "gate-contracts.md"), "utf8");
+  const gc = fs.readFileSync(path.join(ROOT, "skills", "method-rules-gate-contracts", "SKILL.md"), "utf8");
   const gk = fs.readFileSync(path.join(ROOT, "skills", "gate-check", "SKILL.md"), "utf8");
   const s5 = fs.readFileSync(path.join(ROOT, "skills", "stage-5-scope-lock", "SKILL.md"), "utf8");
   check("gate-check documents a ceremony-only invocation that returns to the caller", /ceremony-only/.test(gk) && /returns? to (the caller|stage 5)/i.test(gk));

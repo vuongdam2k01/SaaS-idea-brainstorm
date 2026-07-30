@@ -1,3 +1,9 @@
+---
+name: stage-0-framing-templates
+description: Artifact templates for stage 0 of the SaaS validation pipeline. Load when writing that stage's artifacts.
+user-invocable: false
+---
+
 # Stage 0 artifact templates
 
 Frontmatter per artifact-schema (method-rules skill). Write artifacts in the user's language; keep methodology terms in English.
@@ -13,7 +19,7 @@ gate: F
 status: draft
 evidence_grade: none
 rung: baseline-auto
-pipeline_version: 1.1.0
+pipeline_version: 1.2.0
 updated: YYYY-MM-DD
 ---
 # Idea brief — <title>
@@ -65,7 +71,7 @@ gate: F
 status: draft            # locked at LOCK (with the pack); evolution continues via changelog
 evidence_grade: none
 rung: baseline-auto
-pipeline_version: 1.1.0
+pipeline_version: 1.2.0
 updated: YYYY-MM-DD
 ---
 # Founder charter — how <founder> decides
@@ -110,7 +116,7 @@ gate: F
 status: draft
 evidence_grade: none
 rung: baseline-auto
-pipeline_version: 1.1.0
+pipeline_version: 1.2.0
 updated: YYYY-MM-DD
 ---
 # Problem hypothesis
@@ -166,11 +172,14 @@ artifact: beachhead-icp
 (1) has problem → (2) aware → (3) actively searching w/ timetable → (4) built interim solution → (5) has/can get budget.
 Only tiers 4–5 qualify. ICP description:
 ## 20 real prospects (doubles as the prospect funnel tracker through stages 2–3)
-| Pid | Segment descriptor (NO real names) | Why they fit (tier estimate) | Origin type (community/directory/network) | Reach channel type | Funnel status |
-|---|---|---|---|---|---|
+| Pid | Segment descriptor (NO real names) | Tier | Behaviour that establishes the tier (verbatim or observation) | Evidence (E-id) | Reach channel (type + whether a reply is plausible) | Funnel status |
+|---|---|---|---|---|---|---|
 > **Privacy**: this file is public within the repo — identities, profile URLs, and contact details live ONLY in `private/contacts.md` (`| Pid | real name | profile URL | contact | notes |`). A personal profile URL defeats pseudonymization — never put it here. Prospects are `P1…P20` with a descriptor ("ops lead at 50-person logistics co").
 > Funnel status enum: `not-contacted` → `contacted` → `replied` → `interviewed` → `committed` / `declined`. Keep current through outreach, interviews (V1), and pre-sell (V3).
 > Tier discipline (dogfood finding): the funnel bar counts **tier 4–5, on-segment entries only**. Sub-tier or adjacent-segment entries may be kept but must be explicitly quarantined ("nurture, not counted") — a list where 35% fails its own bar invites denominator games at V1.
+> **A tier is an evidence claim, not an assessment** (dogfood finding, run #2). Tier 4 means *this person built or imposed an interim solution* — a past event. So the **Behaviour** cell holds what they actually did, in their words or as an observation, and the **Evidence** cell holds its `E-id`. A row whose tier rests on the model's reading rather than a ledgered source is `[GUESS]` and **uncounted**, exactly like a grade-D item.
+> The failure mode this exists to stop: **prescriptive statements read as behaviour.** *"If you have PR templates, add a checklist item"* and *"documentation should live in the same repo"* are advice — the speaker is telling someone else what to do and may have done none of it. Run #2 turned five of six tier-4 estimates into asserted past behaviour this way, which manufactures the exact signal the tier scale measures. Test each row: **could this person have written this sentence without ever having done it?** If yes, it is tier 1–3 at most.
+> **Reach is part of the claim.** A public forum handle is not a reach channel — it permits one public reply with no expectation of an answer. A row with no channel through which a reply is plausible does not count toward the funnel bar, however good the behavioural evidence is.
 ```
 
 ## assumption-map.md
@@ -204,7 +213,7 @@ status: draft        # becomes locked when the user signs
 |---|---------------------------|-----------|------|--------|
 | K1 | | | stop / pivot | armed |
 | KB | budget: total spend stays under $___ | — | stop | armed |
-> `KB` (budget cap, if paid actions possible) is a standing ceiling, not a deadline — no `by_date`. It gets a stable id and a row here like every other criterion so `state.json.kill_criteria` can mirror it verbatim (state-schema.md) instead of living as unindexed prose.
+> `KB` (budget cap, if paid actions possible) is a standing ceiling, not a deadline — no `by_date`. It gets a stable id and a row here like every other criterion so `state.json.kill_criteria` can mirror it verbatim (the `method-rules-state-schema` skill) instead of living as unindexed prose.
 ## Signature
 Signed by user on: YYYY-MM-DD
 ## Changelog

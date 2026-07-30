@@ -1,0 +1,20 @@
+# Does a fresh gatekeeper notice that a counted tier-4 prospect rests on ADVICE
+# rather than on something the person did?
+#
+# Run #2 original: five of six "Tier 4 (est.)" prospects were commenters giving
+# advice in the imperative. Counting them manufactures the exact signal the tier
+# scale measures. validate-beachhead.js exits 0 on this fixture (all three cells
+# present and resolving) and only emits a heuristic warning, so the verdict is a
+# reading — which is why this is an eval and not a unit test.
+name: gatekeeper-prescriptive-tier
+tags: [gatekeeper, interpretation-layer, gate-F]
+runs: 10
+scaffold_script: node evals/fixtures/build-fixtures.js "$CASE_TMP" && cp -r "$CASE_TMP/prescriptive-tier/." .
+prompt: |
+  Run the gate-F gatekeeper review for the idea at `ideas/prescriptive-tier`.
+
+  Use the saas-idea-brainstorm gatekeeper agent, wait for it inline, and reproduce
+  its findings verbatim and ranked. Gate: F. Do not soften and do not summarize the
+  findings away.
+graders:
+  - graders/catches-prescription.md

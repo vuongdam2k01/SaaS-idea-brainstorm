@@ -74,6 +74,7 @@ process.stdin.on("end", () => {
   // "retired" is legal only for kill criteria (LOCK disposition result); runtime
   // statuses stay armed|triggered|cleared. Disposition rules are identical in
   // root and fragment criteria (validateKillCriteria).
+  validateWaitingOn(obj.waiting_on, "waiting_on");
   const HC_STATUSES = ["armed", "triggered", "cleared"];
   validateKillCriteria(obj.kill_criteria, "kill_criteria");
   // v1.2 maintenance/cycle shape validation
@@ -133,41 +134,122 @@ process.stdin.on("end", () => {
       }
     }
     // privacy.retention_duties: the non-sensitive index that makes a retention
-    // deadline something the system can surface. Two rules worth enforcing here:
-    // a duty with no delete_by is a promise nobody can check, and identifying
-    // data must never reach state (it belongs in private/ only).
+    // deadline something the system can surface. Design notes, all learned from
+    // probing an earlier version of this block:
+    //  - an ALLOWLIST, not a blacklist: a blacklist let `full_name` through, and
+    //    no list of forbidden words can cover every way to spell a name;
+    //  - no `extended` status: it was excluded from every overdue scan, so once
+    //    its new date passed the duty went silent forever. An extension is an
+    //    `active` duty with a newly recorded deadline;
+    //  - a stable `duty_id`: keying removal-protection on participant_id alone
+    //    collapsed multiple duties for one participant, letting one vanish;
+    //  - fail CLOSED when the previous state cannot be read, since that is
+    //    exactly when the transition check matters.
     if (obj.privacy !== undefined) {
       const pv = obj.privacy;
       if (!pv || typeof pv !== "object" || !Array.isArray(pv.retention_duties)) {
         console.error('REJECTED: "privacy" must be an object with array "retention_duties"');
         process.exit(1);
       }
-      const DUTY_STATUS = ["active", "due", "disposed", "extended"];
-      const FORBIDDEN = ["name", "email", "phone", "contact", "consent_text", "notes", "address", "handle"];
+      const DUTY_STATUS = ["active", "due", "disposed"];
+      const ALLOWED_KEYS = ["duty_id", "participant_id", "manifest_ref", "delete_by", "status", "kind"];
+      const seenDuty = new Set();
       for (const d of pv.retention_duties) {
-        if (!d || typeof d.participant_id !== "string" || typeof d.delete_by !== "string" || !DUTY_STATUS.includes(d.status)) {
-          console.error(
-            `REJECTED: retention_duties entry requires {participant_id, delete_by, status ${DUTY_STATUS.join("|")}}: ${JSON.stringify(d)}`
-          );
-          process.exit(1);
-        }
-        if (!/^\d{4}-\d{2}-\d{2}$/.test(d.delete_by)) {
-          console.error(`REJECTED: retention_duties delete_by must be YYYY-MM-DD (got "${d.delete_by}")`);
-          process.exit(1);
-        }
-        if (!/^P\d+$/.test(d.participant_id)) {
-          console.error(
-            `REJECTED: retention_duties participant_id must be a pseudonymous P-id (got "${d.participant_id}") — identities live only in private/contacts.md`
-          );
+        if (!d || typeof d !== "object") {
+          console.error(`REJECTED: retention_duties entry must be an object: ${JSON.stringify(d)}`);
           process.exit(1);
         }
         for (const k of Object.keys(d)) {
-          if (FORBIDDEN.includes(k.toLowerCase())) {
+          if (!ALLOWED_KEYS.includes(k)) {
             console.error(
-              `REJECTED: retention_duties entry carries "${k}" — state.json is the non-sensitive index; consent text and identifying data stay in private/participant-data-manifest.md`
+              `REJECTED: retention_duties entry carries "${k}" — state.json is a closed non-sensitive index (${ALLOWED_KEYS.join(
+                ", "
+              )}); consent text, names and contact data stay in private/participant-data-manifest.md`
             );
             process.exit(1);
           }
+          if (d[k] !== null && typeof d[k] !== "string") {
+            console.error(`REJECTED: retention_duties field "${k}" must be a string (no nested objects can smuggle data in)`);
+            process.exit(1);
+          }
+        }
+        if (typeof d.duty_id !== "string" || !/^D\d+$/.test(d.duty_id)) {
+          console.error(`REJECTED: retention_duties entry requires a stable "duty_id" of shape D<number>: ${JSON.stringify(d)}`);
+          process.exit(1);
+        }
+        if (seenDuty.has(d.duty_id)) {
+          console.error(`REJECTED: duplicate retention duty_id "${d.duty_id}"`);
+          process.exit(1);
+        }
+        seenDuty.add(d.duty_id);
+        if (!/^P\d+$/.test(d.participant_id || "")) {
+          console.error(
+            `REJECTED: retention_duties participant_id must be a pseudonymous P-id (got ${JSON.stringify(
+              d.participant_id
+            )}) — identities live only in private/contacts.md`
+          );
+          process.exit(1);
+        }
+        if (!DUTY_STATUS.includes(d.status)) {
+          console.error(
+            `REJECTED: retention duty ${d.duty_id} status must be one of ${DUTY_STATUS.join(
+              "|"
+            )} (an extension is an "active" duty with a new delete_by, not a separate status that hides it from overdue scans)`
+          );
+          process.exit(1);
+        }
+        if (!isRealDate(d.delete_by)) {
+          console.error(
+            `REJECTED: retention duty ${d.duty_id} needs a real calendar delete_by (YYYY-MM-DD), got ${JSON.stringify(d.delete_by)} — a date nobody can check is not a safeguard`
+          );
+          process.exit(1);
+        }
+        if (d.manifest_ref !== undefined && d.manifest_ref !== null && !isConfinedPrivatePath(d.manifest_ref)) {
+          console.error(
+            `REJECTED: retention duty ${d.duty_id} manifest_ref must point inside private/ (got ${JSON.stringify(d.manifest_ref)})`
+          );
+          process.exit(1);
+        }
+      }
+    }
+    // Duties may change status; they may not vanish. Dropping the `privacy` key or
+    // emptying the array silently erased live obligations — the same shape as the
+    // two-step unfreeze bypass found earlier.
+    if (fs.existsSync(target)) {
+      let prevState;
+      try {
+        prevState = JSON.parse(fs.readFileSync(target, "utf8"));
+      } catch {
+        console.error(
+          "REJECTED: the existing state.json could not be parsed, so retention duties cannot be compared — repair it first (this check fails closed on purpose)"
+        );
+        process.exit(1);
+      }
+      const prevDuties =
+        prevState.privacy && Array.isArray(prevState.privacy.retention_duties) ? prevState.privacy.retention_duties : [];
+      const liveBefore = prevDuties.filter((d) => d && d.status !== "disposed");
+      if (liveBefore.length) {
+        const nowIds = new Set(
+          (obj.privacy && Array.isArray(obj.privacy.retention_duties) ? obj.privacy.retention_duties : []).map(
+            (d) => d && (d.duty_id || d.participant_id)
+          )
+        );
+        // A legacy duty written before duty_ids existed has no id to match on, so
+        // compare it on the composite that identifies it in practice; otherwise the
+        // one-time migration "P1 -> D1/P1" read as dropping P1 entirely.
+        const nowComposites = new Set(
+          (obj.privacy && Array.isArray(obj.privacy.retention_duties) ? obj.privacy.retention_duties : []).map(composite)
+        );
+        const dropped = liveBefore
+          .filter((d) => !(d.duty_id ? nowIds.has(d.duty_id) : nowComposites.has(composite(d))))
+          .map((d) => d.duty_id || `${d.participant_id} (legacy, no duty_id)`);
+        if (dropped.length) {
+          console.error(
+            `REJECTED: this write drops live retention duties (${dropped.join(
+              ", "
+            )}) — a duty is closed by setting status "disposed" alongside a disposition record, never by removing the row`
+          );
+          process.exit(1);
         }
       }
     }
@@ -196,7 +278,7 @@ process.stdin.on("end", () => {
           const changed = FROZEN_KEYS.filter((k) => JSON.stringify(prev[k]) !== JSON.stringify(obj[k]));
           if (changed.length) {
             console.error(
-              `REJECTED: cycle ${prevInline.id} is ${prevInline.status} — its owned subtree is frozen; this write changes [${changed.join(", ")}]. Post-LOCK verification uses validation runs / a new cycle, never edits to a locked cycle's state (maintenance-rules.md).`
+              `REJECTED: cycle ${prevInline.id} is ${prevInline.status} — its owned subtree is frozen; this write changes [${changed.join(", ")}]. Post-LOCK verification uses validation runs / a new cycle, never edits to a locked cycle's state (the method-rules-maintenance-rules skill).`
             );
             process.exit(1);
           }
@@ -214,6 +296,76 @@ process.stdin.on("end", () => {
   }
   atomicWrite(obj, target);
 });
+
+/**
+ * An idea-relative path confined to private/ — normalized, so "private/../state.json"
+ * cannot pass a prefix test.
+ */
+function isConfinedPrivatePath(ref) {
+  if (typeof ref !== "string" || !ref.trim()) return false;
+  const unified = ref.replace(/\\/g, "/");
+  if (path.isAbsolute(unified) || /^[a-zA-Z]:/.test(unified)) return false;
+  const canonical = path.posix.normalize(unified);
+  if (canonical !== unified) return false; // require the canonical spelling
+  const segs = canonical.split("/");
+  if (segs.some((sg) => sg === "." || sg === "..")) return false;
+  return segs[0] === "private" && segs.length > 1;
+}
+
+/**
+ * waiting_on entries must be able to END: an entry with no resume condition and no
+ * owner is indistinguishable from an abandoned one, which is how "waiting on the
+ * founder" outlives the thing it waited for. Shared by root and fragment states.
+ */
+function validateWaitingOn(list, label) {
+  if (!Array.isArray(list)) {
+    console.error(`REJECTED: "${label}" must be an array`);
+    process.exit(1);
+  }
+  for (const w of list) {
+    if (!w || typeof w !== "object" || Array.isArray(w)) {
+      console.error(
+        `REJECTED: ${label} entry must be an object {what, needed_for, resume_when, owner, expires_or_recheck_at}: ${JSON.stringify(w)}`
+      );
+      process.exit(1);
+    }
+    for (const k of ["what", "needed_for", "resume_when", "owner"]) {
+      if (typeof w[k] !== "string" || !w[k].trim()) {
+        console.error(
+          `REJECTED: ${label} entry needs a non-empty "${k}" (${JSON.stringify(
+            w.what || w
+          )}) — "resume_when" is the exact condition that ends the wait, "owner" is who supplies it. Migrating a legacy loose entry means ASKING for those two, never inventing them.`
+        );
+        process.exit(1);
+      }
+    }
+    if (w.expires_or_recheck_at !== undefined && w.expires_or_recheck_at !== null && !isRealDate(w.expires_or_recheck_at)) {
+      console.error(`REJECTED: ${label} "${w.what}" has an invalid expires_or_recheck_at (real YYYY-MM-DD or null)`);
+      process.exit(1);
+    }
+  }
+}
+
+/** Identity of a legacy duty that predates duty_id (for one-time migration only). */
+function composite(d) {
+  return [d && d.participant_id, d && d.manifest_ref, d && d.delete_by, d && d.kind].join("|");
+}
+
+/** A real calendar date in YYYY-MM-DD form (2026-02-30 and 2026-99-99 are not). */
+function isRealDate(v) {
+  if (typeof v !== "string") return false;
+  const m = v.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!m) return false;
+  const [y, mo, da] = [Number(m[1]), Number(m[2]), Number(m[3])];
+  const d = new Date(Date.UTC(y, mo - 1, da));
+  return d.getUTCFullYear() === y && d.getUTCMonth() === mo - 1 && d.getUTCDate() === da;
+}
+
+/** Local calendar date (YYYY-MM-DD) — deadlines are the founder's local days, not UTC. */
+function localToday() {
+  const n = new Date();
+  return `${n.getFullYear()}-${String(n.getMonth() + 1).padStart(2, "0")}-${String(n.getDate()).padStart(2, "0")}`;
+}
 
 function validateKillCriteria(list, label) {
   const KC_STATUSES = ["armed", "triggered", "cleared", "retired"];
@@ -294,6 +446,9 @@ function writeFragment(obj, resolvedTarget) {
     console.error('REJECTED: fragment "active", "waiting_on", "validation_runs" must be arrays');
     process.exit(1);
   }
+  // Same rule as the root: a fragment cycle's waits must also be able to end.
+  // Validating only the root left a whole class of states unchecked.
+  validateWaitingOn(obj.waiting_on, "fragment waiting_on");
   if (typeof obj.mode !== "string" || !obj.thresholds || typeof obj.thresholds !== "object" || Array.isArray(obj.thresholds) || !obj.artifacts || typeof obj.artifacts !== "object" || Array.isArray(obj.artifacts)) {
     console.error('REJECTED: fragment "mode" must be a string; "thresholds" and "artifacts" must be non-null objects');
     process.exit(1);

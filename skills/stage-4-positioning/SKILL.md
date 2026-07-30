@@ -4,7 +4,7 @@ description: Stage 4 of the SaaS validation pipeline - positioning per April Dun
 user-invocable: false
 ---
 
-Stage 4: positioning. Startable after V1 (customer words exist); finalized after V3 + R1 (paying commitment + promise scope). The component order is **mandatory, never reversed** — each depends on the previous; get #1 wrong and everything downstream is wrong. Load `method-rules`; read `state.json`. Template: [templates.md](templates.md).
+Stage 4: positioning. Startable after V1 (customer words exist); finalized after V3 + R1 (paying commitment + promise scope). The component order is **mandatory, never reversed** — each depends on the previous; get #1 wrong and everything downstream is wrong. Load `method-rules`; read `state.json`. Template: the `stage-4-positioning-templates` skill.
 
 **Pre-product caveat (Dunford)**: what you produce here is a **positioning thesis** — an educated guess, expected to be partly wrong and revised once real customers arrive (Dunford: ~20 product launches, never guessed everything right). Don't tighten too early — tightening in the wrong spot can close off a good market. The artifact says "thesis" prominently.
 

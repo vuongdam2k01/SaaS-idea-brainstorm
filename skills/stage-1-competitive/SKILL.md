@@ -4,7 +4,7 @@ description: Stage 1 of the SaaS validation pipeline - competitive and alternati
 user-invocable: false
 ---
 
-Stage 1: competitive & alternatives scan. Load `method-rules`; read `state.json`. Runs immediately after 0.1 — its output shapes stage 2's questions. Templates: [templates.md](templates.md).
+Stage 1: competitive & alternatives scan. Load `method-rules`; read `state.json`. Runs immediately after 0.1 — its output shapes stage 2's questions. Templates: the `stage-1-competitive-templates` skill.
 
 ## Execution
 

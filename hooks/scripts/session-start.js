@@ -14,6 +14,13 @@
 const fs = require("fs");
 const path = require("path");
 
+// Walk up to the WORKSPACE boundary only. The previous version climbed 12 levels
+// and stopped only at `.git` or the filesystem root, so a session started in a
+// plain directory (no repo) would surface `~/ideas` — some unrelated project's
+// pipeline state — as if it belonged to this workspace (dogfood run #3). A
+// workspace marker is the honest boundary: past it we are in someone else's tree.
+const WORKSPACE_MARKERS = [".git", ".claude", "package.json", "pyproject.toml", "go.mod", "Cargo.toml"];
+
 let input = "";
 process.stdin.on("data", (d) => (input += d));
 process.stdin.on("end", () => {
@@ -57,7 +64,7 @@ process.stdin.on("end", () => {
         // safeguard. Surfaced like overdue criteria; deletion is never automatic.
         const duties = st.privacy && Array.isArray(st.privacy.retention_duties) ? st.privacy.retention_duties : [];
         const dueDuties = duties.filter(
-          (d) => d && d.delete_by && d.delete_by < today && d.status !== "disposed" && d.status !== "extended"
+          (d) => d && d.delete_by && d.delete_by < today && d.status !== "disposed"
         );
         const maint = st.maintenance && typeof st.maintenance === "object" ? st.maintenance : null;
         const lastRec = maint && maint.last_reconcile;
@@ -102,7 +109,7 @@ process.stdin.on("end", () => {
             .join("; ")}`;
         if (dueDuties.length)
           line += `; !! PARTICIPANT-DATA RETENTION DUE: ${dueDuties
-            .map((d) => `${d.participant_id || "?"} by ${d.delete_by} (${d.manifest_ref || "private/participant-data-manifest.md"})`)
+            .map((d) => `${d.duty_id || "?"}/${d.participant_id || "?"} by ${d.delete_by} (${d.manifest_ref || "private/participant-data-manifest.md"})`)
             .join("; ")} — confirm disposal with the founder over the exact files; never delete unprompted`;
         if (lastRec && lastRec.completed_at)
           line += `; last reconcile ${lastRec.id || "?"} ${lastRec.completed_at} (${lastRec.intake_authority || "?"})`;
@@ -128,7 +135,11 @@ process.stdin.on("end", () => {
       })
     );
     process.exit(0);
-  } catch {
+  } catch (e) {
+    // Fail open, but OBSERVABLY (dogfood run #2, FM-10). This exact catch hid a
+    // ReferenceError that disabled state injection for a whole run while looking
+    // identical to "no ideas in this workspace". stderr never blocks the session.
+    try { process.stderr.write(`[saas-idea-brainstorm] session-start.js failed open: ${e && e.name}: ${e && e.message}\n`); } catch {}
     process.exit(0);
   }
 
@@ -139,9 +150,16 @@ process.stdin.on("end", () => {
       try {
         if (fs.existsSync(cand) && fs.statSync(cand).isDirectory()) return cand;
       } catch {}
-      const isRoot =
-        fs.existsSync(path.join(dir, ".git")) || path.dirname(dir) === dir;
-      if (isRoot) return null;
+      // Stop AT the boundary (after checking this level's own ideas/), never past it.
+      const atBoundary =
+        WORKSPACE_MARKERS.some((m) => {
+          try {
+            return fs.existsSync(path.join(dir, m));
+          } catch {
+            return false;
+          }
+        }) || path.dirname(dir) === dir;
+      if (atBoundary) return null;
       dir = path.dirname(dir);
     }
     return null;

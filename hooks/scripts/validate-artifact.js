@@ -6,7 +6,7 @@
  * ideas/ folders are untouched).
  * v3 (schema 1.2.0): phase-conditional validation — `phase: maintenance`
  * artifacts (current-baseline, reconcile manifests, validation-run reports,
- * drift-inbox, health-criteria) follow maintenance-rules.md §9 instead of the
+ * drift-inbox, health-criteria) follow the 'method-rules-maintenance-rules' skill §9 instead of the
  * pipeline frontmatter; pipeline artifacts are validated exactly as before.
  * Fails open on internal errors.
  */
@@ -107,7 +107,7 @@ process.stdin.on("end", () => {
     const norm = canonicalize(fp.replace(/\\/g, "/"));
     if (!/\/ideas\/[^/]+\/.+\.md$/i.test(norm)) return process.exit(0);
     if (/\/private\//i.test(norm) || /README\.md$/i.test(norm)) return process.exit(0);
-    if (/\/decision-log\.md$/i.test(norm) || /\/post-mortem\.md$/i.test(norm))
+    if (/\/(decision-log|post-mortem|audit-trail)\.md$/i.test(norm))
       return process.exit(0); // journal formats, not artifact frontmatter
     if (/\/error-analysis\/batch-\d+\.md$/i.test(norm))
       return process.exit(0); // frontmatter-exempt worker trace files (canonical artifact is summary.md)
@@ -118,7 +118,7 @@ process.stdin.on("end", () => {
     const fmMatch = text.match(/^---\r?\n([\s\S]*?)\r?\n---/);
     if (!fmMatch) {
       return block(
-        `Artifact ${norm} was written without YAML frontmatter. Required keys: ${REQUIRED.join(", ")}. See method-rules/artifact-schema.md and add it now.`
+        `Artifact ${norm} was written without YAML frontmatter. Required keys: ${REQUIRED.join(", ")}. See the method-rules-artifact-schema skill and add it now.`
       );
     }
 
@@ -128,7 +128,7 @@ process.stdin.on("end", () => {
       if (m) fm[m[1]] = m[2].trim();
     }
 
-    // Phase dispatch: maintenance artifacts follow maintenance-rules.md §9.
+    // Phase dispatch: maintenance artifacts follow the 'method-rules-maintenance-rules' skill §9.
     // Reserved maintenance paths dispatch DETERMINISTICALLY — a reserved filename
     // may not opt out of maintenance validation by omitting/faking `phase`.
     if (fm.phase && fm.phase !== "pipeline" && fm.phase !== "maintenance") {
@@ -206,7 +206,7 @@ process.stdin.on("end", () => {
 
     if (problems.length) {
       return block(
-        `Artifact ${norm} frontmatter is invalid: ${problems.join("; ")}. Fix it now per method-rules/artifact-schema.md.` +
+        `Artifact ${norm} frontmatter is invalid: ${problems.join("; ")}. Fix it now per the method-rules-artifact-schema skill.` +
           (warnings.length ? " Also: " + warnings.join(" ") : "")
       );
     }
@@ -218,7 +218,13 @@ process.stdin.on("end", () => {
       );
     }
     process.exit(0);
-  } catch {
+  } catch (e) {
+    // Fail open, but OBSERVABLY (dogfood run #2, FM-10). Silence-because-clean and
+    // silence-because-crashed used to be indistinguishable: session-start.js threw a
+    // ReferenceError for an entire run, emitted nothing, exited 0, and looked exactly
+    // like a healthy hook with nothing to report. stderr does not block the write and
+    // is captured by the harness, so a total outage stops being invisible.
+    try { process.stderr.write(`[saas-idea-brainstorm] validate-artifact.js failed open: ${e && e.name}: ${e && e.message}\n`); } catch {}
     process.exit(0);
   }
 
@@ -301,7 +307,7 @@ process.stdin.on("end", () => {
 
     if (problems.length) {
       return block(
-        `Maintenance artifact ${norm} frontmatter is invalid: ${problems.join("; ")}. Fix it now per method-rules/maintenance-rules.md §9.`
+        `Maintenance artifact ${norm} frontmatter is invalid: ${problems.join("; ")}. Fix it now per the method-rules-maintenance-rules skill §9.`
       );
     }
     return process.exit(0);

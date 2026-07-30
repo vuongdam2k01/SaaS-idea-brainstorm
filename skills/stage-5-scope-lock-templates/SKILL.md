@@ -1,3 +1,9 @@
+---
+name: stage-5-scope-lock-templates
+description: Artifact templates for stage 5 of the SaaS validation pipeline. Load when writing that stage's artifacts.
+user-invocable: false
+---
+
 # Stage 5 — MVP Pack templates (ideas/<slug>/mvp-pack/)
 
 ## mvp-spec.md (entry point)
@@ -10,10 +16,15 @@ gate: LOCK
 status: draft            # locked at gate LOCK
 evidence_grade: <highest backing grade>
 rung: <rung>
-pipeline_version: 1.1.0
+pipeline_version: 1.2.0
 updated: YYYY-MM-DD
 ---
-# MVP Spec — <title>   [label COMPUTED, never chosen: run the predicate in gate-contracts.md against `state.gates` + V3's actual grade — VALIDATED / HYPOTHESIS / PRE-FEASIBILITY HYPOTHESIS. If the computed label and the draft text ever disagree, the gate state wins and the text is wrong.]
+# MVP Spec — <title>   [label COMPUTED by `scripts/pack-verdict.js`, never chosen]
+> **Until LOCK passes the label reads `<LABEL> (PROSPECTIVE — LOCK not yet passed)`.** It is written
+> before the gate because the gate reviews the pack that contains it; gate-check strips the marker on
+> PASS and only then is the label final. A pack whose label has no marker while `gates.LOCK` is not
+> `passed` is a Layer 1 blocker — that is the case where a prospective VALIDATED stamp outlived a
+> failed gate. If label and gate state ever disagree, the gate state is right.
 > Read order for a build session: this file → tech-design.md → definition-of-done.md → **founder-charter.md** (the interpretive authority: how the founder decides anything this pack doesn't decide) → carry-forward.md → evidence-quality-report.md
 ## Core loop (≤5–7 steps, each traced)
 | # | User does | System does | User gets | Trace (E-ids / ops-log) |
@@ -80,7 +91,7 @@ money, user data, auth/authz. Loose elsewhere.
 ## definition-of-done.md
 ```markdown
 ---
-artifact: definition-of-done ... status: ready ...   # NOT locked here — gate-check Layer 3 promotes ready→locked on LOCK PASS (single-owner rule, artifact-schema.md); stage 5 only freezes/dates the content
+artifact: definition-of-done ... status: ready ...   # NOT locked here — gate-check Layer 3 promotes ready→locked on LOCK PASS (single-owner rule, the `method-rules-artifact-schema` skill); stage 5 only freezes/dates the content
 ---
 # Definition of Done (frozen BEFORE build — no self-negotiation later)
 ## Universal invariants (every product)
@@ -124,7 +135,7 @@ artifact: evidence-quality-report ... gate: LOCK ...
 | feasibility | R1 | | | |
 | value delivery | R2 | | | |
 | positioning | P | | | |
-## Verdict (COMPUTED from gate state — exact predicate in gate-contracts.md)
+## Verdict (COMPUTED from gate state — exact predicate in the `method-rules-gate-contracts` skill)
 Inputs evaluated (so the derivation is checkable): V1 ___ · V2 ___ · V3 ___ (grade ___) · R1 ___ · R2 ___ · P ___ · LOCK ___
 → **VALIDATED** (all passed AND V3 grade A) | **HYPOTHESIS** (LOCK reached, R1 passed, ≥1 of V2/V3/R2 open) | **PRE-FEASIBILITY HYPOTHESIS** (R1 open)
 This string must be byte-identical to the one in `mvp-spec.md`'s title line. If prose and gate state disagree, the gate state is right.

@@ -34,6 +34,8 @@ Repository: <https://github.com/vuongdam2k01/SaaS-idea-brainstorm> · MIT · v1.
 npx codex-marketplace add vuongdam2k01/SaaS-idea-brainstorm
 ```
 
+Mọi tài liệu quy phạm (state schema, artifact schema, gate contracts, maintenance rules, và templates của từng stage) được ship dưới dạng **skill nạp được**, không phải file nằm cạnh một skill. Đây là chủ ý: bản cài từ marketplace nằm ở `~/.claude/plugins/cache/...`, ngoài allowed directories của phiên, nên bất cứ thứ gì skill chỉ đọc được bằng đường dẫn tương đối trên đĩa sẽ không đọc được đúng lúc người dùng thật cài theo đúng hướng dẫn. Không cần `--add-dir`, không cần nới quyền, không cần cấu hình gì.
+
 Skills và hooks chạy y nguyên trên cả hai CLI; bốn agent nghiên cứu/audit đóng gói riêng dạng `.codex/agents/*.toml` cho Codex. Các khác biệt nền tảng đáng biết nằm ở [plugin/codex-parity.md](plugin/codex-parity.md).
 
 Khởi động CLI ngay trong repo bạn muốn chứa workspace ý tưởng — artifact được ghi vào `ideas/<slug>/` tương đối so với thư mục làm việc, không bao giờ nằm trong plugin. Node.js trên PATH chạy ba hook và trình ghi state; không có nó thì chúng fail open kèm thông báo hiện rõ, ngoài ra không hỏng gì.
@@ -99,7 +101,7 @@ Giai đoạn 0 Framing ──F──> Giai đoạn 1 Cạnh tranh ──C──>
 
 Mỗi lần kiểm cửa chạy ba lớp. **Hình thức**: cửa tiền đề còn hiệu lực, artifact tồn tại đúng trạng thái chấp nhận được, ngưỡng ký trước ngày thu bằng chứng và vẫn khớp bản snapshot đã ký, hạng đúng nghiêm ngặt A/B/C/D, không mục hạng D nào được đếm, mọi khẳng định truy về id bằng chứng, chỉ số tính trên mẫu số đã đăng ký trước. **Đối kháng**: agent `gatekeeper` đọc mọi thứ bằng con mắt mới và cố làm cửa trượt — phát hiện báo cáo nguyên văn, xếp hạng, không làm nhẹ đi. **Quyết định**: bạn phê duyệt, và phán quyết rơi vào `decision-log.md`.
 
-Hợp đồng đầy đủ — artifact bắt buộc từng cửa, trạng thái, chỉ số chính xác — nằm ở `skills/method-rules/gate-contracts.md`. File đó là luật; các skill được chỉ thị không tự chế yêu cầu quanh nó.
+Hợp đồng đầy đủ — artifact bắt buộc từng cửa, trạng thái, chỉ số chính xác — nằm ở `skills/method-rules-gate-contracts/SKILL.md`. File đó là luật; các skill được chỉ thị không tự chế yêu cầu quanh nó.
 
 ---
 
@@ -158,6 +160,7 @@ ideas/support-digest/
 ├── idea-brief.md                 # ý tưởng thô nguyên văn + bản diễn đạt tinh gọn + nhật ký tiến hóa
 ├── founder-charter.md            # ý chí của bạn, ghi lại đúng lúc nó lộ ra; đi kèm trong pack
 ├── decision-log.md               # chỉ-thêm: phán quyết, pivot, sửa ngưỡng, chi tiêu
+├── audit-trail.md                # chỉ-thêm: phát hiện gatekeeper đã redact, để bản clone giữ được lập luận
 ├── problem-hypothesis.md · lean-canvas.md · beachhead-icp.md
 ├── assumption-map.md             # giả định chết người kèm Test Card và ngưỡng
 ├── kill-criteria.md              # khóa tại nghi thức ký cửa F
@@ -168,19 +171,19 @@ ideas/support-digest/
 ├── positioning.md                # khóa tại cửa P
 ├── mvp-pack/                     # sản phẩm bàn giao — bản sao, không phải tham chiếu
 │   ├── mvp-spec.md · tech-design.md · definition-of-done.md
-│   ├── carry-forward.md · evidence-quality-report.md
+│   ├── carry-forward.md · evidence-quality-report.md · audit-trail.md
 │   └── eval/ · experiments/{landing,presell,concierge}/
 └── private/                      # .gitignore của riêng nó: *  và  !.gitignore
     ├── contacts.md               # P1, P2, … → danh tính thật
     └── …                         # transcript, snapshot, danh tính thanh toán
 ```
 
-Mọi artifact markdown mang frontmatter được một hook kiểm — `artifact`, `idea`, `stage`, `gate`, `status` (draft/ready/locked), `evidence_grade`, `rung`, `pipeline_version`, `updated`. Sổ cái bằng chứng là một bảng, mỗi dòng truy về một người thật, kèm xuất xứ truy xuất để một lần kiểm lại thất bại về sau còn phân biệt được "nguồn đã đổi" với "cái này bịa":
+Artifact của pipeline mang frontmatter được một hook kiểm — `artifact`, `idea`, `stage`, `gate`, `status` (draft/ready/locked), `evidence_grade`, `rung`, `pipeline_version`, `updated`. Các sổ nhật ký được miễn theo thiết kế và không mang frontmatter: `decision-log.md`, `audit-trail.md`, `post-mortem.md`, `README.md` của từng ý tưởng, mọi thứ trong `private/`, và các file vết `error-analysis/batch-NNN.md`. Sổ cái bằng chứng là một bảng, mỗi dòng truy về một người thật, kèm xuất xứ truy xuất để một lần kiểm lại thất bại về sau còn phân biệt được "nguồn đã đổi" với "cái này bịa":
 
 ```markdown
-| id | date | source | type | url_or_ref | retrieved | via | verbatim_or_observation | assumption | grade | status |
-|----|------|--------|------|-----------|-----------|-----|-------------------------|------------|-------|--------|
-| E1 | 2026-07-29 | reddit u/… | community | https://… | 2026-07-29 | miner-run-3 | "trích nguyên văn" | A3 | B | confirms |
+| id | date | source | root_source_id | type | url_or_ref | retrieved | via | verbatim_or_observation | assumption | grade | bearing | scope_limits | relationship | supersedes |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| E1 | 2026-07-29 | reddit u/… | RS-thread-1f2a | community | https://… | 2026-07-29 | miner-run-3 | "exact quote" | A3 | B | supports | 1 user, US, 2025 | — | — |
 ```
 
 Artifact là sự thật gốc. `state.json` chỉ là chỉ mục, dựng lại được từ artifact cộng nhật ký quyết định — nếu nó hỏng, `status` sẽ đề nghị làm đúng việc đó.
@@ -225,7 +228,7 @@ Phương pháp cũng tồn tại dưới dạng tài liệu thuần. Tạo `idea
 | Đường dẫn | Nội dung |
 |---|---|
 | `.claude-plugin/` · `.codex-plugin/` | Manifest plugin, mỗi nền tảng một bản |
-| `skills/` | 15 skill — 8 lệnh (gồm `reconcile`, `declare-drift`, `run-validation` cho hậu-LOCK), 6 giai đoạn, và `method-rules` kèm `state-schema.md`, `artifact-schema.md`, `gate-contracts.md`, `maintenance-rules.md` |
+| `skills/` | 15 skill — 8 lệnh (gồm `reconcile`, `declare-drift`, `run-validation` cho hậu-LOCK), 6 giai đoạn, và `method-rules` kèm `method-rules-state-schema` skill, `method-rules-artifact-schema` skill, `method-rules-gate-contracts` skill, `method-rules-maintenance-rules` skill |
 | `agents/` · `.codex/agents/` · `hooks/` · `scripts/` | Bốn subagent, một bản markdown Claude Code và một bản TOML Codex; `hooks.json` (dùng chung cho cả hai nền tảng) cùng ba script Node; trình ghi state nguyên tử |
 | `tests/` | `hook-tests.js` — bộ test hồi quy cho hook |
 | `process/` | Phương pháp (tiếng Việt): pipeline, foundations, build-and-launch, research-verification |
@@ -242,7 +245,7 @@ Bộ test phủ mọi phát hiện từ vòng review đối kháng, gồm cả m
 
 ## Khi có trục trặc
 
-**Một lệnh ghi bị chặn vì frontmatter.** Thiếu một trong chín khóa hoặc một giá trị nằm ngoài enum; thông báo nêu đúng khóa đó.
+**Bị đòi sửa vì frontmatter.** Thiếu một trong chín khóa hoặc một giá trị nằm ngoài enum; thông báo nêu đúng khóa đó. Việc kiểm chạy *sau* khi ghi (`PostToolUse`), nên file đã nằm trên đĩa — hook yêu cầu sửa chứ không ngăn được lệnh ghi, và việc sửa diễn ra ngay.
 
 **Sửa ngưỡng đã ký bị chặn.** Đúng như thiết kế. Ngưỡng đã ký chỉ đổi qua một revision được phê duyệt, ghi vào `state.thresholds.revisions` và soi sang nhật ký quyết định — hãy yêu cầu revision một cách tường minh, kèm lý do.
 

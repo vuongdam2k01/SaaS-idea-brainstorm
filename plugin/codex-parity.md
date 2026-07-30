@@ -14,7 +14,7 @@
 |---|---|---|
 | `.claude-plugin/plugin.json` | `.codex-plugin/plugin.json` | new |
 | `.claude-plugin/marketplace.json` | `.agents/plugins/marketplace.json` | new |
-| `agents/*.md` (YAML frontmatter subagent) | `.codex/agents/*.toml` | `competitor-scanner.toml`, `community-review-miner.toml`, `gatekeeper.toml`, `coldstart-tester.toml` — same `name`, `description`, and body verbatim as `developer_instructions`; `sandbox_mode = "read-only"` matches the original tool restriction (research/audit agents don't write files) |
+| `agents/*.md` (YAML frontmatter subagent) | `.codex/agents/*.toml` | `competitor-scanner.toml`, `community-review-miner.toml`, `gatekeeper.toml`, `coldstart-tester.toml` — same `name`, `description`, and body verbatim as `developer_instructions`; `sandbox_mode = "read-only"` matches the original tool restriction (research/audit agents don't write files). **Generated, not hand-maintained**: `node scripts/sync-codex-agents.js` regenerates the TOML from `agents/*.md`, and `--check` fails when they diverge (a contract fixture runs it). Two hand-kept copies of one prompt drift the moment either side gains a check — which is exactly what happened when the gatekeeper grew its independence/usability/claim/privacy/manifest checks and the Codex copy silently kept the old seven. |
 | `disable-model-invocation: true` (new-idea, switch-mode, status) | `policy.allow_implicit_invocation: false` in a sidecar | `skills/<name>/agents/openai.yaml` |
 
 ## Known gaps — no Codex equivalent, documented instead of faked

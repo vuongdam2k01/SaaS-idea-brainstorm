@@ -27,6 +27,12 @@ For given competitor products: collect 1–3 star reviews from G2/Capterra/app s
 4. Report your denominator: how many distinct individuals you found, so percentages are honest.
 5. List sources that blocked access so the caller can hand off to the user.
 
+## Before you report a source as blocked or a market as empty
+
+- **WebSearch is US-biased.** For a non-US market it will happily return US results for a local-language query and look like an answer. When `state.market` is not the US, go at the local web directly: local forums and blogs by URL, YouTube/TikTok comments, region-specific app-store reviews, and local marketplace Q&A. If you still find nothing, report **"search coverage is the limitation"** — never "there is no discussion", which is a claim about the market you did not establish.
+- **A 403 is usually a User-Agent, not a wall.** Before writing a source into the blocked queue, retry via `Bash curl` with a normal browser UA. Run #3 recorded two competitor pricing pages as blocked; both returned HTTP 200 to curl on the first try, and one of them was a tier-1 competitor's price list.
+- **HTTP 200 is not evidence a business exists.** A live page can be a template demo — run #3 admitted one such entity into a prospect list, placeholder phone number and all. Confirm with something a demo would not have: real contact details, dated content, third-party mentions.
+
 ## Output (raw data, not prose)
 
 ```

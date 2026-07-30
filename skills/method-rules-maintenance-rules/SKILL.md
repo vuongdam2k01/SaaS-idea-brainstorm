@@ -1,10 +1,16 @@
+---
+name: method-rules-maintenance-rules
+description: Post-LOCK maintenance rules for the SaaS validation pipeline - cycles, drift declaration, reconciliation, validation runs, health criteria. Load for any post-LOCK work.
+user-invocable: false
+---
+
 # Post-LOCK maintenance rules (normative, v1.2.0)
 
 The single source of truth for everything that happens to an idea AFTER its MVP scope is locked:
 drift, reconciliation, current-truth projections, cycles, and validation runs. Design converged via
 adversarial review (see `plugin/maintenance-design.md` in the plugin repo). Read together with
-[gate-contracts.md](gate-contracts.md), [artifact-schema.md](artifact-schema.md), and
-[state-schema.md](state-schema.md).
+the `method-rules-gate-contracts` skill, the `method-rules-artifact-schema` skill, and
+the `method-rules-state-schema` skill.
 
 ## 1. Mutation policies (replace any "living vs record" intuition)
 
@@ -57,7 +63,7 @@ introduced_at, epistemic_status`.
 `epistemic_status` enum: `guess | supported | contradicted-retro | refuted | retired`. It is named
 apart from artifact `status` (`draft|ready|locked`), ledger `bearing`
 (`supports|contradicts|unclear`), and message `publication_disposition` — four different questions
-that were previously answered by fields sharing one name (artifact-schema.md).
+that were previously answered by fields sharing one name (the `method-rules-artifact-schema` skill).
 **Closed transition set:**
 
 - `guess → supported`: only via a signed-window PASS (run spec — claim, sampling frame, threshold,
@@ -239,7 +245,7 @@ never after.
 
 ## 9. Maintenance artifact frontmatter (phase-conditional)
 
-`phase: pipeline` (or absent) → exactly the v1.1 rules in [artifact-schema.md](artifact-schema.md);
+`phase: pipeline` (or absent) → exactly the v1.1 rules in the `method-rules-artifact-schema` skill;
 nothing changes for existing artifacts. `phase: maintenance` → required keys:
 
 ```yaml

@@ -1,3 +1,9 @@
+---
+name: stage-1-competitive-templates
+description: Artifact templates for stage 1 of the SaaS validation pipeline. Load when writing that stage's artifacts.
+user-invocable: false
+---
+
 # Stage 1 artifact templates
 
 ## competitive-map.md
@@ -11,7 +17,7 @@ gate: C
 status: draft          # stays draft until calibrated by customer words in stage 2
 evidence_grade: B
 rung: <enhanced-auto|baseline-auto|handoff>
-pipeline_version: 1.1.0
+pipeline_version: 1.2.0
 updated: YYYY-MM-DD
 ---
 # Competitive map (DRAFT — calibrate against customer words in stage 2; do not position against phantom competitors)
@@ -33,7 +39,7 @@ updated: YYYY-MM-DD
 
 - **Capabilities (state, not just presence)**
 
-| capability | state (announced/beta/documented/GA/observed/withdrawn) | source URL | observed_at |
+| capability | state (announced/beta/documented/generally-available/observed/withdrawn) | source URL | observed_at |
 |---|---|---|---|
 
 > Annual-prepaid vs monthly, another currency, another edition, or tax treatment can each fake a
@@ -58,7 +64,7 @@ gate: C
 status: draft
 evidence_grade: B
 rung: <rung>
-pipeline_version: 1.1.0
+pipeline_version: 1.2.0
 updated: YYYY-MM-DD
 ---
 # Negative-review mining (1–3★, verbatim only)

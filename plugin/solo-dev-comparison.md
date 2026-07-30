@@ -6,12 +6,12 @@ và các skill shared về gate/decision. Bỏ ngoài phạm vi: build, QA, rele
 growth, retirement (hermes có 6 profile phủ).
 
 > **Sửa phạm vi (sau Codex round 8).** Bản đầu của file này nói "plugin dừng ở scope lock".
-> Câu đó đã cũ: plugin hiện có thêm **phase maintenance sau LOCK** (`declare-drift`,
-> `reconcile`, cycles, validation runs — xem `maintenance-rules.md` và
-> `plugin/maintenance-design.md`). Phạm vi đúng là **discovery → LOCK + reconciliation
-> sporadic theo yêu cầu sau LOCK**, không phải một operating model liên tục. Sai sót
-> framing này đã khiến Codex round 8 đề xuất xoá toàn bộ phần maintenance — đề xuất đó
-> bị bác, vì phần đó là founder-requested và đã hội tụ qua 4 round adversarial với chính Codex.
+> Câu đó đã cũ: plugin là **một quy trình liền mạch** — discovery → LOCK → reconciliation
+> sporadic theo yêu cầu sau LOCK (`declare-drift`, `reconcile`, `run-validation`, cycles,
+> validation runs; luật ở `method-rules-maintenance-rules` skill, thiết kế ở `plugin/maintenance-design.md`).
+> Không phải hai sản phẩm, cũng không phải một operating model chạy liên tục. Sai sót framing
+> này đã khiến Codex round 8 đề xuất xoá toàn bộ phần sau LOCK — đề xuất đó bị bác, vì phần đó
+> là founder-requested và đã hội tụ qua 4 round adversarial với chính Codex.
 
 Nguồn đã đọc trực tiếp: `hermes-team/skills/iris/*` (10 SKILL.md), `nova/define-positioning-and-messaging`,
 `nova/monitor-market-and-competitor-signals`, `luna/validate-product-usability`,
@@ -208,7 +208,7 @@ Với một solo dev, khác biệt này là khác biệt giữa "biết mình ph
   không dính vào cuộc hội thoại đã sinh ra chúng.
 - `coldstart-tester`: giả lập một session build hoàn toàn mới chỉ có MVP pack;
   danh sách câu hỏi còn lại **không rỗng = fail**.
-- `gate-contracts.md`: predicate verdict chính xác (Validated / Hypothesis / **Pre-feasibility**),
+- `method-rules-gate-contracts` skill: predicate verdict chính xác (Validated / Hypothesis / **Pre-feasibility**),
   self-contained pack (copy chứ không reference), threshold-snapshot ghi vào decision-log và
   **recompute so sánh ở mọi gate sau, độc lập với hook**.
 
@@ -452,3 +452,90 @@ manifest desync. Round 9 nó rút lại đề xuất xoá.
 ledger cùng root → trần 2 nguồn độc lập; file thêm vào pack sau snapshot bị bắt; `simulate` bị từ chối
 trên artifact 1.2.0 còn `handoff-only` trên artifact cũ nhận **chỉ dẫn migrate**; tên thật trong state
 bị từ chối; nhãn pack đúng ở cả 4 nhánh verdict.
+
+### 6.5. Round 10 — Codex verify: 2 blocker + 6 major, tất cả đúng
+
+Round 10 lần đầu **bị chính filter an toàn của provider Codex chặn** (probe của nó test
+symlink/junction/traversal vào code hashing, đọc như offensive security). Nó kịp ghi probe fixture vào
+repo, và **tên file tiết lộ đúng các case nó định test** — tôi tự chạy danh sách đó và tìm ra 7 lỗ trong
+code mình vừa viết (case-only root id, vòng supersession, row đã superseded vẫn nâng trần, bảng thứ hai
+bị parse, placeholder root id, key nhận dạng lọt qua exact-match, và bỏ key `privacy` xoá sạch nghĩa vụ).
+Gửi lại với khung "code review thường" thì nó trả findings đầy đủ:
+
+| # | Finding | Trạng thái |
+|---|---|---|
+| B1 | **Thứ tự LOCK khai báo ≠ thứ tự thực thi**: stage 5 gọi full gate check ở dòng 65 rồi mới cold-start ở 68, mà predicate LOCK đã đòi cold-start pass → FAIL bảo đảm; và stage 5 nhân bản formal/gatekeeper/PASS mà gate-check sở hữu → có thể dừng ở "pipeline ends here" mà **disposition + freeze không bao giờ chạy** | Sửa: cold-start vào 5.6 trước gate check; stage 5 không nhân bản layer nào nữa |
+| B2 | **Template stage-2 sinh ledger mà validator của chính nó từ chối** — vẫn cột `status` cũ, thiếu `root_source_id`/`bearing`/`scope_limits` → "lineage đã implement" là **sai** với mọi lần chạy mới | Sửa template (producer), không chỉ schema |
+| M3 | Validator ledger: cycle chỉ bắt 2-node (3-node lọt), nhiều row supersede cùng target ghi đè im lặng trong Map, bảng rỗng + bảng thứ hai vẫn misparse, `splitRow` không markdown-aware (escaped pipe lệch cột) | DFS cho cycle mọi độ dài; từ chối >1 superseder; kết thúc bảng ở dòng non-table đầu tiên sau header; split tôn trọng `\|` |
+| M4 | Manifest **fail-open**: thiếu `manifest_sha256` vẫn verify sạch (nó chạy code chứng minh), thiếu `algorithm`/`purpose`/`manifest_version` không bị chặn, entry hash rác không bị chặn, symlink lồng vẫn bị follow | Fail closed toàn bộ; `lstat` mọi entry và mọi child; symlink lồng bị từ chối; lỗi FS thành finding có cấu trúc |
+| M5 | Privacy: `extended` với ngày tương lai được nhận, **rồi khi ngày đó qua thì mọi scan overdue đều bỏ qua nó vĩnh viễn**; date chỉ check format; blacklist không phải "non-sensitive by construction"; removal-protection theo `participant_id` làm hai duty của một người sập thành một; previous-state parse lỗi bị swallow | **Bỏ hẳn status `extended`** (extension = duty `active` với ngày mới) · date thật · **allowlist** key đóng · `duty_id` ổn định · fail-closed khi không đọc được state cũ |
+| M6 | Sampling-frame vẫn declarative: hash "exact text của một section" bằng helper hash **file** → V1 không thể recompute cùng bytes | Frame thành file thật `sampling-frame-v1.md`, hash file đó, journal `manifest_sha256`; V1 chạy `verify` |
+| M7 | **Parity Codex stale**: `.codex/agents/*.toml` vẫn 7 check cũ trong khi bản Claude đã có independence/usability/claim/privacy/manifest/cross-domain; coldstart thiếu MSP; scanner thiếu normalization — mà `codex-parity.md` vẫn khai "body verbatim" | `scripts/sync-codex-agents.js` **sinh** TOML từ `agents/*.md`; `--check` fail khi lệch; có fixture chạy nó |
+| M8 | `generally-available` vs `GA` hai cách viết; reconcile tạo hai manifest trông đều authoritative | Một cách viết; JSON canonical, markdown là **view** và tự nói vậy |
+
+**Over-absorption nó yêu cầu bỏ** — bỏ hết: `extended` (đã nêu), `last_checked_at` (không ai đọc), và
+**bảng journal 10 cột phổ quát** → 6 cột + một ô `detail` có kiểu (bắt mọi event mang bookkeeping của
+gate-verdict là tốn migration và context cho không).
+
+**Hai câu tôi hỏi nó** — trần chỉ tính live root: *đúng* ("nếu row cũ vẫn hợp lệ độc lập thì row mới nên
+`relationship` chứ không `supersedes`"); re-walk O(files): *giữ* ("digest thư mục vẫn phải traverse để
+recompute, nên vẫn O(files); ở LOCK thì chi phí đó là đúng").
+
+Thêm 2 mục nó nêu ở bảng declarative-vs-operational mà tôi làm luôn: nhãn pack giờ là
+`scripts/pack-verdict.js` (fixture test **module thật**, không phải bản copy trong test), và `waiting_on`
+được `state-write.js` kiểm (thiếu `resume_when`/`owner` bị từ chối — entry không có điều kiện kết thúc thì
+không phân biệt được với entry bị bỏ rơi).
+
+**Trạng thái**: `hook-tests` 89 · `pipeline-contract-tests` **85** · `plugin validate --strict` pass.
+Điểm Codex round 10 (trước các sửa này): correctness 7.0 · coherence 6.5 · pipeline 7.5 · prompt-eng 9.0 ·
+resilience 7.5 · completeness 8.0 — verdict *"fix findings 1–7, rerun both suites, then dogfood"*.
+
+### 6.6. Round 11 — verify các sửa: 1 blocker mới (do chính bản sửa), 7 major
+
+Codex chạy được cả hai suite lần này (tôi đã thêm fallback `.tmp-tests/` khi system temp không ghi được)
+và xác nhận **89/89 + 85/85 + strict pass + parity pass**. Nhưng các check ngoài suite lại tìm thêm:
+
+| # | Finding | Sửa |
+|---|---|---|
+| B | **`pack-verdict.js` làm stage 5 không bao giờ tới được LOCK**: stage 5 chạy nó *trước* gate, mà nó trả `NO PACK` nếu LOCK chưa passed — chicken-and-egg do chính tôi tạo ra. Thêm nữa nó đọc grade V3 từ field **không có trong schema**, nên với state đúng shape luôn ra `"grade none"`; và predicate lệch contract (nó gọi all-passed-grade-B là HYPOTHESIS, contract nói "anything else = no pack") | Thêm `--assuming-lock-pass` (output đánh dấu **PROSPECTIVE**); document `gates.V3.evidence_grade_observed` vào state-schema (tách khỏi `evidence_floor` — đọc floor thì mọi pack đều "validated"); V3 passed mà grade ≠ A giờ là **NO PACK kèm lý do "hai bản ghi mâu thuẫn, sửa bản ghi chứ không đổi nhãn"**; fixture test **CLI với state thật**, không gọi `verdict()` trực tiếp |
+| 2 | B2 chỉ sửa 1 trong 3 producer: `templates/2-validate.md` đặt tên cột `bearing (supports/…)` nên validator báo **missing-column**, và cả hai README vẫn in ledger cũ với `status`/`confirms` | Sửa cả 3 + **fixture sinh ledger TỪ từng producer rồi validate** (4 producer, gồm cả README và artifact-schema) — cách duy nhất để lệch này không tái diễn |
+| 3 | DFS mất cạnh: `supersedes` nhận nhiều target nhưng map một-giá-trị ghi đè → E1 supersede E2,E3 + E2 supersede E1 thì **loop bị bỏ qua** | Từ chối >1 target (schema chỉ có một predecessor); sửa hai row là hai lần sửa |
+| 4 | `normalizeRel` không gộp separator trùng → `skills//x.md` và `skills/x.md` là hai entry cho một file, verify sạch | Bắt buộc **chính tả canonical** (`path.posix.normalize` round-trip) |
+| 5 | Confinement `manifest_ref` chỉ prefix → `private/../state.json` được nhận | Normalize + từ chối absolute/drive/`.`/`..` |
+| 6 | Duty legacy chưa có `duty_id` **không có đường migrate**: so id cũ với tập id mới → báo "drops live duties" | So bằng composite (participant+manifest+deadline+kind) cho lần migrate một-lần |
+| 7 | `waiting_on` chỉ được kiểm ở root; **fragment cycle nhận `["legacy loose wait"]` với exit 0** | Một `validateWaitingOn()` dùng cho cả hai + regression fragment; state-schema nói rõ migrate là **HỎI** founder, không được bịa `resume_when`/`owner` |
+| 8 | M6 còn **hai nguồn sự thật** cho sampling frame: ledger vẫn giữ nguyên section frame đầy đủ, mà chỉ file mới được hash → metric có thể được kể theo bản copy đã lệch | Ledger giữ **con trỏ + hash**, file là authoritative duy nhất |
+
+Ba compatibility check nó xác nhận sạch: journal 6+1 cột không phá parser nào (không có code nào parse
+cột journal); vòng FAIL của stage 5 **có kết thúc** (đòi pack thay đổi + luật hai-lần-fail-giống-nhau);
+generator Codex đúng cho tập nguồn hiện tại (tôi thêm luôn phát hiện **orphan TOML** theo gợi ý của nó).
+
+Điểm round 11: correctness 7.5 · coherence 7.5 · pipeline 7.5 · prompt-eng 9.2 · resilience 8.0 ·
+completeness 8.5 (từ 7.0/6.5/7.5/9.0/7.5/8.0). Verdict vẫn **fix-then-dogfood, chưa phát hành**.
+Sau round này: `hook-tests` 89 · `pipeline-contract-tests` **98** · strict pass · parity pass.
+
+### 6.7. Round 12 — Codex hết quota; tự kiểm 4 câu đã đặt cho nó
+
+Codex trả `You've hit your usage limit` (reset 5/8/2026) nên round 12 **không có verdict độc lập**. Bốn
+câu tôi đã viết cho nó trong prompt, tôi tự trả lời bằng cách chạy:
+
+1. **Prospective mode có thể đóng dấu VALIDATED vào pack mà LOCK sau đó FAIL không?** — **CÓ, và không gì
+   bắt được.** Đây là lỗ thật do bản sửa blocker round 11 tạo ra. Đã bịt: nhãn viết trước gate **phải giữ
+   `(PROSPECTIVE — LOCK not yet passed)`**; Layer 1 coi *nhãn trông final khi LOCK chưa passed* là blocker;
+   Layer 3 chỉ strip marker sau khi **chạy lại helper KHÔNG có flag** và xác nhận verdict không đổi — lệch
+   thì báo blocker chứ không strip. Trên FAIL marker ở lại, nên một LOCK fail không để lại pack trông đã
+   validated. 4 regression mới.
+2. **Canonical-path có phá dạng path hợp lệ nào?** — có: `mvp-pack/` (dấu / cuối, cách ai cũng viết cho
+   thư mục) bị từ chối oan. Đã cho phép; `a//b.md` vẫn bị chặn.
+3. **Composite duty migration có bị lợi dụng để đổi một duty thành duty khác?** — không: composite gồm
+   participant + manifest_ref + delete_by + kind, nên hai duty chỉ trùng khi cả bốn trùng (lúc đó chúng
+   không phân biệt được kể cả bằng tay). Đổi `delete_by` *cùng lúc* thêm `duty_id` thì composite không khớp
+   → báo drop, tức fail closed, đúng hướng.
+4. **Fixture producer-agreement có fail khi header regress?** — có, kiểm bằng cách tạm đổi `bearing` thành
+   `status` trong template stage-2: `FAIL … unknown/renamed columns: status`. Đã restore.
+
+**Trạng thái cuối**: `hook-tests` 89 · `pipeline-contract-tests` **102** · `plugin validate --strict` pass ·
+`sync-codex-agents --check` pass. **Chưa phát hành**: verdict độc lập cuối cùng vẫn là round 11
+("fix-then-dogfood"), và ba việc còn treo là (a) một round verify độc lập sau các sửa round 11+12,
+(b) dogfood đầy đủ raw-idea → LOCK, (c) meta-eval đã pre-register trong spec. Không tự tuyên bố pass thay
+cho reviewer — đó đúng là loại tự-phê-duyệt mà cả pipeline này được xây để chặn.

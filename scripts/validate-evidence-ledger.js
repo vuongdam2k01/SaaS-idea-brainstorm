@@ -60,7 +60,7 @@ function main(argv) {
         "error",
         "missing-column",
         "header",
-        `required column: ${expected} (v1.2.0 ledger shape — see artifact-schema.md)`
+        `required column: ${expected} (v1.2.0 ledger shape — see the method-rules-artifact-schema skill)`
       );
     }
   }
@@ -71,6 +71,7 @@ function main(argv) {
   const ids = new Map();
   const rootCounts = new Map();
   const supersededBy = new Map();
+  const rowRoots = new Map();
 
   for (const row of parsed.rows) {
     const at = `row ${row.line}`;
@@ -100,8 +101,8 @@ function main(argv) {
       }
     } else add("warning", "missing-bearing", at, `${id}: no bearing recorded`);
 
-    const root = cell(row, cols, "root_source_id");
-    if (!root || root === "—" || root === "-") {
+    const rootRaw = cell(row, cols, "root_source_id");
+    if (!isPresent(rootRaw)) {
       add(
         "error",
         "missing-root-source",
@@ -109,24 +110,64 @@ function main(argv) {
         `${id}: root_source_id is required — independence is computed from distinct root sources, never self-declared`
       );
     } else {
+      // Group case- and whitespace-insensitively: "RS-a" and "rs-A" are one
+      // source recorded twice, and treating them as two would inflate the
+      // independent count — the exact failure root_source_id exists to prevent.
+      const root = rootRaw.trim().replace(/\s+/g, " ").toLowerCase();
+      if (/\s/.test(root))
+        add(
+          "warning",
+          "root-id-format",
+          at,
+          `${id}: root_source_id "${rootRaw.trim()}" contains spaces — use a stable slug (RS-<something>) so the same source is always written the same way`
+        );
       if (!rootCounts.has(root)) rootCounts.set(root, []);
       rootCounts.get(root).push(id);
+      rowRoots.set(id, root);
     }
 
     const scope = cell(row, cols, "scope_limits");
-    if (!scope || scope === "—" || scope === "-")
+    if (!isPresent(scope))
       add("warning", "no-scope-limits", at, `${id}: no scope_limits — gates will read this row at its narrowest possible scope`);
 
     const sup = cell(row, cols, "supersedes");
-    if (sup && sup !== "—" && sup !== "-") {
-      for (const target of sup.split(/[,\s]+/).filter(Boolean)) {
-        if (target === id) add("error", "self-supersede", at, `${id}: cannot supersede itself`);
+    if (isPresent(sup)) {
+      const targets = sup.split(/[,\s]+/).filter(Boolean);
+      // The schema describes ONE predecessor per row. Allowing several meant the
+      // cycle walk had to keep a single edge per node and silently dropped the
+      // rest — a loop could hide behind the discarded edge. Reject the ambiguity
+      // instead: correcting two rows at once is two corrections.
+      if (targets.length > 1) {
+        add(
+          "error",
+          "multiple-supersede-targets",
+          at,
+          `${id} supersedes ${targets.length} rows (${targets.join(", ")}) — one row replaces exactly one row; split it`
+        );
+        continue;
+      }
+      for (const target of targets) {
+        if (target === id) {
+          add("error", "self-supersede", at, `${id}: cannot supersede itself`);
+          continue;
+        }
+        // Two rows both claiming to replace the same one is ambiguous lineage;
+        // a Map would have silently kept whichever was parsed last.
+        if (supersededBy.has(target)) {
+          add(
+            "error",
+            "multiple-superseders",
+            at,
+            `${target} is superseded by both ${supersededBy.get(target)} and ${id} — exactly one row may replace another`
+          );
+          continue;
+        }
         supersededBy.set(target, id);
       }
     }
 
     const rel = cell(row, cols, "relationship");
-    if (rel && rel !== "—" && rel !== "-") {
+    if (isPresent(rel)) {
       for (const m of rel.matchAll(/(supports|contradicts)\s*:\s*(E\d+)/gi)) {
         if (m[2] === id) add("error", "self-relation", at, `${id}: relationship cannot reference itself`);
         else row._relTargets = (row._relTargets || []).concat(m[2]);
@@ -147,6 +188,36 @@ function main(argv) {
       add("error", "missing-supersede-target", "ledger", `${by} supersedes unknown evidence id "${target}"`);
   }
 
+  // Supersession must be a chain. A loop of ANY length makes every row in it
+  // non-live, which would silently zero a denominator — a two-node check missed
+  // the three-node case entirely, so walk the graph.
+  {
+    const next = new Map(); // successor -> the row it supersedes
+    for (const [target, by] of supersededBy) next.set(by, target);
+    const state = new Map(); // 0 = visiting, 1 = done
+    for (const start of next.keys()) {
+      if (state.get(start) === 1) continue;
+      const path = [];
+      let node = start;
+      while (node !== undefined && state.get(node) !== 1) {
+        if (state.get(node) === 0) {
+          const loop = path.slice(path.indexOf(node)).concat(node);
+          add(
+            "error",
+            "supersession-cycle",
+            "ledger",
+            `supersession loop: ${loop.join(" → ")} — supersession must be a chain, not a loop`
+          );
+          break;
+        }
+        state.set(node, 0);
+        path.push(node);
+        node = next.get(node);
+      }
+      for (const n of path) state.set(n, 1);
+    }
+  }
+
   // Independence: same root source = one piece of evidence, however many rows.
   const collapsed = [];
   for (const [root, members] of rootCounts) {
@@ -162,13 +233,22 @@ function main(argv) {
   }
 
   const live = [...ids.keys()].filter((id) => !supersededBy.has(id));
+  // The ceiling counts roots of LIVE rows only. A superseded row has been
+  // retracted or corrected; letting its root keep raising the ceiling would let
+  // withdrawn evidence widen a denominator.
+  const liveRoots = new Set();
+  for (const id of live) {
+    const r = rowRoots.get(id);
+    if (r) liveRoots.add(r);
+  }
   const summary = {
     rows: parsed.rows.length,
     unique_ids: ids.size,
     superseded: supersededBy.size,
     live_rows: live.length,
     distinct_root_sources: rootCounts.size,
-    max_independent_count: rootCounts.size,
+    live_root_sources: liveRoots.size,
+    max_independent_count: liveRoots.size,
     collapsed_groups: collapsed.length,
   };
   return report(findings, jsonOut, summary);
@@ -199,7 +279,13 @@ function parseLedger(text) {
   const rows = [];
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
-    if (!line.trim().startsWith("|")) continue;
+    if (!line.trim().startsWith("|")) {
+      // The ledger table is contiguous. Once its HEADER is found, the first
+      // non-table line ends it — including when the table has zero rows, which
+      // previously let the next table in the file be read as evidence rows.
+      if (header) break;
+      continue;
+    }
     const cells = splitRow(line);
     if (!cells.length) continue;
     const lower = cells.map((c) => c.toLowerCase());
@@ -219,9 +305,37 @@ function parseLedger(text) {
   return { header, rows };
 }
 
+/**
+ * Split a markdown table row on UNESCAPED pipes. A quote containing `\|` used to
+ * shift every later column by one, silently misreading grade/bearing/root.
+ */
 function splitRow(line) {
-  const t = line.trim().replace(/^\|/, "").replace(/\|$/, "");
-  return t.split("|").map((c) => c.trim());
+  const t = line.trim().replace(/^\|/, "").replace(/\|\s*$/, "");
+  const cells = [];
+  let cur = "";
+  for (let i = 0; i < t.length; i++) {
+    const ch = t[i];
+    if (ch === "\\" && t[i + 1] === "|") {
+      cur += "|";
+      i++;
+      continue;
+    }
+    if (ch === "|") {
+      cells.push(cur.trim());
+      cur = "";
+      continue;
+    }
+    cur += ch;
+  }
+  cells.push(cur.trim());
+  return cells;
+}
+
+/** A cell counts as filled only if it says something — "", "-", "—", "n/a" do not. */
+function isPresent(v) {
+  if (!v) return false;
+  const t = String(v).trim().toLowerCase();
+  return t !== "" && t !== "-" && t !== "—" && t !== "--" && t !== "n/a" && t !== "na" && t !== "none";
 }
 
 function cell(row, cols, name) {

@@ -8,3 +8,7 @@ ideas/proposal-draft/
 
 node_modules/
 .DS_Store
+
+# eval artefacts: fixtures are generated, results are per-run
+evals/fixtures/generated/
+evals/results/

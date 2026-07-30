@@ -1,3 +1,9 @@
+---
+name: stage-3-verify-templates
+description: Artifact templates for stage 3 of the SaaS validation pipeline. Load when writing that stage's artifacts.
+user-invocable: false
+---
+
 # Stage 3 artifact templates
 
 ## error-analysis/summary.md (canonical R1 artifact — merged by the coordinator after all batch workers finish; `error-analysis/batch-NNN.md` worker files are frontmatter-exempt raw trace data)

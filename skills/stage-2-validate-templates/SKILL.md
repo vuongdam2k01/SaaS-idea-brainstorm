@@ -1,3 +1,9 @@
+---
+name: stage-2-validate-templates
+description: Artifact templates for stage 2 of the SaaS validation pipeline. Load when writing that stage's artifacts.
+user-invocable: false
+---
+
 # Stage 2 artifact templates
 
 All files carry standard frontmatter (artifact-schema). Key structures:
@@ -13,16 +19,25 @@ evidence_grade: B
 ...
 ---
 # Evidence ledger (single source of truth — grade D never enters; real contacts as P-ids only)
-## Sampling frame (V1 — REGISTERED BEFORE MINING; the gate metric counts only from this frame)
-- Neutral queries, EXACT strings (problem-space language, NOT success-condition language):
-- Sources + per-source result cutoff (e.g. "first 50 results/threads per query"):
-- Time window: · Inclusion/exclusion rules: · Dedupe rule across sources (by author handle/URL):
-- **Stopping rule (pre-registered)**: mining stops when the frame is exhausted OR after ___ consecutive new results yield no new distinct individual — never when the ratio looks favorable.
-- Claim scope: results support statements about **search-indexed discussants of this problem**, not market prevalence — phrase V1 conclusions accordingly.
-- Registered on: YYYY-MM-DD
-| id | date | source | type | url_or_ref | retrieved | via | verbatim_or_observation | assumption | grade | status |
-|---|---|---|---|---|---|---|---|---|---|---|
+## Sampling frame (V1) — POINTER ONLY; the frame itself lives in `sampling-frame-v1.md`
+- Frame file: `sampling-frame-v1.md` · manifest: `private/manifest-v1-frame.json` · sha256: ___
+- Journaled as `sampling-frame-snapshot` on: YYYY-MM-DD (BEFORE collection began)
+> The frame is **not** duplicated here. Two copies means the protected one and the narrated one can
+> diverge, and only the file is hashed — so the metric could be argued against an edited copy. Read the
+> file for the queries, sources, window, inclusion/exclusion, dedupe rule, stopping rule and claim scope.
+| id | date | source | root_source_id | type | url_or_ref | retrieved | via | verbatim_or_observation | assumption | grade | bearing | scope_limits | relationship | supersedes |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
 > Rows from targeted behavior-searches are tagged `exploratory` in `via` and excluded from the V1 denominator.
+> `root_source_id` = the ORIGINAL source, not the page you read it on (`RS-<slug>`): rows sharing a root
+> are **one** source in every denominator, however many reposts carried the same complaint — independence
+> is computed from distinct roots, never declared. `bearing` is `supports|contradicts|unclear` (the field
+> formerly called `status`). `scope_limits` = who/where/when this actually covers; blank means gates read
+> it at its narrowest. A wrong row is `superseded` by a corrected one — never edited away, and a
+> superseded row stops counting. A pipe inside a quote must be escaped (`\|`) — the validator reads
+> escaped pipes correctly, but an UNESCAPED one shifts every later column and silently misreads
+> grade/bearing/root. For long quotes keep the cell short and put the full excerpt in
+> `private/snapshots/E<id>.txt`.
+> Validate before any gate that consumes it: `node scripts/validate-evidence-ledger.js <path> --json`.
 ## Pain / theme clusters (synthesis over the ledger)
 | cluster | count / N | representative E-ids | notes |
 |---|---|---|---|
@@ -94,14 +109,18 @@ artifact: solution-directions ... gate: V2 ...
 > comes due; it cannot guarantee calendar-time deletion on its own, and never deletes anything
 > without explicit approval over the exact files.
 
-| Pid | first contact | consent basis (what they were told, how) | recorded? (notes/audio/screen) | allowed use | retention deadline | withdrawal state | disposition (date + what was deleted) |
-|---|---|---|---|---|---|---|---|
+| duty_id | Pid | kind (interview/mock/pilot) | first contact | consent basis (what they were told, how) | recorded? (notes/audio/screen) | allowed use | retention deadline | withdrawal state | disposition (date + what was deleted) |
+|---|---|---|---|---|---|---|---|---|---|
 
 - Publication rule: only pseudonymous ids + aggregate/redacted excerpts leave `private/`.
 - Withdrawal: on request, mark `withdrawn`, stop using their material, and exclude their session from
   every denominator (excluded sessions are listed, never silently dropped).
-- Mirror each row's `{participant_id, delete_by, status}` into `state.json.privacy.retention_duties`
-  (non-sensitive index only — no names, no consent text).
+- Mirror each row's `{duty_id, participant_id, delete_by, status, kind}` into
+  `state.json.privacy.retention_duties` — a closed key set, nothing else (no names, no consent text).
+  One duty per row, with its own `D<n>` id: a participant interviewed AND filmed has two duties, and
+  keying on the participant alone let one of them disappear.
+- Extending a deadline means writing a **new `delete_by` on the still-`active` duty**. There is no
+  "extended" status — a status the overdue scan skips is a duty that goes quiet.
 ```
 
 ## landing-kit.md

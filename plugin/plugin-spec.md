@@ -1,8 +1,8 @@
 # Plugin Spec — rebuild (2026-07-29)
 
 > ✅ **BUILT (2026-07-29)** and **PASSED 3 ROUNDS OF ADVERSARIAL REVIEW WITH CODEX** (gpt-5.6-sol, xhigh — transcript: [codex-review.md](codex-review.md)). **ADDENDUM v1.1 — items below REPLACE corresponding content in this spec** (sections 4–5 not fully rewritten; addendum wins on conflict):
-> 1. **12 skills** (add `switch-mode`); `gate-check` + `setup-audit` are model-invocable (not user-only) — required for autonomous pipeline.
-> 2. **Machine-readable gate contracts** at `skills/method-rules/gate-contracts.md`: per-gate prerequisites (P demands V3+R1+R2 resolved), acceptable artifact states, OPEN rules, **3-tier pack predicate**: Validated / Hypothesis / **Pre-feasibility** (R1 open).
+> 1. **15 skills** (v1.1 added `switch-mode` → 12; v1.2 added the post-LOCK three: `declare-drift`, `reconcile`, `run-validation`); `gate-check` + `setup-audit` are model-invocable (not user-only) — required for autonomous pipeline.
+> 2. **Machine-readable gate contracts** at `skills/method-rules-gate-contracts/SKILL.md`: per-gate prerequisites (P demands V3+R1+R2 resolved), acceptable artifact states, OPEN rules, **3-tier pack predicate**: Validated / Hypothesis / **Pre-feasibility** (R1 open).
 > 3. **State v1.1.0**: `active[]` DAG replaces `current_stage`; capabilities is object `{status, rung, provider, verified_at, probe}` — "CLI installed but not authed" never = available; migration rules from v1.0.
 > 4. **userConfig only has `ads_budget_cap_usd`** (no sensitive keys — no adapter uses them; integrations = user-installed MCP/CLI, setup-audit verifies with authenticated functional probe).
 > 5. **Evidence rules R1**: deterministic metric on real data = C; LLM-judge subjective no person anchor = D (diagnostic, doesn't count gate); PASS subjective needs anchor person labels (~75–90% agreement) or real R2 result.

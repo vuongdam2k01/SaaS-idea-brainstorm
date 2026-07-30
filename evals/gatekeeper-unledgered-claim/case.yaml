@@ -1,0 +1,18 @@
+# Does the gatekeeper notice a behavioural claim about a real person that never
+# entered the evidence ledger, and is therefore ungraded and outside every
+# denominator and balance check?
+#
+# Run #2 original: P2/P4/P5/P6 existed only in private/contacts.md. The ledger
+# validator structurally cannot see them — only a reader can.
+name: gatekeeper-unledgered-claim
+tags: [gatekeeper, interpretation-layer, gate-F, ledger-bypass]
+runs: 10
+scaffold_script: node evals/fixtures/build-fixtures.js "$CASE_TMP" && cp -r "$CASE_TMP/unledgered-claim/." .
+prompt: |
+  Run the gate-F gatekeeper review for the idea at `ideas/unledgered-claim`.
+
+  Use the saas-idea-brainstorm gatekeeper agent, wait for it inline, and reproduce
+  its findings verbatim and ranked. Gate: F. Do not soften and do not summarize the
+  findings away.
+graders:
+  - graders/catches-ledger-bypass.md

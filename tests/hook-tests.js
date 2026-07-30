@@ -174,6 +174,51 @@ console.log("== guard-thresholds ==");
   noFromTo.thresholds.revisions = [{ field: "v1_past_behavior_pct", date: "not-a-date", reason: "ok", user_approved: true }];
   r = runHook("guard-thresholds.js", { tool_input: { file_path: sp, content: JSON.stringify(noFromTo, null, 2) } });
   check("revision missing from/to + bad date => still ask", r && r.hookSpecificOutput && r.hookSpecificOutput.permissionDecision === "ask");
+
+  // DOGFOOD RUN #2 (proven bypass, kept as a permanent regression):
+  // `signed_date` was in THRESHOLD_FIELDS and therefore revisable, so a
+  // self-authored complete revision could BACKDATE the signing date. That is the
+  // one tamper gate-check's "signed BEFORE evidence dates" check would reward
+  // rather than catch. signed_date must never be coverable by a revisions entry.
+  const backdate = JSON.parse(JSON.stringify(SIGNED_STATE));
+  backdate.thresholds.signed_date = "2026-06-01";
+  backdate.thresholds.revisions = [
+    { date: "2026-07-30", field: "signed_date", from: SIGNED_STATE.thresholds.signed_date, to: "2026-06-01", reason: "housekeeping", user_approved: true },
+  ];
+  r = runHook("guard-thresholds.js", { tool_input: { file_path: sp, content: JSON.stringify(backdate, null, 2) } });
+  check("BACKDATING signed_date w/ complete revision => still ask", r && r.hookSpecificOutput && r.hookSpecificOutput.permissionDecision === "ask");
+
+  // Same seal forward, and via a partial edit rather than a full rewrite.
+  r = runHook("guard-thresholds.js", { tool_input: { file_path: sp, old_string: SIGNED_STATE.thresholds.signed_date, new_string: "2026-09-09" } });
+  check("partial edit moving signed_date => ask", r && r.hookSpecificOutput && r.hookSpecificOutput.permissionDecision === "ask");
+
+  // Deleting signed_date must not silently un-sign the thresholds. This is why
+  // the field stays IN THRESHOLD_FIELDS instead of being dropped from it.
+  const unsign = JSON.parse(JSON.stringify(SIGNED_STATE));
+  unsign.thresholds.signed_date = null;
+  r = runHook("guard-thresholds.js", { tool_input: { file_path: sp, content: JSON.stringify(unsign, null, 2) } });
+  check("blanking signed_date => ask (cannot silently un-sign)", r && r.hookSpecificOutput && r.hookSpecificOutput.permissionDecision === "ask");
+
+  // audit-trail.md is the tracked, redacted twin of the private gatekeeper
+  // report (private/ does not survive a clone). Same append-only guarantee as
+  // decision-log, and frontmatter-exempt because it is a journal.
+  const at = path.join(dir, "audit-trail.md");
+  fs.writeFileSync(at, "## F attempt 01 — 2026-07-30 — FAIL\n| id | severity | finding | lands on | status |\n");
+  r = runHook("guard-thresholds.js", { tool_input: { file_path: at, content: "## F attempt 01 — 2026-07-30 — FAIL\n" } });
+  check("audit-trail truncation => ask", r && r.hookSpecificOutput && r.hookSpecificOutput.permissionDecision === "ask");
+  r = runHook("guard-thresholds.js", { tool_input: { file_path: at, content: fs.readFileSync(at, "utf8") + "\n## F attempt 02 — 2026-08-01 — PASS\n" } });
+  check("audit-trail append => allow", r === null);
+  r = runHook("validate-artifact.js", { tool_input: { file_path: at } });
+  check("audit-trail needs no frontmatter (journal format)", r === null);
+
+  // FIRST signing must stay frictionless: the branch only arms once the OLD
+  // state carries a signed_date, so null -> date is untouched by the seal.
+  const unsignedDir = mkIdea("t3b", { ...SIGNED_STATE, thresholds: { ...SIGNED_STATE.thresholds, signed_date: null } });
+  const usp = path.join(unsignedDir, "state.json");
+  const firstSign = JSON.parse(JSON.stringify(SIGNED_STATE));
+  firstSign.thresholds.signed_date = "2026-08-01";
+  r = runHook("guard-thresholds.js", { tool_input: { file_path: usp, content: JSON.stringify(firstSign, null, 2) } });
+  check("first signing (null -> date) => allow", r === null);
 }
 
 console.log("== round-4 validator cases ==");
@@ -588,6 +633,375 @@ console.log("== v1.2 session-start: drift boundary + reconcile line ==");
   const ctx4 = r4 && r4.hookSpecificOutput && r4.hookSpecificOutput.additionalContext;
   const t11line = ctx4 && ctx4.split("\n").find((l) => l.startsWith("- t11:"));
   check("drift before last reconcile => no boundary flag", !!t11line && !t11line.includes("DRIFT DECLARED"));
+}
+
+// ---------------------------------------------------------------------------
+console.log("== run-#3 session-start: the walk-up stops at the workspace boundary ==");
+{
+  // The old walk climbed 12 levels, stopping only at `.git` or the filesystem
+  // root, so a session in a plain directory could surface an unrelated project's
+  // ideas/ from an ancestor and present it as this workspace's state.
+  const outer = fs.mkdtempSync(path.join(os.tmpdir(), "sib-boundary-"));
+  fs.mkdirSync(path.join(outer, "ideas", "stranger"), { recursive: true });
+  fs.writeFileSync(
+    path.join(outer, "ideas", "stranger", "state.json"),
+    JSON.stringify({ pipeline_version: "1.2.0", gates: {}, active: ["0.0"] })
+  );
+
+  const inner = path.join(outer, "my-workspace");
+  fs.mkdirSync(inner, { recursive: true });
+  const ctxOf = (cwd) => {
+    const r = runHook("session-start.js", { cwd });
+    return (r && r.hookSpecificOutput && r.hookSpecificOutput.additionalContext) || "";
+  };
+
+  check("without a workspace marker the ancestor's ideas/ is still found (unchanged behaviour)",
+    ctxOf(inner).includes("stranger"));
+
+  fs.mkdirSync(path.join(inner, ".claude"), { recursive: true });
+  check("a workspace marker stops the walk before the ancestor's ideas/",
+    !ctxOf(inner).includes("stranger"));
+
+  // The marker must not blind a workspace to its OWN ideas/.
+  fs.mkdirSync(path.join(inner, "ideas", "mine"), { recursive: true });
+  fs.writeFileSync(
+    path.join(inner, "ideas", "mine", "state.json"),
+    JSON.stringify({ pipeline_version: "1.2.0", gates: {}, active: ["0.0"] })
+  );
+  const own = ctxOf(inner);
+  check("a marked workspace still sees its own ideas/", own.includes("mine") && !own.includes("stranger"));
+
+  fs.rmSync(outer, { recursive: true, force: true });
+}
+
+console.log("== run-#3 guard: custom thresholds are addressed by LEAF ==");
+{
+  // Dogfood run #3: `custom` was diffed and revised as one opaque object, so
+  // revising a single criterion meant restating all 14 in one write. The run
+  // wrote 7 approved revision rows, changed nothing, and left a threshold whose
+  // key said `_max` while its semantics were `_min`.
+  const base = {
+    pipeline_version: "1.2.0",
+    thresholds: {
+      signed_date: "2026-07-30",
+      v1_past_behavior_pct: 60,
+      custom: { a: 1, b: 2, c: 3 },
+      revisions: [],
+    },
+  };
+  const clone = () => JSON.parse(JSON.stringify(base));
+  const attempt = (next) => {
+    const dir = mkIdea("gt3", base);
+    return runHook("guard-thresholds.js", {
+      tool_input: { file_path: path.join(dir, "state.json"), content: JSON.stringify(next, null, 2) },
+    });
+  };
+  const reason = (r) => (r && r.hookSpecificOutput && r.hookSpecificOutput.permissionDecisionReason) || "";
+
+  let s = clone();
+  s.thresholds.custom.b = 99;
+  let r = attempt(s);
+  check("one custom leaf changed without a revision is blocked", !!r);
+  check("the block names the leaf (custom.b), not the whole custom object",
+    /custom\.b/.test(reason(r)) && !/\[custom\]/.test(reason(r)));
+  check("the block states the same-write requirement", /SAME WRITE/i.test(reason(r)));
+  check("the block prints a paste-ready revision row carrying the real values",
+    /"field":"custom\.b"/.test(reason(r).replace(/\s/g, "")) &&
+    /"from":2/.test(reason(r).replace(/\s/g, "")) &&
+    /"to":99/.test(reason(r).replace(/\s/g, "")));
+
+  s = clone();
+  s.thresholds.custom.b = 99;
+  s.thresholds.revisions.push({ date: "2026-07-30", field: "custom.b", from: 2, to: 99, reason: "x", user_approved: true });
+  check("one leaf + its own revision passes without restating the whole object", attempt(s) === null);
+
+  s = clone();
+  s.thresholds.custom.b = 99;
+  s.thresholds.custom.c = 77;
+  s.thresholds.revisions.push({ date: "2026-07-30", field: "custom.b", from: 2, to: 99, reason: "x", user_approved: true });
+  check("revising one leaf does NOT authorize a second leaf", /custom\.c/.test(reason(attempt(s))));
+
+  s = clone();
+  s.thresholds.custom = { c: 3, b: 2, a: 1 };
+  check("a pure key reorder is not a change", attempt(s) === null);
+
+  s = clone();
+  s.thresholds.custom.b = 99;
+  s.thresholds.revisions.push({ date: "2026-07-30", field: "custom.b", from: "old snapshot", to: "merged version", reason: "x", user_approved: true });
+  check("prose from/to (the run-#3 malformed rows) does not authorize the edit", !!attempt(s));
+
+  s = clone();
+  s.thresholds.signed_date = "2026-01-01";
+  s.thresholds.revisions.push({ date: "2026-07-30", field: "signed_date", from: "2026-07-30", to: "2026-01-01", reason: "x", user_approved: true });
+  check("signed_date is still non-revisable", /NEVER be changed/.test(reason(attempt(s))));
+
+  s = clone();
+  s.thresholds.v1_past_behavior_pct = 70;
+  s.thresholds.revisions.push({ date: "2026-07-30", field: "v1_past_behavior_pct", from: 60, to: 70, reason: "x", user_approved: true });
+  check("top-level threshold revision still passes", attempt(s) === null);
+}
+
+// ===========================================================================
+// verify-threshold-snapshot.js — the gate-time half of "thresholds before tests"
+//
+// Dogfood run #2 finding: this guarantee is the plugin's headline claim and it
+// had never executed. The hook is defence-in-depth and fails open; gate-check's
+// comparison lived only in prose; and F failed before the signing ceremony, so
+// `signed_date` stayed null and nothing ever ran. These fixtures are that half.
+// ===========================================================================
+console.log("== verify-threshold-snapshot ==");
+{
+  const VTS = path.join(ROOT, "scripts", "verify-threshold-snapshot.js");
+  const BASE = { signed_date: "2026-07-20", v1_past_behavior_pct: 60, v1_min_sample: 12, v3_min_commitments: 5, r1_eval_pass_pct: null, custom: { a1_pass: 80 } };
+  const SNAP = JSON.stringify({ ...BASE, revisions: [] });
+  let n = 0;
+  // snapshotJson: string = row present · null = no snapshot row · legacy = 6-column journal
+  function mkIdeaVTS(thresholds, snapshotJson, legacy) {
+    const d = path.join(TMP, "vts" + ++n);
+    fs.mkdirSync(d, { recursive: true });
+    fs.writeFileSync(path.join(d, "state.json"), JSON.stringify({ pipeline_version: "1.1.0", idea: "vts" + n, thresholds }, null, 2));
+    const head = legacy
+      ? "| date | type | decision | alt | rationale | evidence |\n|---|---|---|---|---|---|\n"
+      : "| date | type | decision | alt | rationale | evidence | detail |\n|---|---|---|---|---|---|---|\n";
+    const row = snapshotJson === null ? ""
+      : legacy
+        ? `| 2026-07-20 | threshold-snapshot | ${snapshotJson} | - | F ceremony | state.thresholds |\n`
+        : `| 2026-07-20 | threshold-snapshot | F signing | - | ceremony | state.thresholds | ${snapshotJson} |\n`;
+    fs.writeFileSync(path.join(d, "decision-log.md"), head + row);
+    return d;
+  }
+  function vts(dir) {
+    try {
+      return { code: 0, j: JSON.parse(execFileSync("node", [VTS, dir, "--json"], { encoding: "utf8" })) };
+    } catch (e) {
+      return { code: e.status, j: JSON.parse(e.stdout || "{}") };
+    }
+  }
+  const hasErr = (r, code) => Array.isArray(r.j.errors) && r.j.errors.some((e) => e.code === code);
+
+  let r = vts(mkIdeaVTS({ ...BASE, revisions: [] }, SNAP));
+  check("VTS clean signed state => exit 0", r.code === 0 && r.j.ok === true);
+
+  r = vts(mkIdeaVTS({ ...BASE, v1_past_behavior_pct: 45, revisions: [] }, SNAP));
+  check("VTS silent threshold edit => threshold-unexplained", r.code === 1 && hasErr(r, "threshold-unexplained"));
+
+  r = vts(mkIdeaVTS({ ...BASE, v1_past_behavior_pct: 45, revisions: [{ date: "2026-07-30", field: "v1_past_behavior_pct", from: 60, to: 45, reason: "sample smaller", user_approved: true }] }, SNAP));
+  check("VTS valid revision chain => exit 0", r.code === 0 && r.j.ok === true);
+  check("VTS revision present => self_authored warning (approval is unprovable from files)",
+    r.j.warnings.some((w) => w.code === "self_authored"));
+
+  // THE tamper the whole seal exists for: backdating makes late evidence look
+  // pre-registered, and gate-check's "signed BEFORE evidence dates" check would
+  // reward it rather than catch it.
+  r = vts(mkIdeaVTS({ ...BASE, signed_date: "2026-06-01", revisions: [{ date: "2026-07-30", field: "signed_date", from: "2026-07-20", to: "2026-06-01", reason: "housekeeping", user_approved: true }] }, SNAP));
+  check("VTS BACKDATED signed_date => signed-date-moved", r.code === 1 && hasErr(r, "signed-date-moved"));
+  check("VTS revision cannot authorize a sealed field", hasErr(r, "revision-of-sealed-field"));
+  check("VTS names a backdate as a BACKDATE", r.j.errors.some((e) => /BACKDATE/.test(e.msg)));
+
+  r = vts(mkIdeaVTS({ ...BASE, v1_min_sample: 5, revisions: [{ date: "2026-07-30", field: "v1_min_sample", from: 99, to: 5, reason: "x", user_approved: true }] }, SNAP));
+  check("VTS revision from-value wrong => revision-chain-broken", r.code === 1 && hasErr(r, "revision-chain-broken"));
+
+  r = vts(mkIdeaVTS({ ...BASE, v1_min_sample: 5, revisions: [{ date: "2026-07-01", field: "v1_min_sample", from: 12, to: 5, reason: "z", user_approved: true }] }, SNAP));
+  check("VTS revision dated before signing => revision-predates-signing", r.code === 1 && hasErr(r, "revision-predates-signing"));
+
+  r = vts(mkIdeaVTS({ ...BASE, revisions: [] }, null));
+  check("VTS signed but no snapshot row => signature-without-snapshot", r.code === 1 && hasErr(r, "signature-without-snapshot"));
+
+  r = vts(mkIdeaVTS({ ...BASE, signed_date: null, revisions: [] }, SNAP));
+  check("VTS snapshot but signed_date null => snapshot-without-signature", r.code === 1 && hasErr(r, "snapshot-without-signature"));
+
+  r = vts(mkIdeaVTS({ signed_date: null, v1_past_behavior_pct: 60, custom: {}, revisions: [] }, null));
+  check("VTS unsigned + no snapshot => exit 0 (legitimate pre-F state)", r.code === 0 && r.j.ok === true);
+
+  r = vts(mkIdeaVTS({ ...BASE, custom: { a1_pass: 70 }, revisions: [{ date: "2026-07-30", field: "custom.a1_pass", from: 80, to: 70, reason: "y", user_approved: true }] }, SNAP));
+  check("VTS custom leaf revision reconstructs => exit 0", r.code === 0 && r.j.ok === true);
+
+  r = vts(mkIdeaVTS({ ...BASE, custom: { a1_pass: 70 }, revisions: [] }, SNAP));
+  check("VTS custom leaf silent edit => threshold-unexplained", r.code === 1 && hasErr(r, "threshold-unexplained"));
+
+  // A journal keeps its original header forever (artifact-schema), so a verifier
+  // that only understood the current column layout would skip old signatures.
+  r = vts(mkIdeaVTS({ ...BASE, revisions: [] }, SNAP, true));
+  check("VTS legacy 6-column journal snapshot => found", r.code === 0 && r.j.ok === true && r.j.snapshots === 1);
+}
+
+// ===========================================================================
+// FM-10 — fail-open must be OBSERVABLE, not silent.
+//
+// All three hooks end in `catch { process.exit(0) }` so a bug can never break the
+// user's session. Correct — but it made "silence because clean" and "silence
+// because crashed" identical, and dogfood run #2 hit the consequence: a
+// ReferenceError disabled session-start.js for an entire run while it looked
+// perfectly healthy (empty stdout, exit 0, no stderr). It was only found because
+// other tests asserted CONTENT, and only diagnosed by patching a copy to print
+// the swallowed error. Every hook must now name its own failure on stderr, which
+// blocks nothing and is captured by the harness.
+// ===========================================================================
+// ===========================================================================
+// validate-beachhead.js — the mechanical half of "a tier is an evidence claim"
+// Run #2: six rows labelled "Tier 4 (est.)", five of them advice in the
+// imperative, four with no ledger entry, none with a channel that permits a
+// reply — and the count still read as 8.
+// ===========================================================================
+console.log("== validate-beachhead ==");
+{
+  const VB = path.join(ROOT, "scripts", "validate-beachhead.js");
+  const HEAD = "| Pid | Segment descriptor | Tier | Behaviour that establishes the tier | Evidence (E-id) | Reach channel | Funnel status |\n|---|---|---|---|---|---|---|\n";
+  let n = 0;
+  function mkBeach(rows, ledgerIds) {
+    const d = path.join(TMP, "vb" + ++n);
+    fs.mkdirSync(d, { recursive: true });
+    fs.writeFileSync(path.join(d, "beachhead-icp.md"), "# beachhead\n\n" + HEAD + rows.join("\n") + "\n");
+    if (ledgerIds !== null) {
+      fs.writeFileSync(path.join(d, "evidence-ledger.md"),
+        "| id | date | grade |\n|---|---|---|\n" + (ledgerIds || []).map((e) => `| ${e} | 2026-07-30 | B |`).join("\n") + "\n");
+    }
+    return d;
+  }
+  function vb(dir, extra) {
+    const a = [VB, dir, "--json"].concat(extra || []);
+    try { return { code: 0, j: JSON.parse(execFileSync("node", a, { encoding: "utf8" })) }; }
+    catch (e) { return { code: e.status, j: JSON.parse(e.stdout || "{}") }; }
+  }
+  const hasErr = (r, c) => Array.isArray(r.j.errors) && r.j.errors.some((e) => e.code === c);
+  const hasWarn = (r, c) => Array.isArray(r.j.warnings) && r.j.warnings.some((w) => w.code === c);
+  const good = (i) => `| P${i} | ops lead, 60-eng co | 4 | we built a nightly script that diffs runbooks against terraform | E${i} | work email, replies expected | contacted |`;
+
+  // 15 clean rows clears the floor.
+  let ids = [], rows = [];
+  for (let i = 1; i <= 15; i++) { rows.push(good(i)); ids.push("E" + i); }
+  let r = vb(mkBeach(rows, ids));
+  check("VB 15 clean qualifying rows => exit 0", r.code === 0 && r.j.ok === true && r.j.qualifying === 15);
+
+  // 14 is below the hard floor.
+  r = vb(mkBeach(rows.slice(0, 14), ids.slice(0, 14)));
+  check("VB 14 rows => below-floor error", r.code === 1 && hasErr(r, "below-floor"));
+
+  // The run #2 shape: tier claimed but the three cells do not hold.
+  r = vb(mkBeach([
+    "| P1 | ops lead | 4 (est.) | we built a nightly diff | E1 | work email | contacted |",
+    "| P2 | sre | 4 | | E2 | work email | contacted |",
+    "| P3 | sre | 4 | we imposed a doc-owner rotation | | work email | contacted |",
+    "| P4 | sre | 4 | we imposed a doc-owner rotation | E99 | work email | contacted |",
+    "| P5 | sre | 4 | we imposed a doc-owner rotation | E5 | HN handle only, no contact | contacted |",
+  ], ["E1", "E2", "E5"]));
+  check("VB estimated tier => not countable", r.code === 1 && r.j.errors.some((e) => /P1\b/.test(e.msg) && /estimate/.test(e.msg)));
+  check("VB empty behaviour => not countable", r.j.errors.some((e) => /P2\b/.test(e.msg) && /no behaviour/.test(e.msg)));
+  check("VB missing E-id => not countable", r.j.errors.some((e) => /P3\b/.test(e.msg) && /no E-id/.test(e.msg)));
+  check("VB E-id absent from ledger => not countable", r.j.errors.some((e) => /P4\b/.test(e.msg) && /not in evidence-ledger/.test(e.msg)));
+  check("VB forum handle is not reach => not countable", r.j.errors.some((e) => /P5\b/.test(e.msg) && /does not permit an expected reply/.test(e.msg)));
+  check("VB none of the five counted", r.j.qualifying === 0);
+
+  // Prescription read as behaviour: countable on structure, flagged for the gatekeeper.
+  const presc = rows.slice(0, 14).concat([
+    "| P15 | sre | 4 | if you have PR templates, add a checklist item for docs | E15 | work email, replies expected | contacted |",
+  ]);
+  r = vb(mkBeach(presc, ids));
+  check("VB prescriptive behaviour => counted but warned", r.code === 0 && r.j.qualifying === 15 && hasWarn(r, "possibly-prescriptive"));
+
+  // Sub-tier and explicitly quarantined rows are kept and never counted.
+  r = vb(mkBeach(rows.concat([
+    "| P16 | complainer | 2 | complained on a forum | E16 | none known | not-contacted |",
+    "| P17 | maybe | 4 | quarantined - nurture, not counted | E17 | work email | not-contacted |",
+  ]), ids.concat(["E16", "E17"])));
+  check("VB sub-tier + quarantined kept, uncounted", r.code === 0 && r.j.qualifying === 15 && r.j.quarantined === 2);
+
+  // 15-19 clears the floor but must raise reach-risk.
+  check("VB 15 of 20 => reach-risk warning", hasWarn(vb(mkBeach(rows, ids)), "reach-risk"));
+
+  // The old template shape (no Behaviour/Evidence columns) must fail loudly rather
+  // than silently counting prose in a "why they fit" cell.
+  const d = path.join(TMP, "vbold");
+  fs.mkdirSync(d, { recursive: true });
+  fs.writeFileSync(path.join(d, "beachhead-icp.md"),
+    "| Pid | Segment | Why they fit (tier estimate) | Origin | Reach channel type | Funnel status |\n|---|---|---|---|---|---|\n| P1 | sre | tier 4 probably | HN | handle | not-contacted |\n");
+  r = vb(d);
+  check("VB pre-run#2 template => missing-column error", r.code === 1 && hasErr(r, "missing-column"));
+}
+
+// ===========================================================================
+// evals/ fixture transparency — the load-bearing property of the whole suite.
+//
+// The interpretation-layer evals measure whether a GATEKEEPER catches a seeded
+// defect. That only means anything if no deterministic validator catches it
+// first: a fixture a script can flag is measuring code, and its catch rate would
+// silently stop describing the layer it claims to describe. So every fixture must
+// be TRANSPARENT to every validator — all exit 0 — while still containing a real
+// defect. If this block ever fails, the fixture is broken, not the plugin.
+// ===========================================================================
+console.log("== evals fixture transparency ==");
+{
+  const { build, FIXTURES } = require(path.join(ROOT, "evals", "fixtures", "build-fixtures.js"));
+  const outDir = path.join(TMP, "evalfix");
+  const made = build(outDir);
+  check("3 seeded-defect fixtures build", made.length === 3);
+
+  const runScript = (script, args) => {
+    try {
+      execFileSync("node", [path.join(ROOT, "scripts", script)].concat(args), { encoding: "utf8" });
+      return 0;
+    } catch (e) {
+      return e.status === undefined ? -1 : e.status;
+    }
+  };
+
+  for (const m of made) {
+    check(`${m.name}: validate-evidence-ledger exits 0 (defect is not structural)`,
+      runScript("validate-evidence-ledger.js", [path.join(m.ideaDir, "evidence-ledger.md")]) === 0);
+    check(`${m.name}: validate-beachhead exits 0 (floor cleared, cells present)`,
+      runScript("validate-beachhead.js", [m.ideaDir]) === 0);
+    check(`${m.name}: verify-threshold-snapshot exits 0 (signed chain intact)`,
+      runScript("verify-threshold-snapshot.js", [m.ideaDir]) === 0);
+    // The defect must actually be present, or the eval measures nothing at all.
+    const corpus = fs.readdirSync(m.ideaDir)
+      .filter((f) => f.endsWith(".md"))
+      .map((f) => fs.readFileSync(path.join(m.ideaDir, f), "utf8"))
+      .join("\n");
+    const priv = path.join(m.ideaDir, "private");
+    const privCorpus = fs.existsSync(priv)
+      ? fs.readdirSync(priv).filter((f) => f.endsWith(".md")).map((f) => fs.readFileSync(path.join(priv, f), "utf8")).join("\n")
+      : "";
+    check(`${m.name}: seeded defect is actually present in the workspace`,
+      FIXTURES[m.name].expect.test(corpus + "\n" + privCorpus));
+    // The answer key must not be readable from inside the idea dir.
+    check(`${m.name}: answer key sits outside ideas/ (gatekeeper cannot read it)`,
+      fs.existsSync(path.join(m.root, "SEEDED-DEFECT.md")) && !fs.existsSync(path.join(m.ideaDir, "SEEDED-DEFECT.md")));
+  }
+
+  // prescriptive-tier is the one case where a validator SHOULD say something without
+  // blocking: a heuristic warning that points the gatekeeper at the right row.
+  let warned = false;
+  try {
+    execFileSync("node", [path.join(ROOT, "scripts", "validate-beachhead.js"), made[0].ideaDir, "--json"], { encoding: "utf8" });
+  } catch { /* exit 0 expected; ignore */ }
+  try {
+    const out = execFileSync("node", [path.join(ROOT, "scripts", "validate-beachhead.js"), path.join(outDir, "prescriptive-tier", "ideas", "prescriptive-tier"), "--json"], { encoding: "utf8" });
+    warned = JSON.parse(out).warnings.some((w) => w.code === "possibly-prescriptive");
+  } catch { /* handled by assertion */ }
+  check("prescriptive-tier: flagged as a heuristic WARNING, still exit 0", warned);
+}
+
+console.log("== FM-10 observable fail-open ==");
+{
+  const { spawnSync } = require("child_process");
+  // Unparsable stdin makes the very first statement inside each try{} throw, which
+  // is the cheapest way to reach the outer catch without mocking anything.
+  for (const h of ["guard-thresholds.js", "validate-artifact.js", "session-start.js"]) {
+    const r = spawnSync("node", [path.join(ROOT, "hooks", "scripts", h)], {
+      input: "this is not json{{{",
+      encoding: "utf8",
+    });
+    check(`${h}: crash still exits 0 (never breaks the session)`, r.status === 0);
+    check(`${h}: crash names itself on stderr`, /failed open:/.test(r.stderr || "") && new RegExp(h.replace(".", "\\.")).test(r.stderr || ""));
+    check(`${h}: crash writes nothing to stdout (no bogus decision)`, (r.stdout || "").trim() === "");
+  }
+  // And the inverse: a healthy silent run must stay silent on BOTH streams, or the
+  // signal is worthless.
+  const quiet = spawnSync("node", [path.join(ROOT, "hooks", "scripts", "guard-thresholds.js")], {
+    input: JSON.stringify({ tool_input: { file_path: path.join(TMP, "not-an-idea", "x.md") } }),
+    encoding: "utf8",
+  });
+  check("healthy no-op run stays silent on stderr too", quiet.status === 0 && (quiet.stderr || "").trim() === "");
 }
 
 console.log(`\n${pass} passed, ${fail} failed`);

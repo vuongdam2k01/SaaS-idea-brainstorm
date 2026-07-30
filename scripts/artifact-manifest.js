@@ -31,13 +31,22 @@ const ALGORITHM = "sha256";
 const PURPOSES = ["gate-input", "reconciliation"];
 
 function normalizeRel(rel) {
-  const unified = String(rel).replace(/\\/g, "/").replace(/^\.\//, "");
+  // A trailing slash is how anyone naturally writes a directory ("mvp-pack/"), so
+  // accept it instead of making the caller guess; every other spelling must be
+  // canonical (see the round-trip check below).
+  const unified = String(rel).replace(/\\/g, "/").replace(/^\.\//, "").replace(/\/+$/, "");
   if (!unified || unified === "." || unified === "..") throw new Error(`invalid path: "${rel}"`);
   if (path.isAbsolute(unified) || /^[a-zA-Z]:/.test(unified))
     throw new Error(`path must be idea-relative, not absolute: "${rel}"`);
   if (unified.split("/").some((seg) => seg === ".." || seg === "."))
     throw new Error(`path must not traverse directories: "${rel}"`);
-  return unified;
+  // Require the CANONICAL spelling. Without this, "a//b.md" and "a/b.md" are two
+  // entries for one physical file: duplicate detection compared the raw strings,
+  // so both were kept and verify reported nothing.
+  const canonical = path.posix.normalize(unified).replace(/\/+$/, "");
+  if (canonical !== unified)
+    throw new Error(`path must be written canonically: "${rel}" should be "${canonical}"`);
+  return canonical;
 }
 
 function hashFile(abs) {
@@ -67,12 +76,18 @@ function create(ideaDir, relPaths, opts = {}) {
       throw new Error(`manifest target is a symlink, which cannot be hashed honestly: ${rel}`);
     if (st.isDirectory()) {
       expandedDirs.push(rel);
-      for (const child of walk(abs)) {
+      const links = [];
+      for (const child of walk(abs, { collectLinks: links })) {
         const childRel = normalizeRel(path.relative(ideaDir, child));
         if (seen.has(childRel)) continue;
         seen.add(childRel);
         entries.push({ path: childRel, [ALGORITHM]: hashFile(child), bytes: fs.statSync(child).size });
       }
+      if (links.length)
+        throw new Error(
+          `manifest target "${rel}" contains symlink(s) that cannot be hashed honestly: ` +
+            links.map((l) => path.relative(ideaDir, l).replace(/\\/g, "/")).join(", ")
+        );
     } else {
       entries.push({ path: rel, [ALGORITHM]: hashFile(abs), bytes: st.size });
     }
@@ -113,9 +128,24 @@ function serialize(value) {
 function verify(ideaDir, manifest) {
   const problems = [];
   if (!manifest || !Array.isArray(manifest.entries)) return [{ code: "unusable-manifest", detail: "no entries[]" }];
-  if (manifest.algorithm && manifest.algorithm !== ALGORITHM)
-    problems.push({ code: "algorithm-mismatch", detail: `manifest says ${manifest.algorithm}, helper computes ${ALGORITHM}` });
-  if (manifest.manifest_sha256 && manifest.manifest_sha256 !== manifestHash(manifest))
+  // Fail CLOSED on shape. Every one of these fields was previously optional, so a
+  // manifest missing its own hash (or its algorithm, or its purpose) verified
+  // clean: the check was only ever as strong as the field's presence.
+  if (manifest.manifest_version !== "1.0")
+    problems.push({
+      code: "unsupported-manifest-version",
+      detail: `manifest_version must be "1.0" (got ${JSON.stringify(manifest.manifest_version)})`,
+    });
+  if (!PURPOSES.includes(manifest.purpose))
+    problems.push({
+      code: "invalid-purpose",
+      detail: `purpose must be one of ${PURPOSES.join("|")} (got ${JSON.stringify(manifest.purpose)})`,
+    });
+  if (manifest.algorithm !== ALGORITHM)
+    problems.push({ code: "algorithm-mismatch", detail: `algorithm must be ${ALGORITHM} (got ${JSON.stringify(manifest.algorithm)})` });
+  if (typeof manifest.manifest_sha256 !== "string" || !/^[0-9a-f]{64}$/.test(manifest.manifest_sha256))
+    problems.push({ code: "missing-self-hash", detail: "manifest_sha256 is required (64 hex chars) — without it the body is unverifiable" });
+  else if (manifest.manifest_sha256 !== manifestHash(manifest))
     problems.push({ code: "manifest-self-hash-mismatch", detail: "the manifest body was edited after it was written" });
   const known = new Set();
   for (const entry of manifest.entries) {
@@ -128,19 +158,58 @@ function verify(ideaDir, manifest) {
     }
     // Windows paths are case-insensitive, so a manifest entry and a renamed file
     // differing only in case must not read as "unchanged".
+    if (known.has(rel.toLowerCase())) {
+      problems.push({ code: "duplicate-entry", detail: `${rel} appears more than once` });
+      continue;
+    }
     known.add(rel.toLowerCase());
+    if (typeof entry[ALGORITHM] !== "string" || !/^[0-9a-f]{64}$/.test(entry[ALGORITHM])) {
+      problems.push({ code: "malformed-entry-hash", detail: `${rel}: ${ALGORITHM} must be 64 hex chars` });
+      continue;
+    }
     const abs = path.join(ideaDir, rel);
-    if (!fs.existsSync(abs)) {
+    let st;
+    try {
+      st = fs.lstatSync(abs);
+    } catch {
       problems.push({ code: "missing-file", detail: rel });
       continue;
     }
-    const actual = hashFile(abs);
+    if (st.isSymbolicLink()) {
+      problems.push({ code: "symlink-entry", detail: `${rel} is now a symlink; a link's target is not what was hashed` });
+      continue;
+    }
+    if (!st.isFile()) {
+      problems.push({ code: "not-a-file", detail: `${rel} is no longer a regular file` });
+      continue;
+    }
+    // A path differing only in case is a different name on a case-sensitive
+    // checkout, so report it instead of treating the two as interchangeable.
+    const onDisk = actualCaseName(ideaDir, rel);
+    if (onDisk && onDisk !== rel)
+      problems.push({ code: "path-case-mismatch", detail: `manifest says "${rel}", on disk it is "${onDisk}"` });
+    let actual;
+    try {
+      actual = hashFile(abs);
+    } catch (e) {
+      problems.push({ code: "unreadable-file", detail: `${rel}: ${e.message}` });
+      continue;
+    }
     if (actual !== entry[ALGORITHM])
       problems.push({ code: "content-changed", detail: `${rel} (manifest ${short(entry[ALGORITHM])}, now ${short(actual)})` });
   }
-  // Re-walk every expanded directory: a file added after `create` leaves all
-  // hashed entries intact, so without this check the manifest would verify a set
-  // that gained content (e.g. something dropped into mvp-pack/ mid-review).
+  // `expanded_dirs` must be PRESENT, even when empty. Absent means the added-file
+  // check below silently does nothing — which is what a hand-edited or legacy
+  // manifest looks like, and it would verify a directory that gained files.
+  // (Against a determined editor this is not a defence: the self-hash is
+  // recomputable. The threat model here is mistake and self-deception, per the
+  // integrity design — so the honest failure mode is "re-create the manifest".)
+  if (!Array.isArray(manifest.expanded_dirs)) {
+    problems.push({
+      code: "missing-directory-coverage",
+      detail: 'manifest has no "expanded_dirs" array — directory contents cannot be re-checked; re-create it with artifact-manifest.js create',
+    });
+  }
   for (const dirRel of Array.isArray(manifest.expanded_dirs) ? manifest.expanded_dirs : []) {
     let abs;
     try {
@@ -149,11 +218,31 @@ function verify(ideaDir, manifest) {
       problems.push({ code: "invalid-path", detail: e.message });
       continue;
     }
-    if (!fs.existsSync(abs)) {
+    let dirStat;
+    try {
+      dirStat = fs.lstatSync(abs);
+    } catch {
       problems.push({ code: "missing-directory", detail: dirRel });
       continue;
     }
-    for (const child of walk(abs)) {
+    if (!dirStat.isDirectory()) {
+      problems.push({ code: "not-a-directory", detail: `${dirRel} is no longer a directory` });
+      continue;
+    }
+    const links = [];
+    let children;
+    try {
+      children = walk(abs, { collectLinks: links });
+    } catch (e) {
+      problems.push({ code: "unreadable-directory", detail: `${dirRel}: ${e.message}` });
+      continue;
+    }
+    for (const l of links)
+      problems.push({
+        code: "symlink-added",
+        detail: `${path.relative(ideaDir, l).replace(/\\/g, "/")} is a symlink inside "${dirRel}"`,
+      });
+    for (const child of children) {
       const childRel = path.relative(ideaDir, child).replace(/\\/g, "/");
       if (!known.has(childRel.toLowerCase()))
         problems.push({ code: "file-added", detail: `${childRel} appeared in "${dirRel}" after the manifest was created` });
@@ -166,14 +255,42 @@ function short(h) {
   return typeof h === "string" ? h.slice(0, 12) : String(h);
 }
 
-function walk(dir) {
+/**
+ * Walk a directory WITHOUT following symlinks: readdir(withFileTypes) reports a
+ * link as a link, and hashing a link's target would record bytes from a file
+ * outside the manifested set. Links are collected so callers can flag them.
+ */
+function walk(dir, opts = {}) {
   const out = [];
   for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
     const p = path.join(dir, e.name);
-    if (e.isDirectory()) out.push(...walk(p));
-    else out.push(p);
+    if (e.isSymbolicLink()) {
+      if (opts.collectLinks) opts.collectLinks.push(p);
+      continue;
+    }
+    if (e.isDirectory()) out.push(...walk(p, opts));
+    else if (e.isFile()) out.push(p);
   }
   return out.sort();
+}
+
+/** The on-disk spelling of an idea-relative path, segment by segment (or null). */
+function actualCaseName(ideaDir, rel) {
+  let cur = ideaDir;
+  const real = [];
+  for (const seg of rel.split("/")) {
+    let names;
+    try {
+      names = fs.readdirSync(cur);
+    } catch {
+      return null;
+    }
+    const hit = names.find((n) => n.toLowerCase() === seg.toLowerCase());
+    if (!hit) return null;
+    real.push(hit);
+    cur = path.join(cur, hit);
+  }
+  return real.join("/");
 }
 
 function main(argv) {
@@ -199,7 +316,14 @@ function main(argv) {
       }
       const manifest = create(ideaDir, files, opts);
       const text = JSON.stringify(manifest, null, 2) + "\n";
-      if (opts.out) fs.writeFileSync(path.join(ideaDir, normalizeRel(opts.out)), text);
+      if (opts.out) {
+        // gate-check writes manifests into private/, which does not exist yet in a
+        // fresh idea — failing with ENOENT there would block a gate for a reason
+        // that has nothing to do with the artifacts under review.
+        const outAbs = path.join(ideaDir, normalizeRel(opts.out));
+        fs.mkdirSync(path.dirname(outAbs), { recursive: true });
+        fs.writeFileSync(outAbs, text);
+      }
       process.stdout.write(text);
       return 0;
     }
