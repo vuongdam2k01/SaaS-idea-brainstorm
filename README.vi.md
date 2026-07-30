@@ -18,8 +18,6 @@ Repository: <https://github.com/vuongdam2k01/SaaS-idea-brainstorm> · MIT · v1.
 
 ## Cài đặt
 
-Hai CLI độc lập chạy được plugin này. Dùng cái nào tùy bạn.
-
 **Claude Code**
 
 ```bash
@@ -30,17 +28,15 @@ Hai CLI độc lập chạy được plugin này. Dùng cái nào tùy bạn.
 /plugin install saas-idea-brainstorm@saas-idea-brainstorm
 ```
 
-Muốn cài từ bản clone thì `/plugin marketplace add ./SaaS-idea-brainstorm` rồi install như trên, hoặc bỏ qua hẳn khâu cài với `claude --plugin-dir /duong/dan/toi/SaaS-idea-brainstorm`.
-
 **Codex CLI**
 
 ```bash
 npx codex-marketplace add vuongdam2k01/SaaS-idea-brainstorm
 ```
 
-Muốn test cục bộ: đặt thư mục clone này vào `~/.codex/plugins/` và khai báo trong `~/.agents/plugins/marketplace.json`, rồi khởi động lại. Skills và hooks chạy y nguyên trên cả hai CLI; bốn agent nghiên cứu/audit đóng gói riêng dạng `.codex/agents/*.toml` cho Codex. Tài liệu Codex không đảm bảo chắc chắn một bản build sẽ tự phát hiện agent đóng gói trong plugin đã cài hay không — nếu bước fan-out ở giai đoạn 1, 2, hay 5 không thấy chúng, copy `.codex/agents/*.toml` vào `.codex/agents/` của project bạn một lần. Đường Codex chưa có số dặm dogfood như bản Claude Code (5 vòng review, 2 lần dogfood — xem [codex-review.md](plugin/codex-review.md)); các khác biệt nền tảng đáng biết trước khi dựa vào nó nằm ở [plugin/codex-parity.md](plugin/codex-parity.md).
+Skills và hooks chạy y nguyên trên cả hai CLI; bốn agent nghiên cứu/audit đóng gói riêng dạng `.codex/agents/*.toml` cho Codex. Các khác biệt nền tảng đáng biết nằm ở [plugin/codex-parity.md](plugin/codex-parity.md).
 
-Khởi động CLI ngay trong repo bạn muốn chứa workspace ý tưởng — artifact được ghi vào `ideas/<slug>/` tương đối so với thư mục làm việc, không bao giờ nằm trong plugin. Nên có Node.js trên PATH: nó chạy ba hook và trình ghi state. Không có Node thì chúng fail open kèm một thông báo hiện rõ, ngoài ra không hỏng gì; không skill nào phụ thuộc vào chúng.
+Khởi động CLI ngay trong repo bạn muốn chứa workspace ý tưởng — artifact được ghi vào `ideas/<slug>/` tương đối so với thư mục làm việc, không bao giờ nằm trong plugin. Node.js trên PATH chạy ba hook và trình ghi state; không có nó thì chúng fail open kèm thông báo hiện rõ, ngoài ra không hỏng gì.
 
 ---
 
@@ -50,7 +46,7 @@ Khởi động CLI ngay trong repo bạn muốn chứa workspace ý tưởng —
 /saas-idea-brainstorm:new-idea Công cụ biến transcript hỗ trợ khách hàng lộn xộn thành bản digest vấn đề sản phẩm hằng tuần
 ```
 
-Lệnh đó tạo `ideas/support-digest/` — `state.json`, `idea-brief.md` giữ ý tưởng thô nguyên văn và bất biến, `decision-log.md` chỉ-thêm-không-sửa, `founder-charter.md`, và thư mục `private/` tự bảo vệ — hỏi bạn hai câu thiết lập (dừng ở từng cửa hay tự chạy tiếp; audit tích hợp ngay hay để sau), rồi bắt tay vào giai đoạn 0 cùng bạn. Nó không thuyết trình về quy trình trước; quy trình tự giải thích bằng cách làm việc.
+Lệnh đó tạo `ideas/support-digest/` — `state.json`, `idea-brief.md` giữ ý tưởng thô nguyên văn và bất biến, `decision-log.md` chỉ-thêm-không-sửa, `founder-charter.md`, và thư mục `private/` tự bảo vệ — hỏi bạn hai câu thiết lập (dừng ở từng cửa hay tự chạy tiếp; audit tích hợp ngay hay để sau), rồi bắt tay vào giai đoạn 0 cùng bạn.
 
 Sau đó:
 
@@ -109,7 +105,7 @@ Hợp đồng đầy đủ — artifact bắt buộc từng cửa, trạng thái
 
 ## Bằng chứng
 
-Bốn hạng, không có biến thể. `A-` hay `B+` sẽ làm sàn của các cửa hết so sánh được; sắc thái đi vào các trường riêng trong sổ cái.
+Bốn hạng, không có biến thể — `A-` hay `B+` sẽ làm sàn của các cửa hết so sánh được.
 
 | Hạng | Ý nghĩa | Ví dụ |
 |---|---|---|
@@ -204,7 +200,7 @@ Bốn subagent chạy với context mới tinh nên không thừa hưởng đư�
 - **gatekeeper** được trả công để đánh trượt cửa của bạn. Cửa nào sống sót qua nó thì xứng đáng được qua.
 - **coldstart-tester** đóng vai một phiên build chỉ có MVP pack, không lịch sử, và liệt kê mọi câu hỏi nó vẫn phải hỏi. Danh sách rỗng thì pack đạt.
 
-Ba hook Node, tất cả fail open: `session-start.js` tiêm trạng thái quy trình của các ý tưởng trong workspace (đi ngược lên gốc workspace, dùng ngày lịch địa phương, một state hỏng không nuốt mất các ý tưởng còn lại); `guard-thresholds.js` bắt các lần sửa ngưỡng theo ngữ nghĩa — kể cả sửa một phần từ `60` thành `70` — nâng cảnh báo với artifact `locked` và giữ tính chỉ-thêm của nhật ký quyết định; `validate-artifact.js` kiểm frontmatter và chặn kèm hướng dẫn sửa. Cả ba đều kiểm sentinel là một `state.json` cùng cấp có chứa `pipeline_version`, nên một repo không liên quan mà có thư mục `ideas/` sẽ không bị đụng tới.
+Ba hook Node, tất cả fail open: `session-start.js` tiêm trạng thái quy trình của các ý tưởng trong workspace; `guard-thresholds.js` bắt các lần sửa ngưỡng theo ngữ nghĩa — kể cả sửa một phần từ `60` thành `70` — nâng cảnh báo với artifact `locked` và giữ tính chỉ-thêm của nhật ký quyết định; `validate-artifact.js` kiểm frontmatter và chặn kèm hướng dẫn sửa. Cả ba đều kiểm sentinel là một `state.json` cùng cấp có chứa `pipeline_version`, nên một repo không liên quan mà có thư mục `ideas/` sẽ không bị đụng tới.
 
 Tính toàn vẹn không phụ thuộc hook: `gate-check` luôn tự tính lại snapshot ngưỡng và đối chiếu `decision-log.md`.
 
@@ -220,7 +216,7 @@ Charter đi kèm trong MVP pack, đóng vai trò thẩm quyền diễn giải ch
 
 Phương pháp cũng tồn tại dưới dạng tài liệu thuần. Tạo `ideas/<ten-y-tuong>/`, copy toàn bộ `templates/` vào đó, rồi đi theo [process/pipeline.md](process/pipeline.md) bắt đầu từ `0-framing.md`; trạng thái cửa ghi ngay trong từng file template. Vẫn hai quy ước đó: ngưỡng trước phép thử, bằng chứng truy về người thật.
 
-`process/` và `plugin/` viết bằng tiếng Việt (`plugin/codex-parity.md` là ngoại lệ duy nhất); bản thân plugin (`skills/`, `agents/`, `.codex/agents/`, `hooks/`) toàn bộ tiếng Anh, và nó trả lời theo ngôn ngữ bạn dùng.
+`process/` và `plugin/` viết bằng tiếng Việt; bản thân plugin (`skills/`, `agents/`, `hooks/`) toàn bộ tiếng Anh, và nó trả lời theo ngôn ngữ bạn dùng.
 
 ---
 
@@ -229,8 +225,7 @@ Phương pháp cũng tồn tại dưới dạng tài liệu thuần. Tạo `idea
 | Đường dẫn | Nội dung |
 |---|---|
 | `.claude-plugin/` · `.codex-plugin/` | Manifest plugin, mỗi nền tảng một bản |
-| `.agents/` | Registry marketplace tự host của Codex |
-| `skills/` | 12 skill — 5 lệnh, 6 giai đoạn, và `method-rules` kèm `state-schema.md`, `artifact-schema.md`, `gate-contracts.md`; ba skill dạng lệnh mang thêm sidecar `agents/openai.yaml` để giữ nguyên tính chỉ-gọi-tường-minh bên Codex |
+| `skills/` | 12 skill — 5 lệnh, 6 giai đoạn, và `method-rules` kèm `state-schema.md`, `artifact-schema.md`, `gate-contracts.md` |
 | `agents/` · `.codex/agents/` · `hooks/` · `scripts/` | Bốn subagent, một bản markdown Claude Code và một bản TOML Codex; `hooks.json` (dùng chung cho cả hai nền tảng) cùng ba script Node; trình ghi state nguyên tử |
 | `tests/` | `hook-tests.js` — bộ test hồi quy cho hook |
 | `process/` | Phương pháp (tiếng Việt): pipeline, foundations, build-and-launch, research-verification |
@@ -241,7 +236,7 @@ Phương pháp cũng tồn tại dưới dạng tài liệu thuần. Tạo `idea
 node tests/hook-tests.js
 ```
 
-Bộ test phủ mọi phát hiện từ vòng review đối kháng, gồm cả một lỗ hổng sửa-một-phần để lách ngưỡng đã được chứng minh và giữ làm test hồi quy vĩnh viễn; mỗi hook chạy qua đúng hợp đồng stdin/stdout thật trên thư mục ý tưởng tạm. `claude plugin validate . --strict` kiểm manifest, còn `claude --plugin-dir .` cho bạn vòng lặp sửa-chạy-lại mà không cần cài lại.
+Bộ test phủ mọi phát hiện từ vòng review đối kháng, gồm cả một lỗ hổng sửa-một-phần để lách ngưỡng đã được chứng minh và giữ làm test hồi quy vĩnh viễn.
 
 ---
 
@@ -259,12 +254,14 @@ Bộ test phủ mọi phát hiện từ vòng review đối kháng, gồm cả m
 
 **Hook kêu không thấy `node`.** Nó chưa có trên PATH. Hook fail open; bạn mất tóm tắt đầu phiên và hai lớp kiểm bảo vệ, ngoài ra không mất gì. `gate-check` vẫn tự kiểm tính toàn vẹn của ngưỡng.
 
+**Trên Codex, bước fan-out không tìm thấy các agent nghiên cứu.** Copy `.codex/agents/*.toml` vào `.codex/agents/` của project bạn một lần.
+
 ---
 
 ## Phương pháp đến từ đâu
 
 Được lắp ráp và kiểm chứng dựa trên tài liệu gốc chứ không dựa vào bản tóm tắt: Customer Development của Steve Blank (earlyvangelist là thang năm tầng — chỉ tầng 4–5 mới đạt), khung giả định desirability/feasibility/viability của Strategyzer, *The Mom Test*, Running Lean của Ash Maurya (10–15 cuộc phỏng vấn), thứ tự thành phần định vị của April Dunford cùng lưu ý của bà rằng định vị pre-product là một luận điểm, dự kiến sẽ sai một phần, JOLT Effect về các thương vụ mất vào "không quyết định", và thực hành đánh giá LLM của Hamel Husain và Shreya Shankar (error-analysis trước, khoảng 100 trace kèm quy tắc dừng — không phải "100 golden case").
 
-Dấu vết kiểm toán nằm ngay trong repo. `process/research-verification.md` ghi sáu nhánh nghiên cứu và các chỉnh sửa đã áp, gồm cả hai con số thống kê bịa bị phát hiện và loại bỏ. `plugin/codex-review.md` ghi bốn vòng review đối kháng hai chiều với một mô hình bên ngoài, khoảng bốn mươi phát hiện đã xử lý, mọi lỗ hổng được chứng minh đều thành test hồi quy vĩnh viễn. `plugin/dogfood-report.md` ghi lượt chạy thật đầu tiên — trong đó gatekeeper đánh trượt một cửa hoàn toàn chính xác.
+Dấu vết kiểm toán nằm ngay trong repo. `process/research-verification.md` ghi các nhánh nghiên cứu và các chỉnh sửa đã áp, gồm cả hai con số thống kê bịa bị phát hiện và loại bỏ. `plugin/codex-review.md` ghi các vòng review đối kháng, mọi lỗ hổng được chứng minh đều thành test hồi quy vĩnh viễn. `plugin/dogfood-report.md` ghi lượt chạy thật đầu tiên — trong đó gatekeeper đánh trượt một cửa hoàn toàn chính xác.
 
 MIT — xem [LICENSE](LICENSE).

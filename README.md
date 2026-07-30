@@ -18,8 +18,6 @@ Repository: <https://github.com/vuongdam2k01/SaaS-idea-brainstorm> · MIT · v1.
 
 ## Install
 
-Two independent CLIs can run this plugin. Pick whichever you use.
-
 **Claude Code**
 
 ```bash
@@ -30,17 +28,15 @@ Two independent CLIs can run this plugin. Pick whichever you use.
 /plugin install saas-idea-brainstorm@saas-idea-brainstorm
 ```
 
-To try it from a clone instead, `/plugin marketplace add ./SaaS-idea-brainstorm` then install the same way, or skip installing entirely with `claude --plugin-dir /path/to/SaaS-idea-brainstorm`.
-
 **Codex CLI**
 
 ```bash
 npx codex-marketplace add vuongdam2k01/SaaS-idea-brainstorm
 ```
 
-For local testing, add the cloned folder under `~/.codex/plugins/` and reference it from `~/.agents/plugins/marketplace.json`, then restart. Skills and hooks run unmodified across both CLIs; the four research/audit agents ship as `.codex/agents/*.toml` for Codex. Whether a given Codex build auto-discovers agents bundled inside an installed plugin isn't guaranteed by its docs — if a fan-out step in stage 1, 2, or 5 can't find them, copy `.codex/agents/*.toml` into your project's own `.codex/agents/` once. The Codex path hasn't had the dogfood mileage the Claude Code build has (5 review rounds, 2 dogfood runs — see [codex-review.md](plugin/codex-review.md)); platform differences worth knowing before you rely on it are in [plugin/codex-parity.md](plugin/codex-parity.md).
+Skills and hooks run unmodified on both CLIs; the four research/audit agents ship as `.codex/agents/*.toml` for Codex. Platform differences worth knowing are in [plugin/codex-parity.md](plugin/codex-parity.md).
 
-Start the CLI in the repo where you want your idea workspaces to live — artifacts are written to `ideas/<slug>/` relative to the working directory, never inside the plugin. Node.js on PATH is worth having: it powers three hooks and the state writer. Without it they fail open with a visible notice and nothing else breaks; no skill depends on them.
+Start the CLI in the repo where you want your idea workspaces to live — artifacts are written to `ideas/<slug>/` relative to the working directory, never inside the plugin. Node.js on PATH powers three hooks and the state writer; without it they fail open with a visible notice and nothing else breaks.
 
 ---
 
@@ -50,7 +46,7 @@ Start the CLI in the repo where you want your idea workspaces to live — artifa
 /saas-idea-brainstorm:new-idea A tool that turns messy support transcripts into a weekly product-issue digest
 ```
 
-That creates `ideas/support-digest/` — `state.json`, `idea-brief.md` holding your raw idea verbatim and immutable, an append-only `decision-log.md`, a `founder-charter.md`, and a self-protecting `private/` folder — asks you two setup questions (stop at every gate or auto-continue; audit integrations now or later), and starts stage 0 with you. It doesn't explain the pipeline first; the pipeline explains itself by working.
+That creates `ideas/support-digest/` — `state.json`, `idea-brief.md` holding your raw idea verbatim and immutable, an append-only `decision-log.md`, a `founder-charter.md`, and a self-protecting `private/` folder — asks you two setup questions (stop at every gate or auto-continue; audit integrations now or later), and starts stage 0 with you.
 
 Then:
 
@@ -109,7 +105,7 @@ The full contracts — required artifacts per gate, statuses, exact metrics — 
 
 ## Evidence
 
-Four grades, no modifiers. `A-` and `B+` would make gate floors incomparable; nuance goes into separate ledger fields.
+Four grades, no modifiers — `A-` and `B+` would make gate floors incomparable.
 
 | Grade | Meaning | Examples |
 |---|---|---|
@@ -204,7 +200,7 @@ Four subagents run with fresh context so they can't inherit the main conversatio
 - **gatekeeper** is paid to fail your gate. A gate that survives it deserves to pass.
 - **coldstart-tester** plays a build session that has only the MVP pack and no history, and lists every question it would still have to ask. Empty list, pack passes.
 
-Three Node hooks, all fail-open: `session-start.js` injects pipeline state for ideas in the workspace (walks up to the workspace root, local calendar dates, one corrupt state can't suppress the others); `guard-thresholds.js` catches semantic threshold edits — a partial edit changing `60` to `70` included — escalates on `locked` artifacts and enforces append-only on the decision log; `validate-artifact.js` checks frontmatter and blocks with a repair instruction. All three sentinel-check for a sibling `state.json` containing `pipeline_version`, so an unrelated repo with an `ideas/` folder is untouched.
+Three Node hooks, all fail-open: `session-start.js` injects pipeline state for ideas in the workspace; `guard-thresholds.js` catches semantic threshold edits — a partial edit changing `60` to `70` included — escalates on `locked` artifacts and enforces append-only on the decision log; `validate-artifact.js` checks frontmatter and blocks with a repair instruction. All three sentinel-check for a sibling `state.json` containing `pipeline_version`, so an unrelated repo with an `ideas/` folder is untouched.
 
 Integrity doesn't depend on hooks running: `gate-check` recomputes the threshold snapshot against `decision-log.md` every time.
 
@@ -220,7 +216,7 @@ The charter ships inside the MVP pack as the interpretive authority for everythi
 
 The methodology also exists as plain documents. Create `ideas/<your-idea>/`, copy everything from `templates/` into it, and work through [process/pipeline.md](process/pipeline.md) starting from `0-framing.md`; gate states are tracked inside the template files. Same two conventions: thresholds before tests, evidence traces to real humans.
 
-`process/` and `plugin/` are written in Vietnamese (`plugin/codex-parity.md` is the one exception); the plugin itself (`skills/`, `agents/`, `.codex/agents/`, `hooks/`) is English throughout, and it replies in whatever language you use.
+`process/` and `plugin/` are written in Vietnamese; the plugin itself (`skills/`, `agents/`, `hooks/`) is English throughout, and it replies in whatever language you use.
 
 ---
 
@@ -229,8 +225,7 @@ The methodology also exists as plain documents. Create `ideas/<your-idea>/`, cop
 | Path | Contents |
 |---|---|
 | `.claude-plugin/` · `.codex-plugin/` | Plugin manifest, one per platform |
-| `.agents/` | Codex's self-hosted marketplace registry |
-| `skills/` | 12 skills — 5 commands, 6 stages, and `method-rules` with `state-schema.md`, `artifact-schema.md`, `gate-contracts.md`; three of the command skills carry a Codex `agents/openai.yaml` sidecar to keep them explicit-invocation-only there too |
+| `skills/` | 12 skills — 5 commands, 6 stages, and `method-rules` with `state-schema.md`, `artifact-schema.md`, `gate-contracts.md` |
 | `agents/` · `.codex/agents/` · `hooks/` · `scripts/` | The four subagents, once as Claude Code markdown and once as Codex TOML; `hooks.json` (same file, both platforms) plus three Node scripts; the atomic state writer |
 | `tests/` | `hook-tests.js` — hook regression suite |
 | `process/` | The methodology (Vietnamese): pipeline, foundations, build-and-launch, research-verification |
@@ -241,7 +236,7 @@ The methodology also exists as plain documents. Create `ideas/<your-idea>/`, cop
 node tests/hook-tests.js
 ```
 
-The suite covers every adversarial-review finding, including a proven partial-edit threshold bypass kept as a permanent regression test; each hook runs through its real stdin/stdout contract against temporary idea directories. `claude plugin validate . --strict` checks the manifest, and `claude --plugin-dir .` gives you an edit-and-rerun loop without reinstalling.
+The suite covers every adversarial-review finding, including a proven partial-edit threshold bypass kept as a permanent regression test.
 
 ---
 
@@ -259,12 +254,14 @@ The suite covers every adversarial-review finding, including a proven partial-ed
 
 **A hook complains about `node`.** It's not on PATH. Hooks fail open; you lose the session summary and two guard checks, nothing else. `gate-check` verifies threshold integrity on its own regardless.
 
+**On Codex, a fan-out step can't find the research agents.** Copy `.codex/agents/*.toml` into your project's own `.codex/agents/` once.
+
 ---
 
 ## Where the method comes from
 
 Assembled and source-verified against primary sources rather than summaries: Steve Blank's Customer Development (earlyvangelist as a five-level hierarchy — only levels 4–5 qualify), Strategyzer's desirability/feasibility/viability assumption mapping, *The Mom Test*, Ash Maurya's Running Lean (10–15 interviews), April Dunford's positioning component order and her caveat that pre-product positioning is a thesis expected to be partly wrong, the JOLT Effect on "no decision" losses, and the LLM evaluation practice of Hamel Husain and Shreya Shankar (error-analysis first, ~100 traces with a stop rule — not "100 golden cases").
 
-The audit trail is in the repo. `process/research-verification.md` records six research branches and the corrections applied, including two fabricated statistics that were found and removed. `plugin/codex-review.md` records four rounds of two-way adversarial review against an external model, roughly forty findings processed, every proven bypass turned into a permanent regression test. `plugin/dogfood-report.md` records the first real run — in which the gatekeeper correctly failed a gate.
+The audit trail is in the repo. `process/research-verification.md` records the research branches and the corrections applied, including two fabricated statistics that were found and removed. `plugin/codex-review.md` records the adversarial review rounds, with every proven bypass turned into a permanent regression test. `plugin/dogfood-report.md` records the first real run — in which the gatekeeper correctly failed a gate.
 
 MIT — see [LICENSE](LICENSE).
