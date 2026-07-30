@@ -19,7 +19,7 @@ gate: F
 status: draft
 evidence_grade: none
 rung: baseline-auto
-pipeline_version: 1.2.0
+pipeline_version: 1.3.0
 updated: YYYY-MM-DD
 ---
 # Idea brief — <title>
@@ -71,7 +71,7 @@ gate: F
 status: draft            # locked at LOCK (with the pack); evolution continues via changelog
 evidence_grade: none
 rung: baseline-auto
-pipeline_version: 1.2.0
+pipeline_version: 1.3.0
 updated: YYYY-MM-DD
 ---
 # Founder charter — how <founder> decides
@@ -116,7 +116,7 @@ gate: F
 status: draft
 evidence_grade: none
 rung: baseline-auto
-pipeline_version: 1.2.0
+pipeline_version: 1.3.0
 updated: YYYY-MM-DD
 ---
 # Problem hypothesis
@@ -172,14 +172,15 @@ artifact: beachhead-icp
 (1) has problem → (2) aware → (3) actively searching w/ timetable → (4) built interim solution → (5) has/can get budget.
 Only tiers 4–5 qualify. ICP description:
 ## 20 real prospects (doubles as the prospect funnel tracker through stages 2–3)
-| Pid | Segment descriptor (NO real names) | Tier | Behaviour that establishes the tier (verbatim or observation) | Evidence (E-id) | Reach channel (type + whether a reply is plausible) | Funnel status |
-|---|---|---|---|---|---|---|
+| Pid | Segment descriptor (NO real names) | Tier | Behaviour that establishes the tier (verbatim or observation) | Evidence (E-id) | Resolved entity (canonical name/domain — dedup key, pseudonymous) | Observed at (YYYY-MM-DD) | Reach channel (type + whether a reply is plausible) | Funnel status |
+|---|---|---|---|---|---|---|---|---|
 > **Privacy**: this file is public within the repo — identities, profile URLs, and contact details live ONLY in `private/contacts.md` (`| Pid | real name | profile URL | contact | notes |`). A personal profile URL defeats pseudonymization — never put it here. Prospects are `P1…P20` with a descriptor ("ops lead at 50-person logistics co").
 > Funnel status enum: `not-contacted` → `contacted` → `replied` → `interviewed` → `committed` / `declined`. Keep current through outreach, interviews (V1), and pre-sell (V3).
 > Tier discipline (dogfood finding): the funnel bar counts **tier 4–5, on-segment entries only**. Sub-tier or adjacent-segment entries may be kept but must be explicitly quarantined ("nurture, not counted") — a list where 35% fails its own bar invites denominator games at V1.
 > **A tier is an evidence claim, not an assessment** (dogfood finding, run #2). Tier 4 means *this person built or imposed an interim solution* — a past event. So the **Behaviour** cell holds what they actually did, in their words or as an observation, and the **Evidence** cell holds its `E-id`. A row whose tier rests on the model's reading rather than a ledgered source is `[GUESS]` and **uncounted**, exactly like a grade-D item.
 > The failure mode this exists to stop: **prescriptive statements read as behaviour.** *"If you have PR templates, add a checklist item"* and *"documentation should live in the same repo"* are advice — the speaker is telling someone else what to do and may have done none of it. Run #2 turned five of six tier-4 estimates into asserted past behaviour this way, which manufactures the exact signal the tier scale measures. Test each row: **could this person have written this sentence without ever having done it?** If yes, it is tier 1–3 at most.
 > **Reach is part of the claim.** A public forum handle is not a reach channel — it permits one public reply with no expectation of an answer. A row with no channel through which a reply is plausible does not count toward the funnel bar, however good the behavioural evidence is.
+> **Provenance cells** (dogfood finding, run #3): **Resolved entity** is the canonical pseudonymous key for the person/business (e.g. a domain or `profile-P7`) — without it two rows can be the same entity under two names, which is exactly how run #3 double-counted a business. **Observed at** dates the tier evidence — tier evidence goes stale. And two anti-inflation floors: *"is a competitor"* is evidence the need was already MET (not a tier-4 workaround), and a listicle mention with no first-party confirmation is not a countable basis. `scripts/validate-beachhead.js` enforces all of this mechanically at gate F.
 ```
 
 ## assumption-map.md

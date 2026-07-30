@@ -1,5 +1,10 @@
 # Stage 0 — Framing
 
+> **Manual-mode rendering.** The normative producer of these artifact shapes is the plugin skill
+> `stage-0-*-templates` (skills win on any disagreement — conflicts-inventory C2). Load-bearing table
+> headers here are fixture-checked against the validators by `tests/pipeline-contract-tests.js`.
+
+
 > Idea: `<name>` · Start date: `<yyyy-mm-dd>`
 > Process reference: [pipeline.md — Stage 0](../../process/pipeline.md)
 
@@ -55,9 +60,14 @@
 > a public artifact. This table uses `P<n>` ids only. Never invent a prospect: fewer than 20
 > findable prospects is itself a finding about reach.
 
-| Pid | Segment descriptor (no identifying detail) | Why matches ICP | EV tier (1–5) | Origin (public research / founder network) | Reach channel | Status |
-|---|---|---|---|---|---|---|
-| P1 | | | | | | not yet contacted |
+| Pid | Segment descriptor (NO real names) | Tier | Behaviour that establishes the tier (verbatim or observation) | Evidence (E-id) | Resolved entity (canonical name/domain — dedup key, pseudonymous) | Observed at (YYYY-MM-DD) | Reach channel (type + whether a reply is plausible) | Funnel status |
+|---|---|---|---|---|---|---|---|---|
+| P1 | | | | | | | | not-contacted |
+
+> A tier is an evidence claim: tier 4 means this person **built or imposed** an interim solution — a
+> past act, held in the Behaviour cell with its `E-id`. "Is a competitor" and listicle mentions do not
+> establish a tier; a public forum handle is not a reach channel; Resolved entity dedups one business
+> under two names. With the plugin, `scripts/validate-beachhead.js` checks all of this at gate F.
 
 ## 0.5. Assumption Map
 

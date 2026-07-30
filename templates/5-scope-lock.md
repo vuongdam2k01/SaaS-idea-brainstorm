@@ -1,5 +1,10 @@
 # Stage 5 — Scope Lock
 
+> **Manual-mode rendering.** The normative producer of these artifact shapes is the plugin skill
+> `stage-5-*-templates` (skills win on any disagreement — conflicts-inventory C2). Load-bearing table
+> headers here are fixture-checked against the validators by `tests/pipeline-contract-tests.js`.
+
+
 > Entrance condition: passed V3 (have payer) + R2 (value delivered) + Positioning done.
 
 ## 5.1. Core loop from observation (≤5–7 steps, from concierge log 3.9)

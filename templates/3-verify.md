@@ -1,5 +1,10 @@
 # Stage 3 — Verify (runs PARALLEL to Stage 2)
 
+> **Manual-mode rendering.** The normative producer of these artifact shapes is the plugin skill
+> `stage-3-*-templates` (skills win on any disagreement — conflicts-inventory C2). Load-bearing table
+> headers here are fixture-checked against the validators by `tests/pipeline-contract-tests.js`.
+
+
 > Start when assumption map (0.5) surfaces critical Feasibility assumption — don't wait for Validation finish.
 > Two chains use different evidence: "demo runs" ≠ "need exists"; "people say it hurts" ≠ "AI works well enough".
 

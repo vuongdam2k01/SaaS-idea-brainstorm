@@ -228,18 +228,20 @@ Phương pháp cũng tồn tại dưới dạng tài liệu thuần. Tạo `idea
 | Đường dẫn | Nội dung |
 |---|---|
 | `.claude-plugin/` · `.codex-plugin/` | Manifest plugin, mỗi nền tảng một bản |
-| `skills/` | 15 skill — 8 lệnh (gồm `reconcile`, `declare-drift`, `run-validation` cho hậu-LOCK), 6 giai đoạn, và `method-rules` kèm `method-rules-state-schema` skill, `method-rules-artifact-schema` skill, `method-rules-gate-contracts` skill, `method-rules-maintenance-rules` skill |
-| `agents/` · `.codex/agents/` · `hooks/` · `scripts/` | Bốn subagent, một bản markdown Claude Code và một bản TOML Codex; `hooks.json` (dùng chung cho cả hai nền tảng) cùng ba script Node; trình ghi state nguyên tử |
-| `tests/` | `hook-tests.js` — bộ test hồi quy cho hook |
-| `process/` | Phương pháp (tiếng Việt): pipeline, foundations, build-and-launch, research-verification |
-| `plugin/` | Tài liệu thiết kế (tiếng Việt, trừ `codex-parity.md`): spec, ma trận năng lực, thiết kế tự chủ, biên bản review, báo cáo dogfood, ghi chú nền tảng Codex |
-| `templates/` · `ideas/` | Template dùng tay; các workspace ý tưởng |
+| `skills/` | Các skill — lệnh (gồm `reconcile`, `declare-drift`, `run-validation` cho hậu-LOCK), 6 giai đoạn kèm các skill template, và `method-rules` với các skill `method-rules-{state-schema, artifact-schema, gate-contracts, maintenance-rules}`. **Nguồn chuẩn**: tài liệu nào lệch với skill thì skill thắng |
+| `agents/` · `.codex/agents/` · `hooks/` · `scripts/` | Bốn subagent, một bản markdown Claude Code và một bản TOML Codex (`sync-codex-agents.js --check` giữ chúng y hệt); `hooks.json` (dùng chung cho cả hai nền tảng) cùng ba script hook; các validator (`validate-evidence-ledger`, `validate-beachhead`, `verify-threshold-snapshot`, `validate-run-contract`, `pack-verdict`, `artifact-manifest`), trình ghi state nguyên tử, `coverage-report.js`, và `preflight.js` |
+| `tests/` | `hook-tests.js` + `pipeline-contract-tests.js` — hai bộ test hồi quy (test đầu tiên: `node --check` mọi file `.js`) |
+| `evals/` | **Chỉ dành cho dev.** Fixture gieo lỗi + grader đo tỉ lệ bắt của gatekeeper ở tầng diễn giải (`run-gatekeeper-eval.js`). Generator ghi vào thư mục temp của HĐH, không bao giờ ghi trong repo |
+| `process/` | Phương pháp (tiếng Việt): pipeline, foundations, build-and-launch, research-verification. Mang tính giải thích — lệch thì skill thắng |
+| `plugin/` | Tài liệu thiết kế — bắt đầu từ `plugin/README.md`: nó nói file nào còn hiệu lực, file nào là lịch sử đóng băng |
+| `templates/` · `ideas/` | Template dùng tay (bản render của các skill template); các workspace ý tưởng |
+| `dogfood/` | Workspace dogfood nội bộ (gitignore, xem README trong đó) — cố ý KHÔNG nằm dưới `ideas/` |
 
 ```bash
-node tests/hook-tests.js
+node scripts/preflight.js
 ```
 
-Bộ test phủ mọi phát hiện từ vòng review đối kháng, gồm cả một lỗ hổng sửa-một-phần để lách ngưỡng đã được chứng minh và giữ làm test hồi quy vĩnh viễn.
+Một lệnh, bốn kiểm: quét cú pháp mọi file `.js`, cả hai bộ test, và parity agent Codex. Chạy sau mọi đợt sửa hàng loạt và trước mọi commit. Hai bộ test phủ mọi phát hiện từ vòng review đối kháng, gồm cả một lỗ hổng sửa-một-phần để lách ngưỡng đã được chứng minh và giữ làm test hồi quy vĩnh viễn.
 
 ---
 

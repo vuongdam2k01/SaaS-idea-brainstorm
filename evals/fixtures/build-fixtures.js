@@ -32,7 +32,7 @@ const artifactFm = (artifact, idea, stage, gate, grade) =>
   fm({
     artifact, idea, stage, gate, status: "ready",
     evidence_grade: grade, rung: "baseline-auto",
-    pipeline_version: "1.1.0", updated: "2026-07-30",
+    pipeline_version: "1.2.0", updated: "2026-07-30",
   });
 
 function journal(idea) {
@@ -46,7 +46,7 @@ function journal(idea) {
 function state(idea) {
   return JSON.stringify(
     {
-      schema_version: "1.1.0", pipeline_version: "1.1.0", idea,
+      schema_version: "1.1.0", pipeline_version: "1.2.0", idea,
       title: idea, created: "2026-07-15", updated: "2026-07-30",
       mode: "analysis", auto_continue: false, active: ["0.4"],
       gates: {
@@ -69,7 +69,7 @@ function cleanProspects(from, to) {
   const out = [];
   for (let i = from; i <= to; i++) {
     out.push(
-      `| P${i} | platform lead, ${30 + i}-engineer SaaS co | 4 | "we built a nightly job that diffs our runbooks against the terraform plan and opens a ticket per mismatch" | E${i} | work email from their conference talk, replies expected | contacted |`
+      `| P${i} | platform lead, ${30 + i}-engineer SaaS co | 4 | "we built a nightly job that diffs our runbooks against the terraform plan and opens a ticket per mismatch" | E${i} | forum-profile-${i}.example | 2026-07-2${i % 10} | work email from their conference talk, replies expected | contacted |`
     );
   }
   return out;
@@ -87,8 +87,8 @@ const LEDGER_HEAD =
   "| id | date | source | type | url_or_ref | retrieved | via | root_source_id | verbatim_or_observation | assumption | grade | bearing | scope_limits |\n" +
   "|---|---|---|---|---|---|---|---|---|---|---|---|---|\n";
 const ICP_HEAD =
-  "| Pid | Segment descriptor (NO real names) | Tier | Behaviour that establishes the tier | Evidence (E-id) | Reach channel | Funnel status |\n" +
-  "|---|---|---|---|---|---|---|\n";
+  "| Pid | Segment descriptor (NO real names) | Tier | Behaviour that establishes the tier | Evidence (E-id) | Resolved entity | Observed at | Reach channel | Funnel status |\n" +
+  "|---|---|---|---|---|---|---|---|---|\n";
 
 const FIXTURES = {
   // ---------------------------------------------------------------------------
@@ -107,7 +107,7 @@ const FIXTURES = {
           "\n" +
           // The seed. All three cells are present and resolve, so validate-beachhead
           // exits 0 — only a reader can see that the sentence is advice.
-          `| P15 | SRE, 80-engineer fintech | 4 | "if you have PR templates, add a checklist item for docs" | E15 | work email, replies expected | contacted |\n`
+          `| P15 | SRE, 80-engineer fintech | 4 | "if you have PR templates, add a checklist item for docs" | E15 | forum-profile-15.example | 2026-07-28 | work email, replies expected | contacted |\n`
       );
       fs.writeFileSync(
         path.join(dir, "evidence-ledger.md"),
@@ -222,7 +222,11 @@ function build(outDir) {
 }
 
 if (require.main === module) {
-  const out = process.argv[2] || path.join(__dirname, "generated");
+  // Default OUTSIDE the repo (conflicts-inventory C13): a generated fixture is a
+  // real `ideas/<slug>/state.json` tree, which the session-start sentinel would
+  // pick up as a real idea if it ever landed inside a user's working repo.
+  const out = process.argv[2] ||
+    fs.mkdtempSync(path.join(require("os").tmpdir(), "sib-eval-fixtures-"));
   const made = build(out);
   for (const m of made) console.log(`built ${m.name} -> ${m.ideaDir}`);
 }

@@ -2,9 +2,13 @@
 ideas/*/private/*
 !ideas/*/private/.gitkeep
 
-# Internal dogfood test run (simulated founder, quarantined data) - not a real
-# user idea, kept locally for reference, excluded from the shipped release.
-ideas/proposal-draft/
+# Internal dogfood workspaces (simulated founder, quarantined data) - not real
+# user ideas. Kept OUTSIDE ideas/ so the session-start sentinel ("state.json with
+# pipeline_version beside it under ideas/") never reports them as user ideas —
+# the state-schema rule "never inside the plugin" stays true without exceptions
+# (conflicts-inventory C1). Kept locally for reference, excluded from release.
+dogfood/*/
+!dogfood/README.md
 
 node_modules/
 .DS_Store

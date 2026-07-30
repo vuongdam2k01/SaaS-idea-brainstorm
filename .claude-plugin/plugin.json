@@ -1,7 +1,7 @@
 {
   "name": "saas-idea-brainstorm",
   "displayName": "SaaS Idea Brainstorm",
-  "version": "1.2.0",
+  "version": "1.3.0",
   "description": "Autonomous SaaS idea validation pipeline: takes a raw idea through framing, competitive scan, market validation, feasibility verification, positioning, and MVP scope lock. Produces a Validated, Hypothesis, or Pre-feasibility MVP Pack with strictly graded evidence (A/B/C/D). Post-LOCK maintenance: declare drift any time, reconcile on demand against declared or observed product reality, and route unvalidated changes to scoped validation runs or a new cycle. Analysis mode runs with no integrations; user-installed MCP servers/CLIs (scraping, hosting, analytics, payments, email) unlock higher-autonomy rungs after authenticated probes.",
   "author": {
     "name": "vuong.dam"

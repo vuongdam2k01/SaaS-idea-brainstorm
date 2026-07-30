@@ -4,7 +4,7 @@ description: Canonical artifact frontmatter and evidence-ledger row format for t
 user-invocable: false
 ---
 
-# Artifact frontmatter & evidence ledger schema (v1.2.0)
+# Artifact frontmatter & evidence ledger schema
 
 Frontmatter is **phase-conditional**: artifacts with `phase: maintenance` follow the schema in the `method-rules-maintenance-rules` skill §9 instead of the block below. `phase: pipeline` (or no `phase` key) means exactly the rules below — nothing changes for pipeline artifacts.
 
@@ -19,7 +19,7 @@ gate: F                             # F | C | V1 | V2 | V3 | R1 | R2 | P | LOCK
 status: draft                       # draft | ready | locked
 evidence_grade: none                # highest grade backing this artifact: A | B | C | D | none
 rung: baseline-auto                 # enhanced-auto | baseline-auto | handoff  (exactly three — see below)
-pipeline_version: 1.2.0
+pipeline_version: 1.3.0
 updated: YYYY-MM-DD
 ---
 ```
@@ -109,7 +109,7 @@ nothing. `detail` holds `key=value; key=value` pairs:
 - **`manifest=`** (gate-verdict) — the manifest of the exact artifact set the verdict was made against (`scripts/artifact-manifest.js`, `--purpose gate-input`). Without it a verdict can silently appear to authorize a materially different set of files. Legacy rows without it stay valid and are never backfilled — that would fabricate a hash for content nobody hashed.
 - **`cutoff=` / `reopen_on=`** (gate-verdict, when time-sensitive) — the date the evidence set closed, and the condition that would reopen it ("if the eval threshold is loaded", "if price changes", "after 2026-09-01"). An approval with no validity boundary quietly becomes permanent.
 - **Column count is stable.** A pre-existing journal keeps its own header: append a new versioned table (with a `migration` row pointing at it) rather than rewriting old rows — the log is append-only, so its history includes its own format history.
-`type`: `gate-verdict` (incl. gatekeeper findings count + blockers) | `pivot` (segment/problem/solution — what changed, from what) | `mode-switch` | `sampling-frame-snapshot` (V1 frame text + sha256, appended BEFORE collection starts — gate V1 recomputes and compares) | `threshold-revision` (mirrors state.thresholds.revisions) | `spend` (mirrors state.budget.log) | `market-verdict` | `will-override` (founder knowingly decides against evidence — cite E-ids + charter item) | `invariant-change` (a charter invariant is added/reworded/removed — exact old wording, exact new wording, founder approval; legal even while the charter is still `draft`) | `migration` (schema migration, from → to) | `reconciliation` (summary row: reconcile ID, manifest hash, drift dimensions, intake authority — never replaces the specialized rows above) | `run-signed` (validation-run spec signed: run_id, claim ids, threshold snapshot, window) | `run-verdict` (validation-run outcome: run_id, verdict, report ref) | `criterion-disposition` (LOCK ceremony: kill criterion retired/carried/replaced, provenance) | `source-registry-change` (reality source added/removed/rescoped, user-approved) | `other`.
+`type`: `gate-verdict` (incl. gatekeeper findings count + blockers) | `pivot` (segment/problem/solution — what changed, from what) | `mode-switch` | `sampling-frame-snapshot` (V1 frame text + sha256, appended BEFORE collection starts — gate V1 recomputes and compares) | `threshold-revision` (mirrors state.thresholds.revisions) | `spend` (mirrors state.budget.log) | `market-verdict` | `will-override` (founder knowingly decides against evidence — cite E-ids + charter item) | `invariant-change` (a charter invariant is added/reworded/removed — exact old wording, exact new wording, founder approval; legal even while the charter is still `draft`) | `migration` (schema migration, from → to) | `reconciliation` (summary row: reconcile ID, manifest hash, drift dimensions, intake authority — never replaces the specialized rows above) | `run-signed` (validation-run spec signed: run_id, claim ids, threshold snapshot, window) | `run-verdict` (validation-run outcome: run_id, verdict, report ref) | `criterion-disposition` (LOCK ceremony: kill criterion retired/carried/replaced, provenance) | `source-registry-change` (reality source added/removed/rescoped, user-approved) | `signing-blocked` (the F signing ceremony ran and did NOT produce a signature — see the `detail` table above; was ordered by gate-check but missing from this enum until conflicts C8) | `other`.
 
 ## audit-trail.md (append-only, tracked — the review record that survives a clone)
 
@@ -176,7 +176,7 @@ gate: <the failed gate, e.g. V1>
 status: ready
 evidence_grade: <the failed gate's actual evidence grade, honestly>
 rung: baseline-auto
-pipeline_version: 1.2.0
+pipeline_version: 1.3.0
 updated: YYYY-MM-DD
 ---
 # Unvalidated build decision — <title>

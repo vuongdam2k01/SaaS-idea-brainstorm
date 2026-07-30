@@ -9,8 +9,14 @@ Quy tắc của sổ này: một dòng chỉ được thêm khi dạng sai đó 
 không phải khi nó được tưởng tượng ra. Và mỗi dòng phải nêu detector; `nothing` là một giá trị
 hợp lệ và là giá trị quan trọng nhất.
 
-Nguồn hiện tại: `dogfood-report.md` (run #1), run #2 (2026-07-30, log đầy đủ + 3 vòng review Codex
-độc lập), `codex-review.md` (các vòng audit R5–R8).
+Nguồn hiện tại: `dogfood-report.md` (run #1 — workspace `dogfood/proposal-draft/`), run #2
+(2026-07-30, ý tưởng dev-tools, log đầy đủ + 3 vòng review Codex độc lập), **run #3** (2026-07-30,
+thiệp cưới VN, repo `SaaS-idea-brainstorm-test-sayitalive` — run đầu tiên chạy từ bản cài
+marketplace thật), `codex-review.md` (các vòng audit R5–R8). Định nghĩa run: xem bảng trong
+`dogfood/README.md`.
+
+**Luật quy trình (thêm sau conflicts C12): mỗi dogfood run kết thúc bằng việc cập nhật sổ này.**
+Một run không có dòng ở đây nghĩa là sổ đang tụt lại, không phải run đó sạch.
 
 ---
 
@@ -30,8 +36,8 @@ plugin quảng cáo như guarantee và những gì thực sự có code chặn.*
 | Label pack không bị viết tay sai | `pack-verdict.js` | **Có** (từ v1.2.0) |
 | Mẫu số không bị chơi bẩn | `max_independent_count`, `root_source_id`, superseded rows | **Có** cho trùng lặp có cùng root; **không** cho repost khai root khác |
 | Model không bịa bằng chứng | method-rules §1 + gatekeeper | **Không** — hành vi, không guardrail |
-| Diễn giải/suy luận không bịa | **chỉ** gatekeeper (checklist 15-20) | **Không, và không tất định** — nhưng giờ **đo được**: `evals/` + `scripts/run-gatekeeper-eval.js` |
-| Claim ngoài ledger không lọt | gatekeeper (item 15-20) + `validate-beachhead.js` cho **tier prospect** (3 ô: behaviour + E-id + reach) | **Một phần**: tier prospect giờ tất định; claim ngoài ledger dạng tổng quát vẫn chỉ có gatekeeper |
+| Diễn giải/suy luận không bịa | **chỉ** gatekeeper (checklist 15-20) | **Không, và không tất định — và CHƯA ĐO.** Hạ tầng đo đã có (`evals/` + `scripts/run-gatekeeper-eval.js`) nhưng chưa chạy lần nào; cho tới khi có số, mọi phát biểu chỉ được phép là "bắt được một lần ở run #2" (conflicts D5) |
+| Claim ngoài ledger không lọt | gatekeeper (item 15-20) + `validate-beachhead.js` cho **tier prospect** (behaviour + E-id + resolved entity + observed_at + reach; validator prospect duy nhất sau khi gộp X1) | **Một phần**: tier prospect giờ tất định; claim ngoài ledger dạng tổng quát vẫn chỉ có gatekeeper |
 | Chat không nói mạnh hơn artifact | **không gì cả** — gatekeeper đọc file, không đọc hội thoại | **Không** |
 | Quyết định thuộc founder không bị model tự quyết | method-rules §7 + will-override boundary + Layer 0 (đã vá) | **Không** — prose |
 
@@ -94,7 +100,10 @@ sống khi founder trích `SKILL.md:28` ra. `state.json` bị ghi **21 lần** b
 qua `state-write.js` → schema validation + `.bak` + atomic rename chưa từng chạy, và state đã bị
 truncate thật một lần.
 **Detector.** `prose` (gate-check Layer 2 đã vá: await inline + persist là hành động đầu).
-**Status.** Vá cho gatekeeper. `state-write.js` vẫn là "prefer", không phải "must" → vẫn mở.
+**Status.** Vá cho gatekeeper. **Đóng thêm cho state (2026-07-30, conflicts D3):** `state-write.js`
+nâng từ "prefer" lên **MUST** trong state-schema, và `guard-thresholds.js` giờ chặn tất định mọi
+direct edit làm rớt key chịu lực của `state.json` (đúng dạng truncation đã xảy ra) kèm chỉ dẫn
+dùng writer. Dạng tổng quát ("plugin tự miễn trừ") vẫn theo dõi.
 
 ### FM-6 — Kể nguyên nhân gốc chưa kiểm chứng
 **Shape.** Hành động đúng, câu chuyện sai, kể với độ tự tin cao. Trong log append-only thì thành
@@ -142,10 +151,39 @@ inject state nữa**, hoàn toàn. Chỉ lộ ra vì 5 test khẳng định *n�
 "không lỗi" — và chỉ chẩn đoán được sau khi patch một bản copy để in cái error bị nuốt ra.
 **Detector.** `code` một phần: các test khẳng định nội dung (`ctx.includes(...)`) bắt được; test chỉ
 kiểm "không crash" thì không.
-**Status.** Mở về mặt kiến trúc. Fail-open nên **quan sát được**, không nên im lặng: ghi
-`e.name + e.message` ra **stderr** trước khi `exit(0)` — hook vẫn không chặn ai, nhưng một lần chết
-hoàn toàn thôi vô hình. Bài học rộng hơn: **mọi `catch` fail-open trong plugin này đều có thể đang
-che một outage**, và không có gì hiện tại phân biệt được hai trạng thái đó.
+**Status.** **Đã vá (2026-07-30):** cả 3 hook ghi `<tên-hook>: <error>` ra **stderr** trước khi
+`exit(0)` — hook vẫn không chặn ai, nhưng một lần chết hoàn toàn thôi vô hình; hành vi được cố định
+bằng test ("crash names itself on stderr" / "crash writes nothing to stdout"). Bài học rộng hơn vẫn
+đứng: **mọi `catch` fail-open mới thêm vào plugin này phải tự nêu tên trên stderr**, nếu không nó có
+thể đang che một outage.
+
+### FM-11 — Kill criterion tự phát minh gate predicate (run #3)
+**Shape.** Một kill criterion được sinh ra trong lúc chạy đòi một điều kiện mà contract của gate
+không hề có — model "siết" gate bằng cửa sau, thiện chí nhưng đơn phương (họ hàng của FM-4).
+**Instance.** K2 đòi `funnel status ≥ contacted` như một điều kiện F, trong khi contact/funnel thuộc
+V1; ranh giới reachable ≠ contacted nay được viết tường minh trong contract F (conflicts D4).
+**Detector.** `prose` + gate-check **Contract-authorization check** (Layer 0/1 từ chối criterion
+thêm predicate ngoài contract; có contract-test khẳng định câu luật tồn tại).
+**Status.** Mitigated; không tất định cho dạng tổng quát.
+
+### FM-12 — Deferred threshold có date mà không có event (run #3)
+**Shape.** Threshold được hoãn ("sẽ đặt sau khi có dữ liệu X") chỉ neo vào một ngày; đến ngày đó
+không có gì buộc phải load — nó trôi mãi mà không ai vi phạm chữ nào.
+**Instance.** Run #3: threshold hoãn có `by_date` nhưng không có event ràng buộc.
+**Detector.** `prose` — gate-check yêu cầu `load_before_event` (deferred threshold bind vào event,
+không chỉ date); contract F chỉ chấp nhận deferral kèm load-by trong kill criterion.
+**Status.** Mitigated qua luật + contract-test cho câu luật; chưa tất định.
+
+### FM-13 — Tracker prose thổi phồng số đếm (run #3)
+**Shape.** Con số mà gate đếm sống trong prose/bảng không kiểm được → count được *khẳng định*, không
+*kiểm* được. Copy hàng đối thủ tier-1 sang, đếm listicle entry, một business đếm hai lần dưới hai tên.
+**Instance.** 3–5 prospect thật thành "16"; một entry là site demo template với SĐT placeholder
+0900 000 000. Spot-check HTTP 200 không bắt được ("HTTP 200 không phải bằng chứng business tồn tại");
+chỉ gatekeeper bắt được.
+**Detector.** `code` (từ 2026-07-30): `validate-beachhead.js` — resolved entity + dedup, observed_at,
+competitor-as-tier-evidence, listicle-only, duplicate Pid. Phần "quote có thật là hành vi không" vẫn
+là gatekeeper (không tất định).
+**Status.** Tất định hoá phần cơ học; xem FM-1 cho phần diễn giải.
 
 ---
 

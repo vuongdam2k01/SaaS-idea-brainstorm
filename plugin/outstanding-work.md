@@ -7,14 +7,15 @@
 > Bối cảnh: `plugin/solo-dev-comparison.md` (đối chiếu với một agent-team solo-dev + 5 vòng review),
 > `plugin/codex-review.md` (7 vòng trước đó), `plugin/dogfood-report.md`.
 
-## Trạng thái kiểm chứng hiện tại
+## Trạng thái kiểm chứng hiện tại (cập nhật sau đợt giải xung đột 2026-07-30)
 
 ```
-node tests/hook-tests.js                  → 109 passed
-node tests/pipeline-contract-tests.js     → 137 passed
-node scripts/sync-codex-agents.js --check → pass
-claude plugin validate . --strict         → pass
-node scripts/coverage-report.js           → 44% deterministic / 56% model-dependent
+node scripts/preflight.js                 → PASS cả 4 kiểm:
+  syntax sweep (node --check mọi .js)     → pass
+  tests/hook-tests.js                     → 172 passed
+  tests/pipeline-contract-tests.js        → 149 passed
+  scripts/sync-codex-agents.js --check    → pass
+node scripts/coverage-report.js           → 48% deterministic / 52% model-dependent (73 req)
 ```
 
 **Chưa phát hành được.**
@@ -76,31 +77,44 @@ tự load nó (đã ghi rõ trong từng skill). Phản biện đã xử lý: **
 gate-check** — nêu đủ luật để hành động, không cần đọc file nào khác.
 
 ```
-default bundle: 757 → 466 dòng  (-38%)
+default bundle: 757 → 466 dòng  (-38%, trước restructure)
 ```
 
-Vì sao đáng làm: 56% requirement của plugin được cưỡng chế bằng **một agent đọc chính những file
-này** (mục 5) — nên cái gì nằm trong context CHÍNH LÀ cái được cưỡng chế. Ngân sách context không
-phải chuyện gọn gàng, nó là chất nền cưỡng chế.
+**Đo lại sau restructure (2026-07-30, conflicts D2)** — cơ chế load đã đổi: mỗi file tham chiếu giờ
+là một skill load-theo-yêu-cầu, nên "bundle" không còn là một con số duy nhất mà là tổng theo ngữ
+cảnh:
+
+```
+luôn load khi làm việc trên idea:  method-rules                171 dòng
++ viết artifact:                   method-rules-artifact-schema 194
++ đụng state:                      method-rules-state-schema    101
++ việc gate:                       gate-check 110 + gate-contracts 79
++ sau LOCK (chỉ khi cần):          method-rules-maintenance-rules 297
+→ phiên gate điển hình ≈ 360–460 dòng; tệ nhất (LOCK, đủ mọi mảnh) ≈ 655
+```
+
+Vì sao đáng theo dõi: ~52% requirement của plugin được cưỡng chế bằng **một agent đọc chính những
+file này** (mục 5) — nên cái gì nằm trong context CHÍNH LÀ cái được cưỡng chế. Ngân sách context
+không phải chuyện gọn gàng, nó là chất nền cưỡng chế.
 
 ## 5. Tỉ lệ cưỡng chế — ĐÃ đo
 
-`node scripts/coverage-report.js` — kiểm kê 70 requirement normative, mỗi cái ghi rõ nằm ở đâu và cái
+`node scripts/coverage-report.js` — kiểm kê 73 requirement normative, mỗi cái ghi rõ nằm ở đâu và cái
 gì cưỡng chế nó:
 
 ```
-code    19  27%   một script từ chối vi phạm
-hook    12  17%   một hook từ chối lúc ghi
-agent   31  44%   chỉ một model đọc artifact mới bắt được
+code    22  30%   một script từ chối vi phạm
+hook    13  18%   một hook từ chối lúc ghi
+agent   30  41%   chỉ một model đọc artifact mới bắt được
 prose    8  11%   không có gì kiểm
-→ deterministic 44% · phụ thuộc model 56%
+→ deterministic 48% · phụ thuộc model 52%
 ```
 
-Tám requirement **không có gì kiểm**: two-identical-failures-stop · outward-action-per-approval ·
-budget-preflight · charter-playback-at-each-gate · interpretation-never-promoted ·
-instrumentation-check-before-run · consent-before-material-enters · deletion-never-automatic.
-Vài cái trong đó là cố ý (không gì xoá dữ liệu — đúng thiết kế; outward action dựa vào permission
-layer của runtime). Số còn lại là nợ thật.
+Tám requirement tầng `prose` đã được **phân loại tường minh trong chính coverage-report.js**
+(conflicts D1): **5 cố ý** (two-identical-failures-stop, outward-action-per-approval,
+interpretation-never-promoted, consent-before-material-enters, deletion-never-automatic — mỗi cái
+kèm lý do vì sao code không nên/không thể giữ nó) và **3 là NỢ**: budget-preflight,
+charter-playback-at-each-gate, instrumentation-check-before-run — ứng viên code hoá, xem mục 7.
 
 Danh sách requirement được **giữ bằng tay** trong `scripts/coverage-report.js` — parse requirement ra
 khỏi văn xuôi cũng lại là một phán đoán của model, và một con số bịa còn tệ hơn không có số.
@@ -118,6 +132,36 @@ Spec pre-register 4 mục (`plugin-spec.md:96`):
 
 Hai mục còn thiếu đều cần **gọi Agent** (gatekeeper, coldstart-tester). Đó là hai agent của chính
 plugin và việc gọi chúng chính là thứ đang được kiểm — chỉ cần bạn đồng ý cho gọi.
+
+## 7. Nợ còn lại sau đợt giải xung đột 2026-07-30
+
+Đợt này đã xử X1–X6, X12, C1–C13, D2–D5, P1–P2, V1–V2 (chi tiết: resolution log cuối
+`conflicts-inventory.md`). Còn treo có chủ đích:
+
+1. **D1 — code hoá 3 requirement nợ**: `budget-preflight` (gate-check Layer 1 so `spent_usd` + spend
+   log trước khi cho phép hành động trả tiền), `charter-playback-at-each-gate` (từ chối verdict nếu
+   không có marker playback trong journal), `instrumentation-check-before-run` (checklist artifact
+   kiểm được trong experiment kit). Đã đánh dấu `DEBT` trong coverage-report.js.
+2. **C13(a) — ranh giới packaging**: bản cài của người dùng vẫn mang `evals/ tests/ plugin/ process/`.
+   Generator fixture đã đổi sang tmpdir (đóng nguy cơ C1-kiểu), nhưng allowlist/manifest packaging
+   chưa có — cần quyết khi biết cơ chế đóng gói của marketplace hỗ trợ gì.
+3. **D5 policy (đã chốt, chờ thi hành)**: không claim gì về lớp diễn giải cho tới khi
+   `run-gatekeeper-eval.js` có số. Chạy `--runs 3` là bước đi đầu; mọi chỗ nói "đo được" đã đổi thành
+   "chưa đo".
+4. **V1 — luật review hai chế độ**: vòng review độc lập tiếp theo chạy **hai reviewer song song**:
+   một CÓ Bash (chạy code), một KHÔNG có Bash (buộc trace). Dữ liệu nền: round 13 (không Bash) tìm 2
+   lỗi thật; round 14 (có Bash) tìm 0.
+5. **X7/X8 — hai bất đồng với Codex chưa hội tụ** sau 3 vòng; không chốt được bằng tranh luận, cần
+   dữ liệu từ dogfood run kế (ghi trong `../SaaS-idea-brainstorm-test-sayitalive/dogfood/conflicts.md`).
+6. **X9–X11 — mâu thuẫn nội tại của workspace run #3** (4 bản chép tay một tiêu chí; `state` ↔
+   `kill-criteria.md` lệch; 3 artifact trùng dữ kiện) — thuộc repo dogfood, xử trong phiên riêng ở đó.
+
+**Thoả thuận làm việc khi có nhiều phiên song song (P1/P2, thường trú):**
+- Một người ghi, người kia chỉ đọc — hoặc worktree/branch riêng rồi merge.
+- `node scripts/preflight.js` sau mọi đợt sửa hàng loạt và trước mọi commit.
+- Mọi kết luận test đỏ/xanh phải lặp lại được 3 lần giống nhau trước khi tin (chống race với editor).
+- Commit sớm, commit thường xuyên — 65 mục uncommitted qua hai phiên song song là điều kiện đủ cho
+  X1–X3/X6.
 
 ---
 

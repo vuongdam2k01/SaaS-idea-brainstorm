@@ -270,7 +270,9 @@ console.log("== run-#3 absorbed contracts ==");
   check("gate C requires the raw agent trails",
     /research-raw-competitor-scanner/.test(gc));
   check("the F tracker must pass the prospect validator and contact is not a predicate",
-    /validate-prospect-tracker/.test(gc) && /NOT an F predicate/.test(gc));
+    /validate-beachhead/.test(gc) && /NOT an F predicate/.test(gc));
+  check("only ONE prospect validator ships (conflicts X1: two made gate F unpassable)",
+    !fs.existsSync(path.join(ROOT, "scripts", "validate-prospect-tracker.js")));
   check("V2 requires a reproducible ChatGPT-gap record",
     /reproducible/.test(gc) && /failure criterion written BEFORE judging/.test(gc));
   check("method-rules carries a language rule",
@@ -278,47 +280,54 @@ console.log("== run-#3 absorbed contracts ==");
   check("pseudonymity covers identifying evidence strings, not just names",
     /Pseudonymity is nominal/.test(mr));
 
-  for (const s of ["scripts/validate-run-contract.js", "scripts/validate-prospect-tracker.js"]) {
+  for (const s of ["scripts/validate-run-contract.js", "scripts/validate-beachhead.js"]) {
     check(`${s} ships and parses`, fs.existsSync(path.join(ROOT, s)));
   }
 }
 
 // ---------------------------------------------------------------------------
-console.log("== prospect tracker validator ==");
+// The run #3 tracker checks now live inside validate-beachhead.js (conflicts X1:
+// two validators over one table made gate F unpassable — this suite and
+// hook-tests each tested only "their" validator, which is how it slipped by).
+console.log("== prospect validator (merged run #3 checks) ==");
 {
   const dir = tmpdir("prospect-");
   const hdr =
-    "| Pid | segment | tier | evidence_basis | resolved_ref | observed_at | reach_route |\n" +
-    "|---|---|---|---|---|---|---|\n";
-  const row = (pid, tier, basis, ref, seen = "2026-07-30", route = "phone") =>
-    `| ${pid} | seg | ${tier} | ${basis} | ${ref} | ${seen} | ${route} |\n`;
+    "| Pid | Segment | Tier | Behaviour that establishes the tier | Evidence (E-id) | Resolved entity | Observed at | Reach channel | Funnel status |\n" +
+    "|---|---|---|---|---|---|---|---|---|\n";
+  const row = (pid, tier, behav, eid, ref, seen = "2026-07-30", reach = "work email, replies expected") =>
+    `| ${pid} | seg | ${tier} | ${behav} | ${eid} | ${ref} | ${seen} | ${reach} | contacted |\n`;
 
-  const run = (body, min) => {
-    const p = path.join(dir, "t" + Math.random().toString(36).slice(2) + ".md");
-    fs.writeFileSync(p, body);
-    const r = runNode("scripts/validate-prospect-tracker.js", [p, "--json", "--min", String(min)]);
+  let n = 0;
+  const run = (body, min, eids) => {
+    const d = path.join(dir, "w" + ++n);
+    fs.mkdirSync(d, { recursive: true });
+    fs.writeFileSync(path.join(d, "beachhead-icp.md"), body);
+    fs.writeFileSync(path.join(d, "evidence-ledger.md"),
+      "| id | date | grade |\n|---|---|---|\n" + (eids || []).map((e) => `| ${e} | 2026-07-30 | B |`).join("\n") + "\n");
+    const r = runNode("scripts/validate-beachhead.js", [d, "--json", "--min", String(min)]);
     return JSON.parse(r.stdout);
   };
-  const codes = (o) => o.findings.map((f) => f.code);
+  const codes = (o) => o.errors.concat(o.warnings).map((f) => f.code);
 
-  let o = run(hdr + row("P1", "tier 4", "first-party page shows bespoke per-order work", "acme.example"), 15);
+  let o = run(hdr + row("P1", "4", "we built a bespoke per-order sheet", "E1", "acme.example"), 15, ["E1"]);
   check("below the floor is an error, not a note", codes(o).includes("below-floor"));
 
-  o = run(hdr + row("P1", "tier 1–2 (ước tính)", "guessy", "a.example") + row("P2", "tier 4", "first-party", "b.example"), 1);
-  check("an estimated/uncertain tier is quarantined, not rounded up", o.summary.counted === 1);
+  o = run(hdr + row("P1", "tier 1–2 (ước tính)", "guessy", "E1", "a.example") + row("P2", "4", "we built our own tracker", "E2", "b.example"), 1, ["E1", "E2"]);
+  check("an estimated/uncertain tier is quarantined, not rounded up", o.qualifying === 1);
 
-  o = run(hdr + row("P1", "tier 4", "is a competitor with its own product", "a.example"), 1);
+  o = run(hdr + row("P1", "4", "is a competitor with its own product", "E1", "a.example"), 1, ["E1"]);
   check("'is a competitor' is rejected as tier-4 evidence", codes(o).includes("competitor-as-tier-evidence"));
 
-  o = run(hdr + row("P1", "tier 4", "listed in a toplist roundup", "a.example"), 1);
+  o = run(hdr + row("P1", "4", "listed in a toplist roundup", "E1", "a.example"), 1, ["E1"]);
   check("a listicle-only basis is rejected", codes(o).includes("listicle-only"));
 
-  o = run(hdr + row("P1", "tier 4", "first-party", "acme.example") + row("P2", "tier 5", "first-party", "ACME.example"), 1);
+  o = run(hdr + row("P1", "4", "we built our own tracker", "E1", "acme.example") + row("P2", "5", "we built our own tracker", "E2", "ACME.example"), 1, ["E1", "E2"]);
   check("two rows resolving to one entity are caught", codes(o).includes("duplicate-entity"));
 
-  const okBody = hdr + Array.from({ length: 15 }, (_, i) => row("P" + (i + 1), "tier 4", "first-party page", "e" + i + ".example")).join("");
-  o = run(okBody, 15);
-  check("a clean 15-row tracker passes", o.errors === 0 && o.summary.counted === 15, JSON.stringify(codes(o)));
+  const okBody = hdr + Array.from({ length: 15 }, (_, i) => row("P" + (i + 1), "4", "we built our own tracking sheet", "E" + (i + 1), "e" + i + ".example")).join("");
+  o = run(okBody, 15, Array.from({ length: 15 }, (_, i) => "E" + (i + 1)));
+  check("a clean 15-row tracker passes", o.ok === true && o.qualifying === 15, JSON.stringify(codes(o)));
   check("15–19 still raises the reach-risk warning", codes(o).includes("reach-risk"));
 }
 
@@ -394,6 +403,144 @@ console.log("== the shipped producers agree with the validator ==");
       out.errors === 0,
       out.findings.filter((f) => f.level === "error").map((f) => `${f.code} ${f.message}`).join("; ")
     );
+  }
+}
+
+// ---------------------------------------------------------------------------
+console.log("== one version, declared once (conflicts C5) ==");
+{
+  // plugin.json is the ONLY place the current version is declared. Docs stopped
+  // self-declaring; the remaining literals are the pipeline_version values that
+  // skill templates stamp into new artifacts — those MUST track the manifest, or
+  // every new artifact is born already drifted.
+  const claude = JSON.parse(fs.readFileSync(path.join(ROOT, ".claude-plugin", "plugin.json"), "utf8"));
+  const codex = JSON.parse(fs.readFileSync(path.join(ROOT, ".codex-plugin", "plugin.json"), "utf8"));
+  check("claude and codex manifests carry the same version", claude.version === codex.version, `${claude.version} vs ${codex.version}`);
+  const skillFiles = [];
+  (function walk(d) {
+    for (const e of fs.readdirSync(d, { withFileTypes: true })) {
+      const p = path.join(d, e.name);
+      if (e.isDirectory()) walk(p);
+      else if (e.name === "SKILL.md") skillFiles.push(p);
+    }
+  })(path.join(ROOT, "skills"));
+  const bad = [];
+  for (const f of skillFiles) {
+    for (const m of fs.readFileSync(f, "utf8").matchAll(/["']?pipeline_version["']?:\s*["']?(\d+\.\d+\.\d+)["']?/g)) {
+      if (m[1] !== claude.version) bad.push(`${path.relative(ROOT, f)}: ${m[1]}`);
+    }
+  }
+  check(`every pipeline_version literal in skills/ equals plugin.json (${claude.version})`, bad.length === 0, bad.join("; "));
+}
+
+// ---------------------------------------------------------------------------
+console.log("== threshold vocabulary: hook and verifier stay identical ==");
+{
+  // Conflicts C9: THRESHOLD_FIELDS is declared in BOTH guard-thresholds.js (hook)
+  // and verify-threshold-snapshot.js (script), and the sealed-field set carries a
+  // different NAME in each (NON_REVISABLE vs SEALED). Two hand-kept copies of one
+  // vocabulary is the exact mechanism that caused the template blocker twice —
+  // this fixture makes any drift a test failure. (Extracted textually: the hook
+  // reads stdin at require time, so it cannot be require()d.)
+  const grab = (file, re) => {
+    const m = fs.readFileSync(path.join(ROOT, file), "utf8").match(re);
+    if (!m) return null;
+    return m[1].split(",").map((s) => s.trim().replace(/^["']|["']$/g, "")).filter(Boolean).sort();
+  };
+  const hookFields = grab("hooks/scripts/guard-thresholds.js", /const THRESHOLD_FIELDS = \[([^\]]*)\]/);
+  const scriptFields = grab("scripts/verify-threshold-snapshot.js", /const THRESHOLD_FIELDS = \[([^\]]*)\]/);
+  check("both declare THRESHOLD_FIELDS", !!hookFields && !!scriptFields);
+  check("THRESHOLD_FIELDS identical in hook and verifier",
+    JSON.stringify(hookFields) === JSON.stringify(scriptFields),
+    `hook=[${hookFields}] script=[${scriptFields}]`);
+  const hookSealed = grab("hooks/scripts/guard-thresholds.js", /NON_REVISABLE = new Set\(\[([^\]]*)\]\)/);
+  const scriptSealed = grab("scripts/verify-threshold-snapshot.js", /SEALED = new Set\(\[([^\]]*)\]\)/);
+  check("sealed-field sets identical in hook (NON_REVISABLE) and verifier (SEALED)",
+    !!hookSealed && !!scriptSealed && JSON.stringify(hookSealed) === JSON.stringify(scriptSealed),
+    `hook=[${hookSealed}] script=[${scriptSealed}]`);
+}
+
+// ---------------------------------------------------------------------------
+console.log("== decision-log type enum covers every ordered row type ==");
+{
+  // Conflicts C8: gate-check ordered a `signing-blocked` row while the closed
+  // `type` enum did not list it — and decision-log has no validator, so the
+  // mismatch drifted silently. The enum line must cover every type any skill
+  // instructs the model to append.
+  const schema = fs.readFileSync(path.join(ROOT, "skills", "method-rules-artifact-schema", "SKILL.md"), "utf8");
+  const enumLine = schema.split(/\r?\n/).find((l) => /^`type`:\s*`gate-verdict`/.test(l.trim()));
+  check("artifact-schema has the decision-log type enum line", !!enumLine);
+  for (const t of ["signing-blocked", "criterion-disposition", "run-signed", "run-verdict", "reconciliation"]) {
+    check(`type enum lists \`${t}\``, !!enumLine && enumLine.includes("`" + t + "`"));
+  }
+}
+
+// ---------------------------------------------------------------------------
+console.log("== the prospect-table producers agree with validate-beachhead ==");
+{
+  // Same mechanism as the ledger block above, applied to the table that caused
+  // conflicts X2: the stage-0 template emitted one shape while a second validator
+  // required another, so every by-the-book run failed gate F. Every producer of
+  // the prospect table must generate a table the ONE validator accepts.
+  const producers = [
+    "skills/stage-0-framing-templates/SKILL.md",
+    "templates/0-framing.md",
+  ];
+  const CANON = {
+    pid: "P1",
+    segment: "ops lead, 60-eng co",
+    tier: "4",
+    behaviour: "we built a nightly script that diffs runbooks against terraform",
+    evidence: "E1",
+    resolved: "acme.example",
+    observed: "2026-07-30",
+    reach: "work email, replies expected",
+    funnel: "not-contacted",
+  };
+  const keyOf = (h) => {
+    const n = h.toLowerCase();
+    if (/^p?id\b|^pid/.test(n)) return "pid";
+    if (/segment/.test(n)) return "segment";
+    if (/behaviour|behavior/.test(n)) return "behaviour"; // before tier: "Behaviour that establishes the tier"
+    if (/tier/.test(n)) return "tier";
+    if (/evidence|e-?id/.test(n)) return "evidence";
+    if (/resolved/.test(n)) return "resolved";
+    if (/observed/.test(n)) return "observed";
+    if (/reach/.test(n)) return "reach";
+    if (/funnel|status/.test(n)) return "funnel";
+    return null;
+  };
+  const dir = tmpdir("icp-producers-");
+  let n = 0;
+  for (const rel of producers) {
+    const text = fs.readFileSync(path.join(ROOT, rel), "utf8");
+    const header = text
+      .split(/\r?\n/)
+      .find((l) => /^\s*\|\s*Pid\s*\|/i.test(l) && /tier/i.test(l) && /behaviour|behavior/i.test(l));
+    if (!header) {
+      check(`${rel} publishes the canonical prospect-table header`, false, "no header row with Pid + Tier + Behaviour");
+      continue;
+    }
+    const cols = header.trim().replace(/^\|/, "").replace(/\|$/, "").split("|").map((c) => c.trim());
+    const keys = cols.map(keyOf);
+    const unknown = cols.filter((_, i) => keys[i] === null);
+    const missing = Object.keys(CANON).filter((k) => !keys.includes(k));
+    if (unknown.length || missing.length) {
+      check(`${rel} emits exactly the documented prospect columns`, false,
+        [unknown.length ? `unknown/renamed: ${unknown.join(", ")}` : null, missing.length ? `MISSING: ${missing.join(", ")}` : null]
+          .filter(Boolean).join(" · "));
+      continue;
+    }
+    const w = path.join(dir, "w" + ++n);
+    fs.mkdirSync(w, { recursive: true });
+    fs.writeFileSync(path.join(w, "beachhead-icp.md"),
+      `${header.trim()}\n|${keys.map(() => "---").join("|")}|\n| ${keys.map((k) => CANON[k]).join(" | ")} |\n`);
+    fs.writeFileSync(path.join(w, "evidence-ledger.md"),
+      "| id | date | grade |\n|---|---|---|\n| E1 | 2026-07-30 | B |\n");
+    const out = JSON.parse(runNode("scripts/validate-beachhead.js", [w, "--json", "--min", "1"]).stdout);
+    check(`a prospect table generated from ${rel} validates clean`,
+      out.ok === true && out.qualifying === 1,
+      JSON.stringify(out.errors));
   }
 }
 

@@ -1,5 +1,9 @@
 # SaaS Idea Validation Pipeline — Final version
 
+> **Source of truth**: the `skills/` directory is normative — it is what the plugin actually
+> executes. This document explains the method and its *why*, with sources. **If this document and a
+> skill ever disagree, the skill wins**; treat the disagreement as a doc bug and fix it here.
+
 From raw idea to when **MVP scope is locked**. Each task states: purpose, method, output; each stage ends with advancement condition.
 
 **Backbone is Customer Development** (Steve Blank) — **recursive, iterative**: each step is a loop not pipeline; failure at any stage means go back to prior, not push forward with wrong assumptions. Core principle: *"Validate, then build. Your first validation proof is a credit card, not praise."*

@@ -501,3 +501,45 @@ kết luận test phải qua 3 lần chạy giống nhau"**.
 cục" cần một luật khác (preflight sau bulk-edit) so với "hai process cùng ghi một file" (cần khoá hoặc
 worktree). Cả hai luật đều nên có, nhưng nên biết cái nào đã thực sự xảy ra. Ba script mà P1 nói bị
 chết cú pháp **hiện đều hợp lệ** (`node --check` sạch cả 3, vừa kiểm).
+---
+
+# RESOLUTION LOG (2026-07-30 — đợt fix một lần)
+
+> Mọi mục trên đã được định đoạt trong một pass duy nhất (một người ghi, sau checkpoint commit
+> `3b2a385` bảo toàn cả hai đợt việc song song). Kiểm chứng: `node scripts/preflight.js` xanh cả 4
+> kiểm (syntax sweep · hook-tests 172 · contract-tests 149 · codex parity). Ký hiệu X- tham chiếu
+> bản kê của phiên song song (`../SaaS-idea-brainstorm-test-sayitalive/dogfood/conflicts.md`).
+
+| Mục | Định đoạt | Ở đâu |
+|---|---|---|
+| **P1+P2/X12** | Gộp làm một, xử trước tiên: checkpoint commit ngay; `node --check` mọi `.js` thành test ĐẦU TIÊN của hook-tests; `scripts/preflight.js` (4 kiểm); thoả thuận làm việc thường trú (một người ghi / worktree; preflight trước commit; kết luận test cần 3 lần lặp) | `tests/hook-tests.js` (syntax sweep) · `scripts/preflight.js` · `outstanding-work.md` §7 |
+| **X1+X2** | **Gate F pass được trở lại**: giữ `validate-beachhead.js` làm validator prospect DUY NHẤT, hấp thụ 4 kiểm của bản tracker (resolved entity + dedup pháp nhân · "là đối thủ" ≠ workaround · listicle-only · `observed_at` ISO, thêm duplicate-Pid); xoá `validate-prospect-tracker.js`; contract F (dòng 13 + bullet cross-gate) chỉ còn một validator; template stage-0 (skill + root) phát đúng shape 9 cột validator nhận | `scripts/validate-beachhead.js` · `method-rules-gate-contracts` · `stage-0-framing-templates` · `templates/0-framing.md` |
+| **X3** | Hai suite không còn test "validator của phe mình": contract-tests giờ test validator gộp + fixture khẳng định `validate-prospect-tracker.js` KHÔNG tồn tại; hook-tests giữ phần cơ học + legacy | `tests/pipeline-contract-tests.js` · `tests/hook-tests.js` |
+| **X4** | coverage-report biết cả 4 validator mới; `threshold-snapshot-matches` nâng agent→code; thêm `prospect-cells-and-floor`, `r1-run-contract-preregistered`, `state-truncation-blocked` → 48% deterministic (73 req) | `scripts/coverage-report.js` |
+| **X5** | README (2 thứ tiếng) có `evals/`, `dogfood/`, `preflight.js`, và tuyên bố skills-là-nguồn | `README.md` · `README.vi.md` |
+| **X6** | Run #1/#2/#3 được định nghĩa một chỗ, kèm workspace của từng run | `dogfood/README.md` (+ header `failure-modes.md`) |
+| **C1+C7** | Chọn (b): `ideas/proposal-draft/` → `dogfood/proposal-draft/`; luật state-schema đứng nguyên không cần ngoại lệ; sentinel không còn bắt nhầm; luật "một workspace một lần ký, không tái dùng" ghi thành văn — "re-run F" hết mơ hồ | di chuyển thư mục · `.gitignore` · `dogfood/README.md` |
+| **C2** | Chọn (b)-thu-hẹp: skill-templates là NGUỒN; root `templates/` là bản render manual-mode (mỗi file mang header nói rõ); bảng chịu lực được fixture-check từ CẢ HAI producer (cơ chế producer-agreement mở rộng sang prospect table) | header 6 file `templates/*` · block "prospect-table producers" trong contract-tests |
+| **C3** | Chọn (a): tuyên bố "skills thắng khi lệch" ở đầu `process/pipeline.md` + README | `process/pipeline.md` |
+| **C4** | Chọn (b): `plugin/README.md` index — 4 file live, 10 file lịch sử đóng băng | `plugin/README.md` |
+| **C5** | Chọn (a): version duy nhất ở `plugin.json`; 4 header skill bỏ số tự khai; số trong doc lịch sử giữ nguyên như dữ kiện lịch sử (index nói rõ) | 4 SKILL.md · `plugin/README.md` |
+| **C6** | Sửa 19 nhãn `where` về tên skill trần | `scripts/coverage-report.js` |
+| **C8** | Chọn (a): `signing-blocked` vào dòng enum `type` + contract-test cho enum; (c) validator decision-log ghi nợ | `method-rules-artifact-schema` · contract-tests |
+| **C9** | Chọn (b): fixture so khớp `THRESHOLD_FIELDS` và seal-set (NON_REVISABLE vs SEALED) giữa hook và script bằng trích xuất nguồn — drift = test fail | contract-tests block "threshold vocabulary" |
+| **C10** | Chọn (c) theo tiền lệ `LEGACY_RUNGS`: workspace `pipeline_version` < 1.2.0 với shape cũ → warning `legacy-shape`, exit 0, KHÔNG đếm máy (Layer 2 đếm tay), migrate ở lần sửa hợp lệ kế; đã chạy thật trên `dogfood/proposal-draft` (1.1.0) → OK (legacy) | `validate-beachhead.js` + 2 test |
+| **C11** | Chọn (a): miễn trừ audit-trail tuyên bố tường minh trong contract LOCK, kèm lý do và cảnh báo cho ai mở rộng parser | `method-rules-gate-contracts` |
+| **C12** | Chọn (a): FM-11 (kill criterion phát minh gate predicate), FM-12 (deferred threshold không bind event), FM-13 (tracker prose thổi số) vào registry + luật "mỗi run kết thúc bằng cập nhật registry" | `plugin/failure-modes.md` |
+| **C13** | Chọn (b): generator fixture mặc định ghi `os.tmpdir()`, không bao giờ trong repo (runner eval vốn đã dùng tmpdir); (a) allowlist packaging ghi nợ | `evals/fixtures/build-fixtures.js` · `outstanding-work.md` §7 |
+| **D1** | 8 mục prose phân loại tại chỗ trong coverage-report: 5 cố ý (kèm vì sao) + 3 NỢ code hoá (budget-preflight, charter-playback, instrumentation-check) | `scripts/coverage-report.js` · `outstanding-work.md` §7 |
+| **D2** | Đo lại sau restructure: core 171 dòng luôn load; phiên gate điển hình ≈ 360–460; tệ nhất ≈ 655 (số cũ 466 hết hiệu lực, cơ chế load đã đổi) | `outstanding-work.md` §4 |
+| **D3** | "Prefer" (0/21 tuân thủ) → **MUST** trong state-schema; guard hook chặn tất định direct-edit làm rớt key chịu lực của state.json (đúng dạng truncation đã xảy ra) + test; full-deny (b) để ngỏ nếu run #4 vẫn 0% dùng writer | `guard-thresholds.js` · `method-rules-state-schema` · hook-tests |
+| **D4** | Chọn (a): F đòi reachability, câu phân định **reachable ≠ contacted** viết thẳng vào contract F (contacted thuộc V1; criterion đòi `funnel ≥ contacted` ở F = gate predicate phát minh, bị từ chối) — nhất quán với Contract-authorization check của run #3 | `method-rules-gate-contracts` (F + cross-gate bullet) |
+| **D5** | Chọn (c)+(a): chính sách "không claim khi chưa có số"; mọi chỗ "đo được" đổi thành "CHƯA ĐO"; bước đi: chạy `--runs 3` | `plugin/failure-modes.md` §1/§4 · `outstanding-work.md` §7 |
+| **V1** | Round 14 được định vị là "restructure không vỡ gì", KHÔNG phải điều kiện phát hành; luật review 2 chế độ (một có Bash, một buộc trace) thành luật thường trú | `outstanding-work.md` (đầu file + §7) |
+| **V2** | Đã đóng từ trước (Codex rút lại); giữ nguyên bản ghi | — |
+| **X7–X11** | Không thuộc repo này / cần dữ liệu run kế — ghi nợ tường minh | `outstanding-work.md` §7 |
+
+**Ba chỗ HỘI TỤ được giữ nguyên đúng cảnh báo của bản kê X** (không revert nhầm): leaf addressing
+`custom.<key>` ở cả hook lẫn `verify-threshold-snapshot.js` (giờ có fixture C9 giữ chúng khớp);
+fail-open có stderr của `session-start.js` + walk-up boundary (FM-10 đã vá, có test); ba kiểm Layer 0
+của gate-check (preflight + contract-authorization) không chồng nhau.

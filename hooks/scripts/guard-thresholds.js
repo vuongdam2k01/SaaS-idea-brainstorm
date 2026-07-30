@@ -139,6 +139,21 @@ process.stdin.on("end", () => {
           "This edit would make state.json unparsable JSON. Fix the edit instead of writing a broken state file."
         );
       }
+      // Truncation guard (conflicts D3): dogfood run #2 wrote state.json directly
+      // 21/21 times and truncated it once. A direct edit that DROPS a load-bearing
+      // top-level key is a corruption, not an update — route it through
+      // scripts/state-write.js, which schema-validates and keeps a .bak.
+      {
+        const LOAD_BEARING = ["pipeline_version", "idea", "gates", "thresholds"];
+        const dropped = LOAD_BEARING.filter(
+          (k) => oldState[k] !== undefined && (!newState || newState[k] === undefined)
+        );
+        if (dropped.length) {
+          return ask(
+            `This edit drops load-bearing state key(s) [${dropped.join(", ")}] — that is how state.json got truncated in dogfood run #2. State mutations MUST go through scripts/state-write.js (schema validation + .bak + atomic rename): node scripts/state-write.js <path> with the new content on stdin.`
+          );
+        }
+      }
       const signed = oldState.thresholds && oldState.thresholds.signed_date;
       if (signed) {
         const ot = oldState.thresholds || {};

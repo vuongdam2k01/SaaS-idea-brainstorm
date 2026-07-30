@@ -1,5 +1,10 @@
 # Stage 4 — Positioning (Dunford — order mandatory, no rearrange)
 
+> **Manual-mode rendering.** The normative producer of these artifact shapes is the plugin skill
+> `stage-4-*-templates` (skills win on any disagreement — conflicts-inventory C2). Load-bearing table
+> headers here are fixture-checked against the validators by `tests/pipeline-contract-tests.js`.
+
+
 > Start after V1 (have customer words), finalize after V3+R1 (have money + promise scope).
 > Pre-product: result here is **positioning thesis** — expect partial wrongness, refine post-launch; don't lock too early.
 

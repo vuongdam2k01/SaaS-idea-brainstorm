@@ -1,5 +1,10 @@
 # Stage 1 — Competitive & Alternative Solutions
 
+> **Manual-mode rendering.** The normative producer of these artifact shapes is the plugin skill
+> `stage-1-*-templates` (skills win on any disagreement — conflicts-inventory C2). Load-bearing table
+> headers here are fixture-checked against the validators by `tests/pipeline-contract-tests.js`.
+
+
 > Run immediately after 0.1, before interviews — research shapes interview questions.
 > ⚠️ This stage's map is **DRAFT** — will be corrected by customer language in Stage 2. Don't position against phantom competitors.
 

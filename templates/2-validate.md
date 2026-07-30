@@ -1,5 +1,10 @@
 # Stage 2 — Validate (3 sequential gates: V1 → V2 → V3)
 
+> **Manual-mode rendering.** The normative producer of these artifact shapes is the plugin skill
+> `stage-2-*-templates` (skills win on any disagreement — conflicts-inventory C2). Load-bearing table
+> headers here are fixture-checked against the validators by `tests/pipeline-contract-tests.js`.
+
+
 > Core principle: validation is **observing real behavior**, not collecting praise. Skip a gate = false positive at that gate.
 
 ---

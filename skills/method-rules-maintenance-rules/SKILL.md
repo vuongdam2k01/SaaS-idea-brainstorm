@@ -4,7 +4,7 @@ description: Post-LOCK maintenance rules for the SaaS validation pipeline - cycl
 user-invocable: false
 ---
 
-# Post-LOCK maintenance rules (normative, v1.2.0)
+# Post-LOCK maintenance rules (normative)
 
 The single source of truth for everything that happens to an idea AFTER its MVP scope is locked:
 drift, reconciliation, current-truth projections, cycles, and validation runs. Design converged via
@@ -262,7 +262,7 @@ publication_status: draft            # draft | locked — locked is set only in 
                                      # FINAL render (reconcile publish; run-validation for run specs/
                                      # reports; the LOCK disposition ceremony for health-criteria-v1)
 as_of: YYYY-MM-DD
-pipeline_version: 1.2.0
+pipeline_version: 1.3.0
 updated: YYYY-MM-DD
 ---
 ```

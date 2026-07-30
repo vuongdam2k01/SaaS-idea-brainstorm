@@ -38,6 +38,31 @@ function mkIdea(slug, state) {
   return dir;
 }
 
+// ===========================================================================
+// FIRST, before anything else: every shipped .js file must parse.
+// Conflicts-inventory P1: a bulk edit once broke the syntax of three scripts
+// including validate-artifact.js — and because hooks fail open, the plugin kept
+// "running" with zero enforcement, silently. Five lines of node --check is the
+// cheapest possible tripwire for exactly that failure.
+// ===========================================================================
+console.log("== syntax sweep (node --check) ==");
+{
+  const skipDirs = new Set([".git", "node_modules", "ideas", "generated"]);
+  const jsFiles = [];
+  (function walk(dir) {
+    for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
+      if (e.isDirectory()) { if (!skipDirs.has(e.name)) walk(path.join(dir, e.name)); }
+      else if (e.name.endsWith(".js")) jsFiles.push(path.join(dir, e.name));
+    }
+  })(ROOT);
+  let bad = [];
+  for (const f of jsFiles) {
+    try { execFileSync("node", ["--check", f], { encoding: "utf8", stdio: "pipe" }); }
+    catch (e) { bad.push(path.relative(ROOT, f) + ": " + String(e.stderr || e.message).split("\n")[0]); }
+  }
+  check(`all ${jsFiles.length} shipped .js files parse (${bad.join("; ") || "clean"})`, bad.length === 0);
+}
+
 const SIGNED_STATE = {
   schema_version: "1.1.0",
   pipeline_version: "1.1.0",
@@ -174,6 +199,15 @@ console.log("== guard-thresholds ==");
   noFromTo.thresholds.revisions = [{ field: "v1_past_behavior_pct", date: "not-a-date", reason: "ok", user_approved: true }];
   r = runHook("guard-thresholds.js", { tool_input: { file_path: sp, content: JSON.stringify(noFromTo, null, 2) } });
   check("revision missing from/to + bad date => still ask", r && r.hookSpecificOutput && r.hookSpecificOutput.permissionDecision === "ask");
+  // D3 truncation guard: run #2 truncated state.json with a direct Write (0/21
+  // writes went through state-write.js). Dropping a load-bearing key must be
+  // stopped at the hook and routed to the writer.
+  const trunc = JSON.parse(JSON.stringify(SIGNED_STATE));
+  delete trunc.gates;
+  r = runHook("guard-thresholds.js", { tool_input: { file_path: sp, content: JSON.stringify(trunc, null, 2) } });
+  check("dropping a load-bearing state key => ask + points at state-write.js",
+    r && r.hookSpecificOutput && r.hookSpecificOutput.permissionDecision === "ask" &&
+    /state-write\.js/.test(r.hookSpecificOutput.permissionDecisionReason || ""));
 
   // DOGFOOD RUN #2 (proven bypass, kept as a permanent regression):
   // `signed_date` was in THRESHOLD_FIELDS and therefore revisable, so a
@@ -846,7 +880,7 @@ console.log("== verify-threshold-snapshot ==");
 console.log("== validate-beachhead ==");
 {
   const VB = path.join(ROOT, "scripts", "validate-beachhead.js");
-  const HEAD = "| Pid | Segment descriptor | Tier | Behaviour that establishes the tier | Evidence (E-id) | Reach channel | Funnel status |\n|---|---|---|---|---|---|---|\n";
+  const HEAD = "| Pid | Segment descriptor | Tier | Behaviour that establishes the tier | Evidence (E-id) | Resolved entity | Observed at | Reach channel | Funnel status |\n|---|---|---|---|---|---|---|---|---|\n";
   let n = 0;
   function mkBeach(rows, ledgerIds) {
     const d = path.join(TMP, "vb" + ++n);
@@ -865,7 +899,7 @@ console.log("== validate-beachhead ==");
   }
   const hasErr = (r, c) => Array.isArray(r.j.errors) && r.j.errors.some((e) => e.code === c);
   const hasWarn = (r, c) => Array.isArray(r.j.warnings) && r.j.warnings.some((w) => w.code === c);
-  const good = (i) => `| P${i} | ops lead, 60-eng co | 4 | we built a nightly script that diffs runbooks against terraform | E${i} | work email, replies expected | contacted |`;
+  const good = (i) => `| P${i} | ops lead, 60-eng co | 4 | we built a nightly script that diffs runbooks against terraform | E${i} | profile-${i}.example | 2026-07-25 | work email, replies expected | contacted |`;
 
   // 15 clean rows clears the floor.
   let ids = [], rows = [];
@@ -879,11 +913,11 @@ console.log("== validate-beachhead ==");
 
   // The run #2 shape: tier claimed but the three cells do not hold.
   r = vb(mkBeach([
-    "| P1 | ops lead | 4 (est.) | we built a nightly diff | E1 | work email | contacted |",
-    "| P2 | sre | 4 | | E2 | work email | contacted |",
-    "| P3 | sre | 4 | we imposed a doc-owner rotation | | work email | contacted |",
-    "| P4 | sre | 4 | we imposed a doc-owner rotation | E99 | work email | contacted |",
-    "| P5 | sre | 4 | we imposed a doc-owner rotation | E5 | HN handle only, no contact | contacted |",
+    "| P1 | ops lead | 4 (est.) | we built a nightly diff | E1 | a1.example | 2026-07-25 | work email | contacted |",
+    "| P2 | sre | 4 | | E2 | a2.example | 2026-07-25 | work email | contacted |",
+    "| P3 | sre | 4 | we imposed a doc-owner rotation | | a3.example | 2026-07-25 | work email | contacted |",
+    "| P4 | sre | 4 | we imposed a doc-owner rotation | E99 | a4.example | 2026-07-25 | work email | contacted |",
+    "| P5 | sre | 4 | we imposed a doc-owner rotation | E5 | a5.example | 2026-07-25 | HN handle only, no contact | contacted |",
   ], ["E1", "E2", "E5"]));
   check("VB estimated tier => not countable", r.code === 1 && r.j.errors.some((e) => /P1\b/.test(e.msg) && /estimate/.test(e.msg)));
   check("VB empty behaviour => not countable", r.j.errors.some((e) => /P2\b/.test(e.msg) && /no behaviour/.test(e.msg)));
@@ -892,17 +926,32 @@ console.log("== validate-beachhead ==");
   check("VB forum handle is not reach => not countable", r.j.errors.some((e) => /P5\b/.test(e.msg) && /does not permit an expected reply/.test(e.msg)));
   check("VB none of the five counted", r.j.qualifying === 0);
 
+  // Run #3 checks, absorbed from validate-prospect-tracker.js (conflicts X1).
+  r = vb(mkBeach([
+    "| P1 | vn wedding shop | 4 | is a competitor with its own shipped product | E1 | acme.example | 2026-07-25 | work email, replies expected | contacted |",
+    "| P2 | vn wedding shop | 4 | mentioned in a toplist roundup of studios | E2 | b.example | 2026-07-25 | work email, replies expected | contacted |",
+    "| P3 | vn wedding shop | 4 | we built our own booking sheet by hand | E3 | acme2.example | 2026-07-25 | work email, replies expected | contacted |",
+    "| P4 | vn wedding shop | 5 | we built our own booking sheet by hand | E4 | ACME2.example | 2026-07-25 | work email, replies expected | contacted |",
+    "| P4 | vn wedding shop | 4 | we built a diff script | E5 | c.example | 2026-07-25 | work email, replies expected | contacted |",
+    "| P6 | vn wedding shop | 4 | we built a diff script | E6 | d.example | July 2026 | work email, replies expected | contacted |",
+  ], ["E1", "E2", "E3", "E4", "E5", "E6"]));
+  check("VB 'is a competitor' rejected as tier evidence", hasErr(r, "competitor-as-tier-evidence"));
+  check("VB listicle-only basis rejected", hasErr(r, "listicle-only"));
+  check("VB two rows resolving to one entity caught", hasErr(r, "duplicate-entity"));
+  check("VB duplicate Pid caught", hasErr(r, "duplicate-pid"));
+  check("VB non-ISO observed_at => not countable", r.j.errors.some((e) => /P6\b/.test(e.msg) && /observed_at/.test(e.msg)));
+
   // Prescription read as behaviour: countable on structure, flagged for the gatekeeper.
   const presc = rows.slice(0, 14).concat([
-    "| P15 | sre | 4 | if you have PR templates, add a checklist item for docs | E15 | work email, replies expected | contacted |",
+    "| P15 | sre | 4 | if you have PR templates, add a checklist item for docs | E15 | profile-15.example | 2026-07-25 | work email, replies expected | contacted |",
   ]);
   r = vb(mkBeach(presc, ids));
   check("VB prescriptive behaviour => counted but warned", r.code === 0 && r.j.qualifying === 15 && hasWarn(r, "possibly-prescriptive"));
 
   // Sub-tier and explicitly quarantined rows are kept and never counted.
   r = vb(mkBeach(rows.concat([
-    "| P16 | complainer | 2 | complained on a forum | E16 | none known | not-contacted |",
-    "| P17 | maybe | 4 | quarantined - nurture, not counted | E17 | work email | not-contacted |",
+    "| P16 | complainer | 2 | complained on a forum | E16 | p16.example | 2026-07-25 | none known | not-contacted |",
+    "| P17 | maybe | 4 | quarantined - nurture, not counted | E17 | p17.example | 2026-07-25 | work email | not-contacted |",
   ]), ids.concat(["E16", "E17"])));
   check("VB sub-tier + quarantined kept, uncounted", r.code === 0 && r.j.qualifying === 15 && r.j.quarantined === 2);
 
@@ -917,6 +966,19 @@ console.log("== validate-beachhead ==");
     "| Pid | Segment | Why they fit (tier estimate) | Origin | Reach channel type | Funnel status |\n|---|---|---|---|---|---|\n| P1 | sre | tier 4 probably | HN | handle | not-contacted |\n");
   r = vb(d);
   check("VB pre-run#2 template => missing-column error", r.code === 1 && hasErr(r, "missing-column"));
+
+  // …but the SAME old shape in a pre-1.2.0 workspace is legacy-accepted without a
+  // count (LEGACY_RUNGS precedent — conflicts C10: a format change must not fail
+  // in-flight ideas retroactively).
+  const dl = path.join(TMP, "vblegacy");
+  fs.mkdirSync(dl, { recursive: true });
+  fs.writeFileSync(path.join(dl, "beachhead-icp.md"),
+    "| Pid | Segment | Why they fit (tier estimate) | Origin | Reach channel type | Funnel status |\n|---|---|---|---|---|---|\n| P1 | sre | tier 4 probably | HN | handle | not-contacted |\n");
+  fs.writeFileSync(path.join(dl, "state.json"), JSON.stringify({ pipeline_version: "1.1.0" }));
+  r = vb(dl);
+  check("VB old shape + pre-1.2.0 state => legacy-shape warning, exit 0",
+    r.code === 0 && r.j.legacy === true && hasWarn(r, "legacy-shape"));
+  check("VB legacy path never reports a mechanical count", r.j.qualifying === null);
 }
 
 // ===========================================================================

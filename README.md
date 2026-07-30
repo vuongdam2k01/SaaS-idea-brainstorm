@@ -228,18 +228,20 @@ The methodology also exists as plain documents. Create `ideas/<your-idea>/`, cop
 | Path | Contents |
 |---|---|
 | `.claude-plugin/` · `.codex-plugin/` | Plugin manifest, one per platform |
-| `skills/` | 15 skills — 8 commands (incl. post-LOCK `reconcile`, `declare-drift`, `run-validation`), 6 stages, and `method-rules` with `method-rules-state-schema` skill, `method-rules-artifact-schema` skill, `method-rules-gate-contracts` skill, `method-rules-maintenance-rules` skill |
-| `agents/` · `.codex/agents/` · `hooks/` · `scripts/` | The four subagents, once as Claude Code markdown and once as Codex TOML; `hooks.json` (same file, both platforms) plus three Node scripts; the atomic state writer |
-| `tests/` | `hook-tests.js` — hook regression suite |
-| `process/` | The methodology (Vietnamese): pipeline, foundations, build-and-launch, research-verification |
-| `plugin/` | Design documents (Vietnamese except `codex-parity.md`): spec, capability matrix, autonomy design, review record, dogfood report, Codex platform notes |
-| `templates/` · `ideas/` | Manual-use templates; idea workspaces |
+| `skills/` | The skills — commands (incl. post-LOCK `reconcile`, `declare-drift`, `run-validation`), 6 stages plus their template skills, and `method-rules` with the `method-rules-{state-schema, artifact-schema, gate-contracts, maintenance-rules}` skills. **Normative source**: if any other doc disagrees with a skill, the skill wins |
+| `agents/` · `.codex/agents/` · `hooks/` · `scripts/` | The four subagents, once as Claude Code markdown and once as Codex TOML (`sync-codex-agents.js --check` keeps them identical); `hooks.json` (same file, both platforms) plus three hook scripts; the validators (`validate-evidence-ledger`, `validate-beachhead`, `verify-threshold-snapshot`, `validate-run-contract`, `pack-verdict`, `artifact-manifest`), the atomic state writer, `coverage-report.js`, and `preflight.js` |
+| `tests/` | `hook-tests.js` + `pipeline-contract-tests.js` — the regression suites (first case: `node --check` on every shipped `.js`) |
+| `evals/` | **Dev-only.** Seeded-defect fixtures + graders measuring the gatekeeper's catch rate on interpretation-layer failures (`run-gatekeeper-eval.js`). Fixture generator writes to the OS temp dir, never into a repo |
+| `process/` | The methodology (Vietnamese): pipeline, foundations, build-and-launch, research-verification. Explanatory — skills win on conflict |
+| `plugin/` | Design documents — start at `plugin/README.md`, which says which files are live vs frozen history |
+| `templates/` · `ideas/` | Manual-use templates (rendering of the template skills); idea workspaces |
+| `dogfood/` | Internal dogfood run workspaces (gitignored, see its README) — deliberately not under `ideas/` |
 
 ```bash
-node tests/hook-tests.js
+node scripts/preflight.js
 ```
 
-The suite covers every adversarial-review finding, including a proven partial-edit threshold bypass kept as a permanent regression test.
+One command, four checks: syntax-sweep every shipped `.js`, both test suites, and Codex agent parity. Run it after any bulk edit and before any commit. The suites cover every adversarial-review finding, including a proven partial-edit threshold bypass kept as a permanent regression test.
 
 ---
 
