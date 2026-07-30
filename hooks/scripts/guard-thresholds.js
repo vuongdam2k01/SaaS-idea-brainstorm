@@ -39,25 +39,70 @@ process.stdin.on("end", () => {
     const oldText = exists ? fs.readFileSync(fp, "utf8") : "";
     const newText = simulate(oldText, ti);
 
-    // 1) Locked artifacts (any .md whose CURRENT frontmatter says status: locked)
+    // 1) Locked artifacts (any .md whose CURRENT frontmatter says status: locked,
+    //    or publication_status: locked for phase: maintenance artifacts)
     if (/\.md$/i.test(norm) && exists) {
       const fm = (oldText.match(/^---\r?\n([\s\S]*?)\r?\n---/) || [, ""])[1];
-      if (/^status:\s*locked\s*$/m.test(fm)) {
+      const isCharter = /\/founder-charter\.md$/i.test(norm);
+      if (isCharter && /^status:\s*locked\s*$/m.test(fm) && newText !== null) {
+        // Charter is an append-superseding ledger (maintenance-rules §7): existing
+        // items must stay byte-stable; legal changes only APPEND new item rows.
+        // Byte-exact prefix, tolerating only a single trailing-newline difference.
+        const oldBase = oldText.replace(/\r?\n$/, "");
+        if (newText === oldText || newText.startsWith(oldText) || newText.startsWith(oldBase + "\n") || newText.startsWith(oldBase + "\r\n"))
+          return process.exit(0); // pure append: allowed
         return ask(
-          `${path.basename(fp)} is LOCKED (signed). Locked artifacts (kill criteria, DoD, positioning, MVP spec) exist so decisions cannot be renegotiated silently. Approve only if the user explicitly requested this revision; record it in the artifact's changelog.`
+          "founder-charter.md is a locked append-superseding ledger: existing items are byte-stable (no edit/delete/reorder); corrections APPEND a new stable-ID item with supersedes + exact founder words. This edit rewrites existing content. Approve only if the user explicitly requested a history correction."
+        );
+      }
+      if (/^status:\s*locked\s*$/m.test(fm) || /^publication_status:\s*locked\s*$/m.test(fm)) {
+        return ask(
+          `${path.basename(fp)} is LOCKED (signed/published). Locked artifacts (kill criteria, DoD, positioning, MVP spec, published baselines/manifests) exist so decisions and history cannot be renegotiated silently — changes go into a same-kind successor (supersedes) or a new cycle, never in place. Approve only if the user explicitly requested this revision.`
         );
       }
     }
 
-    // 2) decision-log.md must be append-only: old content must be an EXACT PREFIX
-    //    of the new content (contains-check allowed prepend-tampering — review finding).
-    if (/\/decision-log\.md$/i.test(norm) && exists && newText !== null) {
-      const oldTrim = oldText.replace(/\s+$/, "");
-      const newTrim = newText.replace(/\s+$/, "");
-      if (oldTrim && !newTrim.startsWith(oldTrim)) {
+    // 2) Append-only streams (decision-log, drift-inbox, evidence-ledger): old
+    //    content must be a BYTE-EXACT PREFIX of the new content (contains-check
+    //    allowed prepend-tampering; whitespace-trimmed comparison allowed silent
+    //    trailing-row edits — both review findings). Tolerance: exactly one
+    //    missing/added trailing newline, nothing else.
+    if (/\/(decision-log|drift-inbox|evidence-ledger)\.md$/i.test(norm) && exists && newText !== null) {
+      const which = norm.match(/\/([^/]+\.md)$/)[1];
+      const oldBase = oldText.replace(/\r?\n$/, ""); // tolerate ONE trailing newline difference
+      if (oldBase && !(newText === oldText || newText.startsWith(oldText) || newText.startsWith(oldBase + "\n") || newText.startsWith(oldBase + "\r\n") || newText === oldBase)) {
         return ask(
-          "decision-log.md is append-only: new content must start with the existing journal unchanged (no rewrites, no prepends). Approve only if the user explicitly requested a history correction (and prefer an appended correction row instead)."
+          `${which} is append-only: new content must start with the existing rows byte-unchanged (no rewrites, no prepends, no row edits). Approve only if the user explicitly requested a history correction (and prefer an appended correction row instead).`
         );
+      }
+    }
+
+    // 2.5) Historical artifacts of a LOCKED/STOPPED cycle: pipeline-phase .md files
+    //      (draft/ready included) freeze as historical context at LOCK — current
+    //      truth moves to baselines. Append-only streams, charter, post-mortem,
+    //      README, private/, and maintenance-phase files are exempt (own rules).
+    if (
+      /\.md$/i.test(norm) && exists && newText !== null &&
+      !/\/(decision-log|drift-inbox|evidence-ledger|founder-charter|post-mortem|README)\.md$/i.test(norm) &&
+      !/\/private\//i.test(norm)
+    ) {
+      const fmH = (oldText.match(/^---\r?\n([\s\S]*?)\r?\n---/) || [, ""])[1];
+      const isMaint = /^phase:\s*maintenance\s*$/m.test(fmH);
+      if (!isMaint && fmH) {
+        try {
+          const stRaw = fs.readFileSync(path.join(ideaDir.replace(/\//g, path.sep), "state.json"), "utf8");
+          const st = JSON.parse(stRaw);
+          const cycles = Array.isArray(st.cycles) ? st.cycles : [];
+          const cm = norm.match(/\/cycles\/(C\d+)\//i);
+          const owner = cm
+            ? cycles.find((c) => c && c.id === cm[1])
+            : cycles.find((c) => c && c.state === null);
+          if (owner && ["locked", "stopped"].includes(owner.status)) {
+            return ask(
+              `${path.basename(fp)} belongs to cycle ${owner.id}, which is ${owner.status}: pipeline artifacts freeze as historical context at LOCK (maintenance-rules §1). Current truth changes go into a current-baseline via reconcile, or a new cycle's own artifacts — not edits to history. Approve only if the user explicitly requested this.`
+            );
+          }
+        } catch { /* unreadable state: fail open */ }
       }
     }
 

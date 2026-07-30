@@ -25,7 +25,22 @@ updated: YYYY-MM-DD
 | 5 do nothing | status quo — 40–60% of B2B purchases end in no decision (JOLT Effect) | | — | — | |
 ## Competitor profiles
 ### <name>
-- Positioning: · ICP: · Pricing/model: · Main channel: · Age: · Health signals:
+- Positioning: · ICP: · Main channel: · Age: · Health signals:
+- **Pricing (normalized — never compare un-normalized numbers)**
+
+| plan/edition | list price | effective price (promo/annual/quote) | currency | tax incl.? | billing period | seat/usage basis | locale | observed_at | effective_at | source URL |
+|---|---|---|---|---|---|---|---|---|---|---|
+
+- **Capabilities (state, not just presence)**
+
+| capability | state (announced/beta/documented/GA/observed/withdrawn) | source URL | observed_at |
+|---|---|---|---|
+
+> Annual-prepaid vs monthly, another currency, another edition, or tax treatment can each fake a
+> 20–40% price difference. A withdrawn feature is a signal in the *opposite* direction from a shipped
+> one — never flatten the two into "they have it".
+> **Re-scan before LOCK?** Report deltas against the rows above (what changed, when observed), not a
+> silent overwrite: the earlier observation was true when it was made.
 ## Market verdict
 - Scenario: proven-money / red-flag-empty / crowded-but-bad
 - Justification & dead-predecessor findings:

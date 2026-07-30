@@ -12,7 +12,7 @@ Three rules make it work:
 - **Thresholds are signed before tests run.** After the signing ceremony at gate F, changing one takes your explicit approval and a recorded revision.
 - **A failed gate goes backwards.** Never forward on a broken assumption. Failing with a clear direction is a good outcome.
 
-Repository: <https://github.com/vuongdam2k01/SaaS-idea-brainstorm> · MIT · v1.1.0
+Repository: <https://github.com/vuongdam2k01/SaaS-idea-brainstorm> · MIT · v1.2.0
 
 ---
 
@@ -142,9 +142,9 @@ Anything that leaves your machine or spends money — deploying, sending, publis
 
 ### Integrations are optional
 
-Each task runs at the best available rung: **enhanced-auto** (a verified integration does it) → **baseline-auto** (native tools) → **handoff** (you get a complete kit, execute it outside, bring results back) → **simulate** (grade D, hypothesis only). Missing integrations change the rung and the achievable grade — they never block the pipeline. The rung used is recorded on every artifact.
+Each task runs at the best available rung — there are exactly three: **enhanced-auto** (a verified integration does it) → **baseline-auto** (native tools) → **handoff** (you get a complete kit, execute it outside, bring results back). Missing integrations change the rung and the achievable grade — they never block the pipeline. The rung used is recorded on every artifact. There is deliberately no "simulate" rung: simulated material is grade D / `[GUESS]`, which never counts toward a gate, so when evidence cannot be obtained the honest outcome is a handoff or an accepted-open gate — never a simulated completion.
 
-`setup-audit` probes for scraping MCP servers, a secondary LLM key, hosting CLIs, analytics, Stripe, and email sending. A capability counts as available only after an authenticated call actually succeeds — "the CLI is installed" or "I have an account" is recorded as `handoff-only` or `unknown`. Same evidence discipline as the idea itself.
+`setup-audit` probes for scraping MCP servers, a secondary LLM key, hosting CLIs, analytics, Stripe, and email sending. A capability counts as available only after an authenticated call actually succeeds — "the CLI is installed" or "I have an account" is recorded as `unavailable`/`unknown` with rung `handoff`. Same evidence discipline as the idea itself.
 
 One plugin setting: `ads_budget_cap_usd` (default `0`, disabling paid traffic) is a planning cap enforced by the pipeline's own budget preflight, not by ad platforms. It's copied into `state.budget.cap_usd` at `new-idea` and each audit.
 
@@ -225,7 +225,7 @@ The methodology also exists as plain documents. Create `ideas/<your-idea>/`, cop
 | Path | Contents |
 |---|---|
 | `.claude-plugin/` · `.codex-plugin/` | Plugin manifest, one per platform |
-| `skills/` | 12 skills — 5 commands, 6 stages, and `method-rules` with `state-schema.md`, `artifact-schema.md`, `gate-contracts.md` |
+| `skills/` | 15 skills — 8 commands (incl. post-LOCK `reconcile`, `declare-drift`, `run-validation`), 6 stages, and `method-rules` with `state-schema.md`, `artifact-schema.md`, `gate-contracts.md`, `maintenance-rules.md` |
 | `agents/` · `.codex/agents/` · `hooks/` · `scripts/` | The four subagents, once as Claude Code markdown and once as Codex TOML; `hooks.json` (same file, both platforms) plus three Node scripts; the atomic state writer |
 | `tests/` | `hook-tests.js` — hook regression suite |
 | `process/` | The methodology (Vietnamese): pipeline, foundations, build-and-launch, research-verification |

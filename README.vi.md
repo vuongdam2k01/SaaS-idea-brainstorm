@@ -12,7 +12,7 @@ Ba nguyên tắc làm nên nó:
 - **Ngưỡng được ký trước khi chạy phép thử.** Sau nghi thức ký tại cửa F, sửa một ngưỡng đòi hỏi bạn phê duyệt tường minh và một bản revision được ghi lại.
 - **Cửa trượt thì quay lui.** Không bao giờ tiến tới trên một giả định đã gãy. Trượt mà rõ hướng là kết quả tốt.
 
-Repository: <https://github.com/vuongdam2k01/SaaS-idea-brainstorm> · MIT · v1.1.0
+Repository: <https://github.com/vuongdam2k01/SaaS-idea-brainstorm> · MIT · v1.2.0
 
 ---
 
@@ -142,9 +142,9 @@ Mọi thứ rời khỏi máy bạn hoặc tiêu tiền — deploy, gửi đi, p
 
 ### Tích hợp là tùy chọn
 
-Mỗi việc chạy ở bậc tốt nhất hiện có: **enhanced-auto** (một tích hợp đã xác minh làm việc đó) → **baseline-auto** (công cụ gốc) → **handoff** (bạn nhận một bộ kit đầy đủ, thực thi bên ngoài, mang kết quả về) → **simulate** (hạng D, chỉ là giả thuyết). Thiếu tích hợp thì đổi bậc và đổi hạng đạt được — không bao giờ chặn quy trình. Bậc đã dùng được ghi trên từng artifact.
+Mỗi việc chạy ở bậc tốt nhất hiện có — đúng ba bậc: **enhanced-auto** (một tích hợp đã xác minh làm việc đó) → **baseline-auto** (công cụ gốc) → **handoff** (bạn nhận một bộ kit đầy đủ, thực thi bên ngoài, mang kết quả về). Thiếu tích hợp thì đổi bậc và đổi hạng đạt được — không bao giờ chặn quy trình. Bậc đã dùng được ghi trên từng artifact. Cố tình KHÔNG có bậc "simulate": nội dung mô phỏng là hạng D / `[GUESS]`, vốn không bao giờ tính cho gate — nên khi không lấy được bằng chứng, lối ra trung thực là handoff hoặc gate accepted-open, không phải một lần "hoàn thành" bằng mô phỏng.
 
-`setup-audit` thăm dò MCP scraping, key LLM phụ, CLI hosting, analytics, Stripe, và gửi email. Một năng lực chỉ được tính là có khi một lệnh gọi có xác thực thực sự thành công — "đã cài CLI" hay "tôi có tài khoản" chỉ được ghi là `handoff-only` hoặc `unknown`. Đúng bằng kỷ luật bằng chứng áp cho chính ý tưởng.
+`setup-audit` thăm dò MCP scraping, key LLM phụ, CLI hosting, analytics, Stripe, và gửi email. Một năng lực chỉ được tính là có khi một lệnh gọi có xác thực thực sự thành công — "đã cài CLI" hay "tôi có tài khoản" chỉ được ghi là `unavailable`/`unknown` với rung `handoff`. Đúng bằng kỷ luật bằng chứng áp cho chính ý tưởng.
 
 Plugin có một thiết lập: `ads_budget_cap_usd` (mặc định `0`, tức tắt traffic trả phí) là trần khi lập kế hoạch, được thực thi bởi lượt kiểm ngân sách của chính quy trình chứ không phải bởi nền tảng quảng cáo. Giá trị này được sao vào `state.budget.cap_usd` tại `new-idea` và mỗi lần audit.
 
@@ -225,7 +225,7 @@ Phương pháp cũng tồn tại dưới dạng tài liệu thuần. Tạo `idea
 | Đường dẫn | Nội dung |
 |---|---|
 | `.claude-plugin/` · `.codex-plugin/` | Manifest plugin, mỗi nền tảng một bản |
-| `skills/` | 12 skill — 5 lệnh, 6 giai đoạn, và `method-rules` kèm `state-schema.md`, `artifact-schema.md`, `gate-contracts.md` |
+| `skills/` | 15 skill — 8 lệnh (gồm `reconcile`, `declare-drift`, `run-validation` cho hậu-LOCK), 6 giai đoạn, và `method-rules` kèm `state-schema.md`, `artifact-schema.md`, `gate-contracts.md`, `maintenance-rules.md` |
 | `agents/` · `.codex/agents/` · `hooks/` · `scripts/` | Bốn subagent, một bản markdown Claude Code và một bản TOML Codex; `hooks.json` (dùng chung cho cả hai nền tảng) cùng ba script Node; trình ghi state nguyên tử |
 | `tests/` | `hook-tests.js` — bộ test hồi quy cho hook |
 | `process/` | Phương pháp (tiếng Việt): pipeline, foundations, build-and-launch, research-verification |

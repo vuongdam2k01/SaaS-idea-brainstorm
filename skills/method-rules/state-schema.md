@@ -1,11 +1,11 @@
-# state.json schema (v1.1.0)
+# state.json schema (v1.2.0)
 
-Location: `ideas/<slug>/state.json` in the **user's working repository** (never inside the plugin). Create via new-idea; update after every meaningful step. Dates are `YYYY-MM-DD`. Schema changes bump `schema_version`; skills reading an older version migrate it forward and journal the migration.
+Location: `ideas/<slug>/state.json` in the **user's working repository** (never inside the plugin). Create via new-idea; update after every meaningful step. Dates are `YYYY-MM-DD` (maintenance timestamps are full ISO-8601). Schema changes bump `schema_version`; skills reading an older version migrate it forward and journal the migration.
 
 ```json
 {
-  "schema_version": "1.1.0",
-  "pipeline_version": "1.1.0",
+  "schema_version": "1.2.0",
+  "pipeline_version": "1.2.0",
   "idea": "<slug>",
   "title": "Short human title",
   "created": "YYYY-MM-DD",
@@ -48,7 +48,24 @@ Location: `ideas/<slug>/state.json` in the **user's working repository** (never 
     "ads":       { "status": "unknown", "rung": null, "provider": null, "verified_at": null, "probe": null, "note": "" }
   },
   "waiting_on": [],
-  "artifacts": {}
+  "privacy": {
+    "retention_duties": []
+  },
+  "artifacts": {},
+  "cycles": [
+    { "id": "C1", "status": "validation", "parent": null, "state": null }
+  ],
+  "active_cycle": "C1",
+  "maintenance": {
+    "drift_declared_at": null,
+    "active_reconcile": null,
+    "last_reconcile": null,
+    "current_baseline": null,
+    "blocking_claims": [],
+    "reality_sources": []
+  },
+  "health_criteria": [],
+  "validation_runs": []
 }
 ```
 
@@ -58,9 +75,20 @@ Location: `ideas/<slug>/state.json` in the **user's working repository** (never 
 - `mode`: `"analysis"` (default) | `"market-evidence"`. Switching is done via the `switch-mode` skill only (journaled, kit/capability preconditions checked).
 - `gates.*.status`: `pending` | `in_progress` | `passed` | `failed` | `open`. `open` is legal only where gate-contracts allows it (V2, V3, R2, and R1-with-Pre-feasibility-downgrade), analysis mode only.
 - `thresholds`: reference defaults above; user may override during stage 0; `signed_date` set at gate F **together with a `threshold-snapshot` row in decision-log.md** (hook-independent integrity — gate-check compares every time). Post-signing edits require a `revisions` entry `{date, field, from, to, reason, user_approved: true}`.
-- `capabilities.*.status`: `available` (authenticated functional probe succeeded) | `unavailable` | `unknown`. `rung`: `enhanced-auto` | `baseline-auto` | `handoff-only`. "CLI installed but not authenticated" or "user willing to do it manually" is NEVER `available`.
+- `capabilities.*.status`: `available` (authenticated functional probe succeeded) | `unavailable` | `unknown`. `rung`: `enhanced-auto` | `baseline-auto` | `handoff` — the same three-value vocabulary artifacts use (artifact-schema.md). "CLI installed but not authenticated" or "user willing to do it manually" is NEVER `available`; that is `status: unavailable|unknown` with `rung: handoff`. Legacy `handoff-only` values are normalized to `handoff` on next write.
 - `budget.log[]`: `{date, item, usd}` per paid action, mirrored to decision-log; `cap_usd` copied from `${user_config.ads_budget_cap_usd}` at new-idea/setup-audit.
-- `kill_criteria[]`: mirror kill-criteria.md rows **verbatim with stable IDs and DESIRED-STATE polarity** (`{id, desired_state, by_date, then, status}`) — never rewrite into trigger-polarity prose (dogfood defect: inverted conditions made the index recommend stopping on success). No invented dates: a criterion without a date in the artifact has none in state. `status`: `armed` | `triggered` | `cleared`; anything armed past `by_date` is surfaced before other work.
-- `waiting_on[]`: `{what, since, needed_for}`.
+- `kill_criteria[]`: mirror kill-criteria.md rows **verbatim with stable IDs and DESIRED-STATE polarity** (`{id, desired_state, by_date, then, status}`) — never rewrite into trigger-polarity prose (dogfood defect: inverted conditions made the index recommend stopping on success). No invented dates: a criterion without a date in the artifact has none in state. `status`: `armed` | `triggered` | `cleared` | `retired` (`retired` only via the LOCK disposition ceremony, which also sets `disposition: {result: retire|carry|replace, date, health_id?}` — runtime state and ceremony result are separate; `cleared` never means "dispositioned"); anything armed past `by_date` is surfaced before other work.
+- `waiting_on[]`: `{what, since, needed_for, resume_when, owner, expires_or_recheck_at}`. The last three are what turn "waiting" into something that can end: **`resume_when`** is the exact observable condition that makes work resumable ("transcripts land in private/", "Stripe key provided", "8 replies received"), **`owner`** is who supplies it (`founder` | `plugin` | a named third party), **`expires_or_recheck_at`** is the date to re-check or give up. An entry with none of these is indistinguishable from an abandoned one.
+- `privacy.retention_duties[]`: non-sensitive index mirroring `private/participant-data-manifest.md` — `{participant_id, manifest_ref, delete_by, status: active|due|disposed|extended, last_checked_at}`. **No names, no contact details, no consent text** ever enter state; the manifest in `private/` holds those. Kept apart from `health_criteria` on purpose: product health and a privacy obligation are different semantics with different owners. Overdue entries are surfaced by session-start and by `status`, and block reuse/publication of that participant's material at gate checks. **Deletion is never automatic**: it requires explicit approval over the exact files, then a disposition row in the manifest and a `status: disposed` update here. Honest limit: if the founder never opens the plugin, a local tool cannot guarantee calendar-time deletion — the date is an obligation with a named human owner, not an enforced guarantee.
 - **Durability**: prefer updating state via `node "${CLAUDE_SKILL_DIR}/../../scripts/state-write.js" <path>` (validates shape, keeps `.bak`, atomic rename — `${CLAUDE_PLUGIN_ROOT}` is NOT substituted in skill content, only `${CLAUDE_SKILL_DIR}` is) when Node is available; otherwise read-modify-write with a self-check re-read. On an agent runtime that doesn't substitute `${CLAUDE_SKILL_DIR}` in skill content (e.g. Codex), resolve the plugin root yourself — locate this file's own directory and go up two levels — before invoking the script. Artifacts are ground truth; state is an index that must be rebuildable from them + decision-log.
 - **Migration**: on reading a state whose `schema_version` < 1.1.0 (e.g. it has `current_stage`), migrate it forward immediately (`current_stage: N` → `active: ["<N>"]`, capabilities strings → objects), bump versions, journal a `migration` row in decision-log, then proceed. Never write the old shape. **Security rule**: legacy capability strings — including `"available"` — migrate to `status: "unknown"` pending a fresh authenticated probe; old availability claims are never trusted automatically.
+
+## Post-LOCK fields (v1.2.0 — normative details in [maintenance-rules.md](maintenance-rules.md))
+
+- **`cycles[]`**: root cycle index. `{id, status: framing|validation|locked|stopped, parent, state}`. The FIRST cycle (C1) is stored **inline**: `state: null` means the top-level `gates`/`thresholds`/`kill_criteria`/`active`/`mode`/`waiting_on`/`artifacts` ARE C1's. Later cycles live in fragment files `cycles/<id>/state.json` owning their full operating set: `cycle_id, parent, status, mode, active, gates, thresholds (own signing ceremony), kill_criteria (cycle-scoped), waiting_on, artifacts, validation_runs, updated` — and their pipeline artifacts under `cycles/<id>/` (mirror layout; evidence-ledger/decision-log/charter/private stay idea-root and shared). `active_cycle` names the cycle current work belongs to; every skill resolves the operating cycle first (maintenance-rules §4 "Cycle resolution"). state-write verifies fragment↔root-index correspondence on every fragment write.
+- **Freeze rule**: once a cycle's status is `locked` or `stopped`, its ENTIRE owned subtree is frozen — gates, thresholds, cycle kill criteria, active, mode, waiting_on, artifact index — AND its `cycles[]` index entry itself (id/status/parent/state; no removal): mutating the entry first was a proven two-step unfreeze bypass. `state-write.js` rejects both, and rejects any write whose `schema_version` is not current (a 1.1-shaped rewrite of a 1.2 state was a proven downgrade bypass). Singleton gates are NEVER reset or reused post-LOCK; a new cycle gets its own gates object.
+- **`maintenance`**: `drift_declared_at` (full ISO-8601 timestamp, set by declare-drift), `active_reconcile` (reconcile_id while a reconcile is in flight), `last_reconcile` (index data only: `{id, completed_at, consumed_through, manifest, intake_authority, drift_dimensions}` — `consumed_through` is the highest drift_id consumed, the AUTHORITATIVE boundary marker; full history lives in manifests + journal), `current_baseline` (head pointer, idea-relative path — updated LAST in the reconcile transaction), `blocking_claims` (claim_ids currently in `contradicted-retro`), `reality_sources` (user-declared locators — see maintenance-rules §5).
+- **`health_criteria[]`**: post-LOCK health criteria (state+date form, like kill criteria) written by the LOCK disposition ceremony (`retire|carry|replace`); root-level because they govern the idea, not one cycle. Overdue armed entries are surfaced like kill criteria.
+- **`validation_runs[]`**: index only — `{run_id, cycle_id, gate_kind, verdict, report}`; full run specs live in `validation-runs/<run_id>.md`.
+- **Hard boundary**: blocked while any inbox drift_id exceeds `last_reconcile.consumed_through` (the exact check skills use); hooks approximate with epoch-parsed timestamp comparison where ties and unparsable values count as PENDING. Blocked: pack issuing/relabeling, post-LOCK validation runs, switch-mode. Investigation and ordinary coding are not.
+- **Migration 1.1.0 → 1.2.0**: add the new blocks with defaults/nulls above (`cycles` = inline C1 whose `status` reflects current progress; `active_cycle: "C1"`); never fabricate a lock manifest, reconcile history, or health criteria. Journal a `migration` row.

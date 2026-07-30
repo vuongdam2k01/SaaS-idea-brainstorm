@@ -15,7 +15,7 @@ Raw idea from the user: $ARGUMENTS
 2. If `$ARGUMENTS` is empty, ask the user for the raw idea (one message is enough — vague is fine, clarifying it IS the pipeline's job).
 3. Derive a short kebab-case slug from the idea. If `ideas/<slug>/` already exists in the current workspace, ask whether to resume it (then use the status skill) or pick a new slug.
 4. Create `ideas/<slug>/` with:
-   - `state.json` in the **exact v1.1 shape from state-schema.md** (defaults; `mode: "analysis"`, `active: ["0.0"]` — no `current_stage` field; that is the retired v1.0 shape).
+   - `state.json` in the **exact v1.2 shape from state-schema.md** (defaults; `mode: "analysis"`, `active: ["0.0"]`; `cycles: [{"id":"C1","status":"framing","parent":null,"state":null}]`, `active_cycle: "C1"`, `maintenance`/`health_criteria`/`validation_runs` at their empty defaults — no `current_stage` field; that is the retired v1.0 shape).
    - `idea-brief.md` — the foundational artifact (template in stage-0-framing skill): the raw idea **verbatim and immutable**, plus a first-pass refined articulation (what it is / for whom / how it's imagined to work / why now / constraints / founder's definition of success) — every refined section labeled `[GUESS]` until stage 0 elicitation firms it up. This is the living spine of the idea: the vision being tested.
    - `README.md` — two lines: pointer to idea-brief.md, and the creation date.
    - `decision-log.md` — empty append-only journal (header row only; format in method-rules artifact-schema). All gate verdicts, pivots, threshold revisions, and spends land here for the idea's whole life.

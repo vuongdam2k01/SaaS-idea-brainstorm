@@ -10,6 +10,29 @@ Stage 0: framing. Load `method-rules` first; read `state.json` for the idea. Goa
 
 Before decomposing anything, complete the idea brief (created at new-idea; template in [templates.md](templates.md)): raw idea verbatim (immutable), refined articulation of **what it is**, for whom, **how it's imagined to work** (the solution concept), vision & rough roadmap (Blank: the first product spec comes from the founders' vision, and earlyvangelists buy the whole vision, not just v1 — so the vision must be written down: it is the thing this pipeline tests), why now / why this founder (reach, expertise, willingness to serve this segment daily), constraints, and the founder's definition of success. Elicit from the user; your drafts stay `[GUESS]`. The brief is a **living document** with an evolution log — every pivot the pipeline forces gets recorded there with its evidence trail.
 
+## 0.0b Classify the intake, and rank what is actually blocking
+
+`[GUESS]` answers "is this backed yet?" — it does not answer "where did this come from?", and those are
+different questions at intake. Everything the founder said, and everything you read into it, goes into
+one compact table in `idea-brief.md`:
+
+| # | Statement | Class | Source |
+|---|---|---|---|
+
+Five classes: **`source-stated`** (the founder's own words — quote them), **`evidence-backed`** (an
+E-id supports it), **`interpretation`** (your reading of what they said — *this is the class that
+silently becomes "the customer said"* if unlabeled), **`assumption`** (unverified but required for the
+idea to work → it belongs in the assumption map), **`unknown`** (missing and it may change the
+framing). One rule makes the table worth keeping: **you may not promote your own `interpretation` to
+`source-stated`** — only the founder confirming it does that, and then the row cites the exchange.
+
+Then split your open questions in two: **blocking** (the answer changes the actor, the problem, the
+outcome, scope, risk, or what to research first — each one names the section it blocks) and
+**non-blocking** (useful, does not change the route). Ask the blocking ones now, in one bundled
+AskUserQuestion; carry the rest. Gate F requires **zero unresolved blocking questions** — not zero
+unknowns. Unknowns are the point of the pipeline; unanswered blocking questions mean we do not yet
+know what to test first, and research started in that state gets thrown away.
+
 ## 0.1 Separate the problem from the solution → `problem-hypothesis.md`
 
 Raw ideas arrive as solutions ("I want to build app X"). Extract the implied problem by interviewing the user: **Who** — in **what situation** — trying to **achieve what outcome** — **blocked by what** — currently **paying what cost** (hours, money, risk, emotion). Also: **trigger & frequency** (frequency × intensity × available budget = real opportunity size; a once-a-year problem can't feed a subscription). If their statement still contains the solution, point it out and rewrite — and everything solution-flavored you strip out goes INTO `idea-brief.md` (solution concept / vision sections), **captured, not discarded**. Finish with the falsifiability question: "what observation would prove us wrong?" Done when: statement contains no solution AND has a refutation condition.

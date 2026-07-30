@@ -1,12 +1,12 @@
 # Build & Launch — after MVP scope is locked
 
-Apply **after** the main pipeline ([pipeline.md](pipeline.md)) ends at Stage 5's final gate. The locked MVP scope is a contract — any scope change during build must re-check against the frozen cut list and Definition of Done.
+Apply **after** the main pipeline ([pipeline.md](pipeline.md)) ends at Stage 5's final gate. The locked MVP scope is a contract — any scope change during build must re-check against the frozen cut list and Definition of Done. When reality departs from the locked scope (features changed/added/removed, price or buyer shifted), declare it (`declare-drift`) and reconcile on demand (`reconcile`) — the pack itself is never edited; current truth lives in versioned baselines (see the method-rules maintenance rules).
 
 ---
 
 ## BUILD PHASE
 
-1. **Build only features people paid for**; cut list is the boundary. Overbuilding is common founder mistake — ship minimum solving core problem; features always addable post-launch based on real feedback.
+1. **Build only the locked core loop; the cut list is the boundary.** For a Validated pack, "people paid for it" is what LOCK already proved. For a Hypothesis/Pre-feasibility pack (V3 or R1 accepted-open), the locked scope IS buildable as-is — its unpaid slices are labeled hypotheses whose learning routes through validation runs, not a reason to add features. Overbuilding is the common founder mistake — ship the minimum that closes the core loop; features are addable post-launch based on real feedback.
 2. Follow technical design contract locked at 5.4: schema/domain model, condensed ADR (context for AI coding), code-understanding boundary (money/data/auth = 100% understand), event tracking plan with aha event.
 3. **Split Dev/Prod environment from day one** — historical pattern with public post-mortem: Resend (02/2024) ran migration from local pointing wrong to production, dropped all tables, 12-hour outage; GitLab (01/2017) deleted data directory on primary and all 5 backup/replication mechanisms failed on demand. Lesson from both: **no role from local machine can write to production database** — migrations run through CI only; disaster-recovery drill is routine, not one-time.
 4. **Stay connected with interview/pre-order group** — they're beta testers; build in public to gather audience.
@@ -39,7 +39,7 @@ Not "launch when perfect" (never happens) but **launch when checklist complete, 
 
 ## SOFT LAUNCH → USER-READY
 
-1. **Soft launch with 5–10 outsiders** (prioritize pre-order group), record sessions, complete gate R3 (adoption) here: rough self-serve, no guide sitting beside them, measure % reaching aha.
+1. **Soft launch with 5–10 outsiders** (prioritize pre-order group), record sessions, and run the **adoption validation run** here (a version-scoped run of kind `adoption` per method-rules maintenance-rules §4 — not a singleton gate; sign its spec — sample, threshold, stopping rule, window — BEFORE the soft launch opens): rough self-serve, no guide sitting beside them, measure % reaching aha.
 2. **Fix onboarding stumbles.**
 3. **Build marketing first, don't wait for launch day**: establish marketing channel 4–6 weeks pre-launch, execute concentrated on launch day, then optimize 30 days.
 4. **Write learning plan upfront**: channels, expected visitor/signup/paid numbers, good/bad thresholds.

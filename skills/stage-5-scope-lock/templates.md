@@ -13,7 +13,7 @@ rung: <rung>
 pipeline_version: 1.1.0
 updated: YYYY-MM-DD
 ---
-# MVP Spec — <title>   [VALIDATED PACK | HYPOTHESIS PACK | PRE-FEASIBILITY HYPOTHESIS PACK]
+# MVP Spec — <title>   [label COMPUTED, never chosen: run the predicate in gate-contracts.md against `state.gates` + V3's actual grade — VALIDATED / HYPOTHESIS / PRE-FEASIBILITY HYPOTHESIS. If the computed label and the draft text ever disagree, the gate state wins and the text is wrong.]
 > Read order for a build session: this file → tech-design.md → definition-of-done.md → **founder-charter.md** (the interpretive authority: how the founder decides anything this pack doesn't decide) → carry-forward.md → evidence-quality-report.md
 ## Core loop (≤5–7 steps, each traced)
 | # | User does | System does | User gets | Trace (E-ids / ops-log) |
@@ -28,6 +28,28 @@ updated: YYYY-MM-DD
 - Promises / refuses to promise (from promise-scope.md):
 ## Pricing
 - Anchor: $___ vs real alternative ___ · Model: ___ · Paying segment: ___
+
+## Minimum service promise (the smallest HONEST promise around this MVP)
+> Scope is only half the contract. Real money was committed at V3, so the people who paid have
+> expectations — write the ones we can actually keep. **Invent nothing**: no SLA percentages, no
+> uptime numbers, no support-response times the founder has not agreed to. Every field is answered
+> or explicitly `N/A because ___`; a blank is a LOCK blocker.
+
+| Field | Commitment |
+|---|---|
+| Who may use it (eligibility) | |
+| Supported use cases | |
+| **Explicitly NOT supported** (say it plainly, so nobody buys the wrong thing) | |
+| Beta / experimental status disclosed how | |
+| Data collected · purpose | |
+| Retention · deletion path · who can request it | |
+| Export / manual correction / recovery expectation | |
+| Support intake (where a user reports a problem) + who answers | |
+| What happens if it breaks (rollback / manual fallback / honest "we fix it next day") | |
+| Pause / exit / sunset behaviour (what happens to their data) | |
+
+"Minimum" means removing whatever does not protect the value, the learning, safety, or an honest
+promise. It never means dropping security, privacy, data integrity, accessibility, or a support path.
 ```
 
 ## tech-design.md
@@ -102,7 +124,9 @@ artifact: evidence-quality-report ... gate: LOCK ...
 | feasibility | R1 | | | |
 | value delivery | R2 | | | |
 | positioning | P | | | |
-## Verdict (exact predicate — gate-contracts.md)
-**VALIDATED** (V1,V2,V3,R1,R2,P,LOCK all passed AND V3 grade A) | **HYPOTHESIS** (LOCK reached, R1 passed, ≥1 of V2/V3/R2 open) | **PRE-FEASIBILITY HYPOTHESIS** (R1 open)
+## Verdict (COMPUTED from gate state — exact predicate in gate-contracts.md)
+Inputs evaluated (so the derivation is checkable): V1 ___ · V2 ___ · V3 ___ (grade ___) · R1 ___ · R2 ___ · P ___ · LOCK ___
+→ **VALIDATED** (all passed AND V3 grade A) | **HYPOTHESIS** (LOCK reached, R1 passed, ≥1 of V2/V3/R2 open) | **PRE-FEASIBILITY HYPOTHESIS** (R1 open)
+This string must be byte-identical to the one in `mvp-spec.md`'s title line. If prose and gate state disagree, the gate state is right.
 One honest paragraph: what is known vs what is assumed.
 ```

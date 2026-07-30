@@ -19,6 +19,26 @@ updated: YYYY-MM-DD
 # Idea brief — <title>
 ## Raw idea (verbatim, immutable)
 > exact original words from the user · date received
+
+## Intake classification (what was SAID vs what I READ INTO it)
+> `[GUESS]` says "not backed yet"; this table says "where did it come from". Different questions.
+> An `interpretation` row may NEVER be promoted to `source-stated` by the model — only the founder
+> confirming it does that, and the Source column then cites that exchange.
+
+| # | Statement | Class (`source-stated` / `evidence-backed` / `interpretation` / `assumption` / `unknown`) | Source (founder's words + date · E-id · or "my reading of ___") |
+|---|---|---|---|
+
+## Open questions
+**Blocking** (each names what it blocks; gate F requires zero unresolved — unknowns are fine, unanswered blockers are not):
+
+| # | Question | What it blocks (section/decision) | Answer + date |
+|---|---|---|---|
+
+**Non-blocking** (carried forward, revisited when cheap):
+
+| # | Question | Why it can wait |
+|---|---|---|
+
 ## What it is (refined articulation)
 One paragraph: the product concept as currently imagined. [GUESS] until confirmed.
 ## For whom / what job it does

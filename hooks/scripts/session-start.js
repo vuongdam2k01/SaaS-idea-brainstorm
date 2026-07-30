@@ -50,6 +50,35 @@ process.stdin.on("end", () => {
         const overdue = (Array.isArray(st.kill_criteria) ? st.kill_criteria : []).filter(
           (k) => k && k.status === "armed" && k.by_date && k.by_date < today
         );
+        const overdueHealth = (Array.isArray(st.health_criteria) ? st.health_criteria : []).filter(
+          (k) => k && k.status === "armed" && k.by_date && k.by_date < today
+        );
+        // Participant-data retention duties: a date nobody checks is not a
+        // safeguard. Surfaced like overdue criteria; deletion is never automatic.
+        const duties = st.privacy && Array.isArray(st.privacy.retention_duties) ? st.privacy.retention_duties : [];
+        const dueDuties = duties.filter(
+          (d) => d && d.delete_by && d.delete_by < today && d.status !== "disposed" && d.status !== "extended"
+        );
+        const maint = st.maintenance && typeof st.maintenance === "object" ? st.maintenance : null;
+        const lastRec = maint && maint.last_reconcile;
+        // Epoch comparison (lexicographic ISO ordering breaks on fractional
+        // seconds and offsets); unparsable timestamps and exact ties are treated
+        // as PENDING — conservative: a false "reconcile needed" is harmless, a
+        // false "all reconciled" is not. Skills use last_reconcile.consumed_through
+        // (drift-id high water mark) for the exact boundary.
+        const epoch = (s) => {
+          const t = Date.parse(s);
+          return Number.isFinite(t) ? t : null;
+        };
+        let driftPending = false;
+        if (maint && maint.drift_declared_at) {
+          if (!lastRec || !lastRec.completed_at) driftPending = true;
+          else {
+            const d = epoch(maint.drift_declared_at);
+            const r = epoch(lastRec.completed_at);
+            driftPending = d === null || r === null || d >= r;
+          }
+        }
         const waiting = (Array.isArray(st.waiting_on) ? st.waiting_on : [])
           .map((w) => (typeof w === "string" ? w : w && w.what))
           .filter(Boolean)
@@ -67,6 +96,18 @@ process.stdin.on("end", () => {
           line += `; !! KILL CRITERIA OVERDUE: ${overdue
             .map((k) => `"${k.desired_state}" not reached by ${k.by_date} → ${k.then || "review"}`)
             .join("; ")}`;
+        if (overdueHealth.length)
+          line += `; !! HEALTH CRITERIA OVERDUE: ${overdueHealth
+            .map((k) => `"${k.desired_state}" not reached by ${k.by_date} → ${k.then || "review"}`)
+            .join("; ")}`;
+        if (dueDuties.length)
+          line += `; !! PARTICIPANT-DATA RETENTION DUE: ${dueDuties
+            .map((d) => `${d.participant_id || "?"} by ${d.delete_by} (${d.manifest_ref || "private/participant-data-manifest.md"})`)
+            .join("; ")} — confirm disposal with the founder over the exact files; never delete unprompted`;
+        if (lastRec && lastRec.completed_at)
+          line += `; last reconcile ${lastRec.id || "?"} ${lastRec.completed_at} (${lastRec.intake_authority || "?"})`;
+        if (driftPending)
+          line += `; !! DRIFT DECLARED (${maint.drift_declared_at}) not yet reconciled — pack issuing/relabeling, validation runs, and switch-mode are blocked until reconcile completes`;
         lines.push(line);
       } catch {
         /* isolate per idea */

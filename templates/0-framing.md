@@ -13,19 +13,23 @@
 - **Trigger & frequency** (when problem emerges, how often):
 - **Disqualifying condition** — "what would I observe to know I'm wrong?":
 
-## 0.2. Lean Canvas — label each box: `[evidence]` or `[assumption]`
+## 0.2. Lean Canvas — every cell starts `[GUESS]`; only graded evidence (E-id) lifts the tag
 
-| Box | Content | Status |
-|---|---|---|
-| Problem | | assumption |
-| Customer segment | | assumption |
-| Unique value | | assumption |
-| Solution | | assumption |
-| Channels | | assumption |
-| Revenue | | assumption |
-| Costs | | assumption |
-| Key metrics | | assumption |
-| Unfair advantage | | assumption |
+| Box | Content | Status | What lifted the tag (E-id / user confirmation) |
+|---|---|---|---|
+| Problem | | `[GUESS]` | |
+| Customer segment | | `[GUESS]` | |
+| Unique value | | `[GUESS]` | |
+| Solution | | `[GUESS]` | |
+| Channels | | `[GUESS]` | |
+| Revenue | | `[GUESS]` | |
+| Costs | | `[GUESS]` | |
+| Key metrics | | `[GUESS]` | |
+| Unfair advantage | | `[GUESS]` | |
+
+> Market/behavioral/feasibility cells are lifted ONLY by a ledger id; intent cells (what the
+> founder wants) are lifted by explicit user confirmation. The founder confirming their own
+> guess about the market does not make it evidence (artifact-schema.md).
 
 ## 0.3. Market Type
 
@@ -45,11 +49,15 @@
 - **Beachhead chosen:**
 - **EarlyVangelist profile** — Blank's 5-tier: (1) has problem / (2) knows they have it / (3) actively seeking solution + timeline / (4) already self-patched / (5) committed or quick to fund. **Only tiers 4–5 are true earlyvangelist** — describe that profile here:
 
-### List of 20 real names
+### List of 20 real prospects — **pseudonymous here; identities live only in `private/contacts.md`**
 
-| # | Name (person/organization) | Why matches ICP | Reach channel | Status |
-|---|---|---|---|---|
-| 1 | | | | not yet contacted |
+> Privacy rule (method-rules §7): real names, profile URLs and contact details NEVER appear in
+> a public artifact. This table uses `P<n>` ids only. Never invent a prospect: fewer than 20
+> findable prospects is itself a finding about reach.
+
+| Pid | Segment descriptor (no identifying detail) | Why matches ICP | EV tier (1–5) | Origin (public research / founder network) | Reach channel | Status |
+|---|---|---|---|---|---|---|
+| P1 | | | | | | not yet contacted |
 
 ## 0.5. Assumption Map
 

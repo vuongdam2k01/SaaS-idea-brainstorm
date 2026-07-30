@@ -59,12 +59,49 @@ Target: tier-4/5 names from beachhead-icp.md · record or take verbatim notes ·
 artifact: solution-directions ... gate: V2 ...
 ---
 # Solution directions
-| Dir | Approach | Tied to evidence (E-ids) | ChatGPT-gap result | Added-value layer | Verdict |
+| Dir | Approach | Tied to evidence (E-ids) | ChatGPT-gap result (REQUIRED: what you actually tried + what the model produced + where it fell short) | Added-value layer | Verdict |
 |---|---|---|---|---|---|
-## Mock reactions (behavioral only)
+> The ChatGPT-gap result must be recorded per surviving direction, not asserted. Your own prompting is
+> grade D (model-generated) — it informs the analysis and never the gate; only real customers'
+> documented attempts count (mined "tried AI and failed" = B, observed attempt = C).
+
+## Mock sessions — accounting (this table IS the denominator)
+| Session | Pid | Direction | Task given (goal + context, no UI instructions) | Interventions (every hint given) | Outcome (unassisted/rescued/failed/abandoned) | Confounds | Valid? |
+|---|---|---|---|---|---|---|---|
+- Valid sessions: ___ / total ___ · **excluded** (invalid/cancelled/withdrawn, listed with reason): ___
+- **Only `unassisted` outcomes count as support.** `rescued` = the moderator completed it, not the user.
+- No prevalence claims from these sessions (formative sample shows *that*, not *how often*).
+
+## Findings (one row per finding, in this order — an interpretation may be disputed without losing the observation)
+| # | Observation (what happened, verbatim/behavioral) | Interpretation | Impact (consequence × recoverability, not sample frequency) | Recommendation | Sessions (ids) |
+|---|---|---|---|---|---|
+
+## Behavioral reactions (separate from usability findings)
 | Pid/source E-id | Direction | Asked price? | Asked timeline? | Pulled colleague? | Switching-threshold read |
 |---|---|---|---|---|---|
+
+## Experiment outcome
+- Verdict: `supported` | `weakened` | `inconclusive` | **`invalid`** (instrument failed — repair + re-run; numbers do NOT enter the ledger)
+- Instrumentation check performed before the run: (what you fired/loaded/submitted, and when)
 ## Winning direction + core value layer (locked at V2)
+```
+
+## participant-data-manifest.md — **`private/` ONLY, never in a public artifact**
+```markdown
+# Participant data manifest (private)
+> One row per interactive contact, written BEFORE their material enters any artifact.
+> The retention date is an obligation with a named human owner — this plugin surfaces it when it
+> comes due; it cannot guarantee calendar-time deletion on its own, and never deletes anything
+> without explicit approval over the exact files.
+
+| Pid | first contact | consent basis (what they were told, how) | recorded? (notes/audio/screen) | allowed use | retention deadline | withdrawal state | disposition (date + what was deleted) |
+|---|---|---|---|---|---|---|---|
+
+- Publication rule: only pseudonymous ids + aggregate/redacted excerpts leave `private/`.
+- Withdrawal: on request, mark `withdrawn`, stop using their material, and exclude their session from
+  every denominator (excluded sessions are listed, never silently dropped).
+- Mirror each row's `{participant_id, delete_by, status}` into `state.json.privacy.retention_duties`
+  (non-sensitive index only — no names, no consent text).
 ```
 
 ## landing-kit.md
