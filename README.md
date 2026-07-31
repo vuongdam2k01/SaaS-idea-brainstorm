@@ -2,9 +2,9 @@
 
 **English** | [Tiếng Việt](README.vi.md)
 
-A Claude Code and Codex CLI plugin that takes a raw SaaS idea and drives it to a locked MVP spec — framing, competitive scan, market validation, feasibility verification, positioning, scope lock — refusing to call anything validated that isn't. The pipeline doesn't end at LOCK: declared drift, on-demand reconciliation against product reality, and signed validation runs keep the locked idea honest while you build ([After LOCK](#after-lock-maintenance)).
+A Claude Code and Codex CLI plugin that takes a raw SaaS idea and drives it all the way to **build-ready** — framing, competitive scan, market validation, feasibility verification, positioning, scope lock, and a full **implementation blueprint** — refusing to call anything validated that isn't. The pipeline doesn't end at LOCK: declared drift, on-demand reconciliation against product reality, and signed validation runs keep the locked idea honest while you build ([After LOCK](#after-lock-maintenance)).
 
-The deliverable is an **MVP Pack**: a self-contained input contract for the build phase, labeled *Validated*, *Hypothesis*, or *Pre-feasibility Hypothesis* according to what was actually proven. It will often tell you your idea is unproven. A pipeline that always says "validated" is worth nothing.
+The deliverable is two-layered. First the **MVP Pack** — a self-contained scope contract, labeled *Validated*, *Hypothesis*, or *Pre-feasibility Hypothesis* according to what was actually proven (it will often tell you your idea is unproven; a pipeline that always says "validated" is worth nothing). Then the **Implementation Blueprint** (stage 6, gate BP) — feature specs with error states and edge cases answered, field-level data schema, an **interaction map** (who wins when two features write one record, jobs for long-running work, global invariants), **subsystem specs** for the non-CRUD core (an LLM engine, a 3D renderer — capabilities, eval-bound acceptance, budgets, pinning), UX spec, API and integration contracts, NFRs, test plan, build plan — so that when code starts, there is no product decision left to invent.
 
 Three rules make it work:
 
@@ -36,7 +36,7 @@ npx codex-marketplace add vuongdam2k01/SaaS-idea-brainstorm
 
 Every normative document (state schema, artifact schema, gate contracts, maintenance rules, and each stage's templates) ships as its own **loadable skill**, not as a file next to a skill. That is deliberate: a marketplace install lives in `~/.claude/plugins/cache/...`, outside the session's allowed directories, so anything a skill can only reach by reading a sibling path off disk is unreadable exactly when a real user installs it the documented way. No `--add-dir`, no permission widening, nothing to configure.
 
-Skills and hooks run unmodified on both CLIs; the four research/audit agents ship as `.codex/agents/*.toml` for Codex. The agent bodies are kept byte-identical across both platforms by `scripts/sync-codex-agents.js --check`.
+Skills and hooks run unmodified on both CLIs; the five research/audit agents ship as `.codex/agents/*.toml` for Codex. The agent bodies are kept byte-identical across both platforms by `scripts/sync-codex-agents.js --check`.
 
 Start the CLI in the repo where you want your idea workspaces to live — artifacts are written to `ideas/<slug>/` relative to the working directory, never inside the plugin. Node.js on PATH powers three hooks and the state writer; without it they fail open with a visible notice and nothing else breaks.
 
@@ -72,10 +72,11 @@ A full run isn't one sitting. It's a series of sessions with real work in betwee
 | `declare-drift` | `[slug] [what changed]` | Post-LOCK: records "we shipped/changed/dropped/repriced X" as one append-only drift-inbox row — cheap, any time, no ceremony |
 | `reconcile` | `[slug]` | Post-LOCK: resolves product reality from registered sources, consumes the drift inbox, publishes a new hashed current-baseline, signs validation-run specs |
 | `run-validation` | `[slug] [run_id]` | Executes and adjudicates a signed validation run — the only path that moves a claim from `guess` to `supported` |
+| `amend-blueprint` | `[slug] [what was discovered]` | Post-BP: records a mid-build spec defect/gap against the locked blueprint — founder-answered scope test, immutable `ba-NNN` amendment + append-only log; locked files never change |
 
-All commands are namespaced `/saas-idea-brainstorm:`. Gates: `F`, `C`, `V1`, `V2`, `V3`, `R1`, `R2`, `P`, `LOCK` — omit it and it's inferred from state.
+All commands are namespaced `/saas-idea-brainstorm:`. Gates: `F`, `C`, `V1`, `V2`, `V3`, `R1`, `R2`, `P`, `LOCK`, `BP` — omit it and it's inferred from state.
 
-Six stage skills (`stage-0-framing` … `stage-5-scope-lock`) activate on their own as the idea progresses; you never call them. `method-rules` is the constitution — loaded by everything, invocable by nobody — with four normative satellites (`method-rules-{state-schema, artifact-schema, gate-contracts, maintenance-rules}`); the maintenance rules are deliberately outside the default bundle and loaded by the post-LOCK skills themselves.
+Seven stage skills (`stage-0-framing` … `stage-6-blueprint`) activate on their own as the idea progresses; you never call them. `method-rules` is the constitution — loaded by everything, invocable by nobody — with four normative satellites (`method-rules-{state-schema, artifact-schema, gate-contracts, maintenance-rules}`); the maintenance rules are deliberately outside the default bundle and loaded by the post-LOCK skills themselves.
 
 ---
 
@@ -85,10 +86,11 @@ Six stage skills (`stage-0-framing` … `stage-5-scope-lock`) activate on their 
 Stage 0 Framing ──F──> Stage 1 Competitive ──C──> Stage 2 Validate (V1 → V2 → V3)
                                                         ∥ (parallel)
                                                   Stage 3 Verify (R1, R2)
-                                    ──> Stage 4 Positioning ──P──> Stage 5 Scope Lock ──> MVP Pack
+                                    ──> Stage 4 Positioning ──P──> Stage 5 Scope Lock ──LOCK──> MVP Pack
+                                    ──> Stage 6 Implementation Blueprint ──BP──> build starts
 ```
 
-It's a DAG, not a queue. Stage 1 begins right after task 0.1. Stage 3 runs alongside stage 2 whenever feasibility is a deadly assumption — always true for AI-core products, because if the model can't hit the required quality, every hour spent validating that direction is wasted.
+It's a DAG, not a queue. Stage 1 begins right after task 0.1. It also adapts to the idea's shape rather than assuming one: **two-/multi-sided products** record sides with `constrained`/`paying` roles (the hard bar runs on the constrained side, money on the paying side, with a founder-executable seeding plan and a chicken-egg kill criterion); **headless products** (API/CLI/SDK) declare a surface and get API-lifecycle promises instead of screens; **regulated domains** get a compliance section that is never silently absent; non-CRUD cores (LLM, 3D, ledger) get first-class subsystem specs. Stage 3 runs alongside stage 2 whenever feasibility is a deadly assumption — always true for AI-core products, because if the model can't hit the required quality, every hour spent validating that direction is wasted.
 
 | Gate | The question | Needs first | Can stay open? |
 |---|---|---|---|
@@ -101,6 +103,7 @@ It's a DAG, not a queue. Stage 1 begins right after task 0.1. Stage 3 runs along
 | **R2** | Does the delivered thing produce the promised outcome, with unprompted return? | R1, V3 | Yes (analysis mode) |
 | **P** | Is positioning traced to customer words and survived a copy test? | V1, V3, R1, R2 resolved | No (labeled a thesis) |
 | **LOCK** | Is the scope self-contained enough for a fresh session to build from? | V2, V3, R1, R2, P resolved | No |
+| **BP** | Could a build session implement every feature **without inventing any product decision**? | LOCK passed | No |
 
 Every gate check runs three layers. **Formal**: prerequisites hold, artifacts exist at acceptable statuses, thresholds were signed before the evidence dates and still match the signed snapshot, grades are strictly A/B/C/D, no grade-D item counted, claims trace to evidence ids, the metric used the pre-registered denominator. **Adversarial**: the `gatekeeper` agent reads everything with fresh eyes and tries to fail the gate — findings reported verbatim, ranked, unsoftened. **Decision**: you approve, and the verdict lands in `decision-log.md`.
 
@@ -192,6 +195,10 @@ ideas/support-digest/
 │   ├── mvp-spec.md · tech-design.md · definition-of-done.md
 │   ├── carry-forward.md · evidence-quality-report.md · audit-trail.md
 │   └── eval/ · experiments/{landing,presell,concierge}/
+├── blueprint/                    # stage 6 (gate BP): the implementation layer — the pack stays read-only
+│   ├── blueprint-overview.md · feature-specs/fs-NN-*.md
+│   ├── data-schema.md · ux-spec.md · api-contract.md · integration-specs.md
+│   └── nfr-spec.md · test-plan.md · build-plan.md
 ├── drift-inbox.md · health-criteria-vN.md · current-baseline-vN.md    # post-LOCK: append-only inbox + versioned projections
 ├── reconcile/<r-id>/ · validation-runs/                               # hashed reconcile transactions · signed run specs + reports
 ├── cycles/C2/                    # a new cycle mirrors this layout with its own state.json and gates
@@ -218,12 +225,13 @@ Real names, contacts, and payment identities live only in `ideas/<slug>/private/
 
 ## Agents and hooks
 
-Four subagents run with fresh context so they can't inherit the main conversation's optimism:
+Five subagents run with fresh context so they can't inherit the main conversation's optimism:
 
 - **competitor-scanner** maps five tiers — direct, indirect, DIY/spreadsheet, general AI tools, do-nothing — with a source URL per claim.
 - **community-review-miner** pulls verbatim quotes with URLs against a pre-registered neutral sampling frame. Counting the people who show *no* workaround behavior is what makes the percentage mean anything. It never fabricates a quote.
 - **gatekeeper** is paid to fail your gate. A gate that survives it deserves to pass.
 - **coldstart-tester** plays a build session that has only the MVP pack and no history, and lists every question it would still have to ask. Empty list, pack passes.
+- **blueprint-coldstart-tester** holds stage 6's harder bar: reading only pack + blueprint, it lists every *product decision* it would still have to invent — error copy, field limits, webhook retries, permission boundaries. Empty list, blueprint passes.
 
 Three Node hooks, all fail-open: `session-start.js` injects pipeline state for ideas in the workspace; `guard-thresholds.js` catches semantic threshold edits — a partial edit changing `60` to `70` included — escalates on `locked` artifacts and enforces append-only on the decision log; `validate-artifact.js` checks frontmatter and blocks with a repair instruction. All three sentinel-check for a sibling `state.json` containing `pipeline_version`, so an unrelated repo with an `ideas/` folder is untouched.
 
@@ -250,8 +258,8 @@ The methodology also exists as plain documents. Create `ideas/<your-idea>/`, cop
 | Path | Contents |
 |---|---|
 | `.claude-plugin/` · `.codex-plugin/` | Plugin manifest, one per platform |
-| `skills/` | The skills — commands (incl. post-LOCK `reconcile`, `declare-drift`, `run-validation`), 6 stages plus their template skills, and `method-rules` with the `method-rules-{state-schema, artifact-schema, gate-contracts, maintenance-rules}` skills. **Normative source**: if any other doc disagrees with a skill, the skill wins |
-| `agents/` · `.codex/agents/` · `hooks/` · `scripts/` | The four subagents, once as Claude Code markdown and once as Codex TOML (`sync-codex-agents.js --check` keeps them identical); `hooks.json` (same file, both platforms) plus three hook scripts; the validators (`validate-evidence-ledger`, `validate-beachhead`, `verify-threshold-snapshot`, `validate-run-contract`, `pack-verdict`, `artifact-manifest`), the atomic state writer, `coverage-report.js`, and `preflight.js` |
+| `skills/` | The skills — commands (incl. post-LOCK `reconcile`, `declare-drift`, `run-validation`), 7 stages plus their template skills, and `method-rules` with the `method-rules-{state-schema, artifact-schema, gate-contracts, maintenance-rules}` skills. **Normative source**: if any other doc disagrees with a skill, the skill wins |
+| `agents/` · `.codex/agents/` · `hooks/` · `scripts/` | The five subagents, once as Claude Code markdown and once as Codex TOML (`sync-codex-agents.js --check` keeps them identical); `hooks.json` (same file, both platforms) plus three hook scripts; the validators (`validate-evidence-ledger`, `validate-beachhead`, `verify-threshold-snapshot`, `validate-run-contract`, `pack-verdict`, `artifact-manifest`), the atomic state writer, `coverage-report.js`, and `preflight.js` |
 | `tests/` | `hook-tests.js` + `pipeline-contract-tests.js` — the regression suites (first case: `node --check` on every shipped `.js`) |
 | `evals/` | **Dev-only.** Seeded-defect fixtures + graders measuring the gatekeeper's catch rate on interpretation-layer failures (`run-gatekeeper-eval.js`). Fixture generator writes to the OS temp dir, never into a repo |
 | `process/` | The methodology (Vietnamese): pipeline, foundations, build-and-launch, research-verification. Explanatory — skills win on conflict |

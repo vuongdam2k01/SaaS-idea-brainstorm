@@ -49,9 +49,42 @@ Draft all 9 cells yourself from what you heard — every cell labeled `[GUESS]`.
 
 Research briefly (WebSearch) + ask (AskUserQuestion): existing / re-segmented (niche or low-cost) / new / clone (Blank's types). State the strategic consequence in the canvas: market type changes validation focus (existing → "why would they leave their current tool"; new → "do they even recognize the problem"; new markets can be flat for years — do not judge them by existing-market traction bars).
 
+## 0.3b Market shape + regulated domain (classify BEFORE 0.4 — and strictly before the F signing, because 0.6's premortem must see both)
+
+Two more founder-confirmed classifications, recorded the moment they are made:
+
+- **Market shape**: `single-sided | two-sided | multi-sided` (AskUserQuestion; the model may propose
+  with reasoning, only the founder confirms). If not single-sided, name the **sides with ROLES, not
+  a winner**: `constrained` (the side that is hard to get — where the chicken-egg death happens) and
+  `paying` (the side money comes from); they often coincide, and then one list serves both. Write
+  `market_shape` + `sides[]` (`{id, role, label}`) into state via state-write (journal the
+  classification), and note the strategic consequence in the canvas. Gates bind to roles: **F and V1
+  run their full bar on the constrained side** (running them on the abundant side is trivially
+  satisfiable and teaches nothing), **V3 runs on the paying side**.
+- **Regulated domain**: does this product touch health, money-handling, legal, children's data, or
+  another regulated space? Founder-confirmed; model-drafted regulatory claims are `[GUESS]`. If yes:
+  0.5 must carry a deadly Viability/Ethical assumption for it (Test Card with
+  `load_before_event = first outside user touches real regulated data` — which lands it in the
+  pre-launch checklist, not an unpassable validation gate), and 0.6's premortem must generate a
+  compliance kill criterion.
+
 ## 0.4 Beachhead + ICP + 20 real names → `beachhead-icp.md`
 
 List 4–8 candidate segments; score each 1–5 on pain / ability to pay / **your reach** / decision speed. Reach must not be the weakest axis of the chosen beachhead — distribution is the binding constraint. Then define the ICP with Blank's 5-tier earlyvangelist scale: (1) has the problem → (2) knows it → (3) actively searching with a timetable → (4) has cobbled an interim solution → (5) has or can quickly get budget. **Only tiers 4–5 are true earlyvangelists**; feedback from tiers 1–2 is near-worthless. Then 20 real prospects: research them from public sources — never invent people; the user adds prospects from their own network. **Privacy split**: identities + profile URLs + contacts go ONLY into `private/contacts.md`; the public tracker records each prospect as `P<n>` with a segment descriptor and origin type. Fewer than 20 findable prospects is itself a signal about reach.
+
+**Two-sided/multi-sided branch** (`state.market_shape != single-sided`): the **constrained side's**
+list lives in `beachhead-icp.md` and meets the existing mechanical bar unchanged. **Every other
+side gets its own file `beachhead-icp-<side>.md`** — identical 9-column table shape, validated with
+`validate-beachhead.js --file beachhead-icp-<side>.md --min <n>` (a second table inside one file
+silently corrupts the F count; separate files are the rule). The other side's floor `<n>` is
+**founder-set and pre-registered** as `thresholds.custom.f_secondary_min` — the plugin never invents
+this number (15/20 came from dogfood evidence; a fabricated second floor would violate the rule it
+enforces); sealed at the F signing like every threshold, no deferral without a `load_before_event`.
+`beachhead-icp.md` additionally carries a **cold-start seeding strategy** section: which side first ·
+what substitutes for the missing side (single-player value, seeded/concierge supply, fake-door
+matching) · what it costs · **who does the work — executable by THIS founder**: a plan whose
+mechanism is someone else's cooperation ("partner with an aggregator") is a wish, not a plan. The
+reach axis is scored per side.
 
 ## 0.5 Assumption map → `assumption-map.md`
 
@@ -59,7 +92,11 @@ Generate assumptions in "We believe that…" form across ALL categories — Desi
 
 ## 0.6 Kill criteria → `kill-criteria.md`
 
-Run a premortem with the user: imagine the idea dead in 6 months — why? Convert each cause into a criterion in **state + date** form: "if not [measurable X] by [date Y] → stop". Add a budget criterion if any paid actions are possible. Write to the file (`status: draft` — the F signing ceremony locks it); mirror **EVERY criterion, including the budget one,** into `state.json.kill_criteria` — the state index is what deadline surfacing reads; a criterion missing there silently blows its date (dogfood finding). Any deliberately deferred threshold (e.g. `r1_eval_pass_pct: null`) must carry an explicit load-by date in its criterion text and later be loaded via a `thresholds.revisions` entry.
+Run a premortem with the user: imagine the idea dead in 6 months — why? For a two-/multi-sided
+shape the premortem MUST consider the chicken-egg death spiral (neither side arrives because the
+other hasn't) and produce a pre-registered cold-start kill criterion with a date; for a regulated
+domain it MUST produce a compliance criterion. This is why 0.3b runs before F: kill-criteria lock at
+the F signing, so a classification that slips past F leaves these criteria no legal way in. Convert each cause into a criterion in **state + date** form: "if not [measurable X] by [date Y] → stop". Add a budget criterion if any paid actions are possible. Write to the file (`status: draft` — the F signing ceremony locks it); mirror **EVERY criterion, including the budget one,** into `state.json.kill_criteria` — the state index is what deadline surfacing reads; a criterion missing there silently blows its date (dogfood finding). Any deliberately deferred threshold (e.g. `r1_eval_pass_pct: null`) must carry an explicit load-by date in its criterion text and later be loaded via a `thresholds.revisions` entry.
 
 ## Gate F
 

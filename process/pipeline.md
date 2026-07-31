@@ -4,7 +4,7 @@
 > executes. This document explains the method and its *why*, with sources. **If this document and a
 > skill ever disagree, the skill wins**; treat the disagreement as a doc bug and fix it here.
 
-From raw idea to when **MVP scope is locked**. Each task states: purpose, method, output; each stage ends with advancement condition.
+From raw idea through **locked MVP scope** to a **complete implementation blueprint** — everything a build session needs, settled before the first line of product code. Each task states: purpose, method, output; each stage ends with advancement condition.
 
 **Backbone is Customer Development** (Steve Blank) — **recursive, iterative**: each step is a loop not pipeline; failure at any stage means go back to prior, not push forward with wrong assumptions. Core principle: *"Validate, then build. Your first validation proof is a credit card, not praise."*
 
@@ -31,6 +31,10 @@ Goal: convert vague idea into structured testable hypothesis set, know exactly w
 - Classify market: **existing** (compete head-to-head with established players), **resegmented** (niche or cheapen existing market), or **new entirely** (educate market).
 - Why decide early: each type demands different validate strategy, positioning, launch. New market = focus interviews on "do they see the problem"; existing market = focus on "why leave current solution".
 - **Output:** one-line market type + strategic consequences.
+
+### 0.3b. Market shape + regulated domain (before 0.4, strictly before F signing)
+- Classify **market shape**: single-sided / two-sided / multi-sided — founder-confirmed. If not single-sided, name sides with ROLES: `constrained` (where the chicken-egg death happens — carries the full F/V1 bar) and `paying` (carries V3); they often coincide. The constrained side's list lives in `beachhead-icp.md` (existing bar unchanged); each other side gets its own `beachhead-icp-<side>.md` with a **founder-set** floor (`thresholds.custom.f_secondary_min` — the plugin never invents this number), plus a **cold-start seeding strategy** executable by this founder (a plan whose mechanism is someone else's cooperation is a wish). The premortem must produce a dated chicken-egg kill criterion.
+- Classify **regulated domain** (health, money-handling, legal, children's data…): if yes → deadly assumption with `load_before_event = first outside user touches real regulated data` (a blocking pre-launch item, not an unpassable gate) + a compliance kill criterion. Model-drafted regulatory claims are `[GUESS]`.
 
 ### 0.4. Choose beachhead and list 20 names
 - List 4–8 possible segments facing this problem.
@@ -121,6 +125,8 @@ Core principle: validation is **observing real behavior**, not collecting praise
 ### 2.4. Hunt tier-one signals
 - Auto-flag in transcripts: **self-made solution still in use** (sheet with 40 columns, duct-tape workflow) = pays with time = real pain.
 - Auto-flag: **tried AI directly and failed** = proves pain exists + hints at value gap above prompt level.
+
+> **Two-/multi-sided:** one pre-registered sampling frame per side (`sampling-frame-v1-<side>.md`, each hashed + journaled); the full past-behavior threshold binds the **constrained side**; other sides carry grade-B participation evidence; **denominators are never merged across sides**. At V2 the winning direction must name its matchmaking mechanism + single-player value (or carry a founder-executable seeding plan + the armed cold-start kill criterion). At V3 money comes from the **paying side**; other sides commit in Mom-Test currency (signed listings, committed supply) against a founder-set floor.
 
 **▶ GATE V1 — PASS when:** %sample with *proactively-sought or DIY-built solution* past behavior ≥ pre-set threshold (ref: 60%) — measure behavior, not agreement.
 **FAIL:** pivot segment (problem real, wrong people → back to 0.4) or pivot problem (interview revealed worse problem → back to 0.1 with new data). Fail with clear pivot direction = good result, not setback.
@@ -304,7 +310,34 @@ Entrance condition: passed V3 (have payer) + R2 (value delivered) + Positioning 
 - [ ] DoD frozen
 - [ ] Scope small enough you **feel slightly worried it's too little** (sign of right sizing)
 
-→ **MVP scope is locked. Pipeline ends. Transition to build with this scope as contract** — see [build-and-launch.md](build-and-launch.md).
+→ **MVP scope is locked. Validation ends — build does not start yet**: one stage remains.
+
+---
+
+# STAGE 6 — IMPLEMENTATION BLUEPRINT (post-LOCK, pre-build)
+
+Entrance condition: gate LOCK passed (MVP Pack issued and frozen) — or an explicit unvalidated-build decision.
+
+Why this stage exists: the pack says *feature abc serves situation xyz* — true, bounded, and traced. But implementation surfaces countless questions the pack never answers: what exactly does the error state say, what are the field limits, what happens when the webhook retries, who can see which record. Left unanswered, each one gets invented mid-build by whoever is typing. Stage 6 answers all of them **with the founder, before code** — the model drafts, the founder decides; every invented detail is `[GUESS]` until a pack trace or founder confirmation lifts it.
+
+### 6.1. Decompose the core loop into feature specs
+- One spec per core-loop step (plus behaviour-implying DoD modules: payment failure, deletion path). Each names its pack trace **before writing** — untraceable spec = scope addition = not written (the cut list binds the blueprint too; a real scope change goes through drift declaration, never a silent spec line).
+
+### 6.2. Per feature: behaviour to the last user-visible detail
+- User story in customer verbatim (V1 language) · main flow · binary acceptance criteria · field-level validation · **error/empty/loading states with their copy** · edge-case checklist answered, never blank (duplicates, permission boundary, dependency failure, retry/idempotency, concurrency, timezone/currency) · instrumentation (which tracking events fire, payloads).
+
+### 6.3. Data schema, field level
+- tech-design fixed the entities; here every field gets type/constraints/default, state machines get allowed transitions, indexes come from core-loop access paths, migrations + seed are specified, and every promised retention/deletion duty gets an actual mechanism.
+
+### 6.4. UX spec · 6.5. API & integration contracts · 6.6. NFRs
+- Screen inventory, flows (happy + every error path), per-screen states, accessibility floor. Endpoints with shapes/auth/error codes mapped to UI states. Per buy-don't-build provider: webhook contract, failure path, sandbox plan. NFR numbers **traced or founder-confirmed, never invented** — an unagreed SLA is the same defect as in the pack.
+
+### 6.7. Test plan · 6.8. Build plan
+- Every DoD item + minimum-service-promise commitment → executable scenario; FS acceptance criteria become cases by reference; AI-core wires the pack's eval harness as CI day one. Milestones with **core loop end-to-end first**; environment as checkable spec (dev/prod split, migrations via CI, error tracking before first user); deferred register holds non-product items only.
+
+**▶ GATE BP — BLUEPRINT LOCKED when:** every core-loop step has a traced feature spec · every spec's error states and edge cases are answered · schema is field-level and consistent with tech-design both directions · every tracking event has an instrumentation entry · every DoD/MSP item maps to a test scenario · zero unresolved `[GUESS]`/open product decisions · **level-2 cold-start test passes** (a fresh session reading only pack + blueprint could implement every feature *without inventing any product decision*).
+
+→ **Build starts with pack + blueprint as the two-layer contract** — see [build-and-launch.md](build-and-launch.md).
 
 ---
 
@@ -318,6 +351,7 @@ Entrance condition: passed V3 (have payer) + R2 (value delivered) + Positioning 
 | **3. Verify** (parallel) | R1: 3.1–3.5 spike+error-analysis+eval+econ · R2: 3.6–3.9 concierge+measure+retention+log | R1: eval passes on real · R2: result matches promise | Promise scope → core loop + aha true |
 | **4. Positioning** | 4.1 best customers · 4.2 alternatives · 4.3 5 parts · 4.4 copycat · 4.5 pitch | Pitch clicks real customers | Official positioning |
 | **5. Scope Lock** | 5.1 loop traced · 5.2 aha named · 5.3 cut · 5.4 design · 5.5 DoD | All gate conditions | **Locked MVP scope** |
+| **6. Implementation Blueprint** | 6.1 decompose · 6.2 feature specs · 6.3 schema field-level · 6.4–6.6 UX/API/NFR · 6.7 tests · 6.8 build plan | Level-2 cold-start: nothing left to invent | **Build-ready blueprint (gate BP)** |
 
 Two more principles were added after an adversarial review against a full solo-dev agent team (record in git history): **(4)** evidence gathered for one gate may inform or reopen another, but never *satisfy* it — a landing conversion is not willingness to pay, an eval score is not delivered value, a usability observation is not problem prevalence; **(5)** when the same failure recurs twice with no new evidence between attempts, stop and hand control back rather than looping — a third identical attempt is not new information.
 

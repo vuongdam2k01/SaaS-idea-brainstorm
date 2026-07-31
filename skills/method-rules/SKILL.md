@@ -44,7 +44,7 @@ Every claim in downstream artifacts (solution directions, positioning, MVP scope
 
 ## 5. Gate discipline
 
-Gates: F (framing) → C (competitive) → V1 (problem) → V2 (solution) → V3 (money) → R1 (feasibility) ∥ R2 (value) → P (positioning) → LOCK (scope). Stage 3 (R1/R2) runs in parallel with stage 2 when feasibility is a deadly assumption (always true for AI-core products).
+Gates: F (framing) → C (competitive) → V1 (problem) → V2 (solution) → V3 (money) → R1 (feasibility) ∥ R2 (value) → P (positioning) → LOCK (scope) → BP (implementation blueprint — post-LOCK, pre-build). Stage 3 (R1/R2) runs in parallel with stage 2 when feasibility is a deadly assumption (always true for AI-core products). BP is the one post-LOCK gate: stage 6 refines the locked pack into a build-ready spec set — it **refines, never expands**, and never changes any validation gate's state or the pack label (its contract and state placement are in the `method-rules-gate-contracts` and `method-rules-state-schema` skills).
 
 - A failed gate returns work to the **previous** gate with the new data. Never proceed on a failed assumption.
 - In **analysis mode**, gates V2, V3, R2 — and R1 when representative real data is unobtainable — may be **accepted-as-open**: honestly recorded as untested assumptions with a ready-to-run kit (for R1: a feasibility-risk dossier + data-acquisition plan). An open gate is not a passed gate — the final pack is a *Hypothesis* MVP Pack, and **R1 open downgrades it further to *Pre-feasibility*** (see gate-contracts predicate); its language must say so.
@@ -85,7 +85,10 @@ The founder's will is revealed through exchanges, not stated once. It gets the s
 
 ## 10. Post-LOCK maintenance — load on demand, not by default
 
-The pipeline ends at LOCK; the idea does not. After LOCK the normative law is
+The validation pipeline ends at LOCK; the idea does not. Between LOCK and the first line of product
+code sits **stage 6 (implementation blueprint, gate BP)** — pipeline-phase work with its own skill;
+it coexists with maintenance rules (the pack stays read-only, drift boundary applies) without needing
+them loaded. Beyond that, the normative law is
 the `method-rules-maintenance-rules` skill — **291 lines that pipeline-phase work never needs**.
 Loading it on every stage spent 40% of this bundle on rules that do not apply, and the bundle is the
 enforcement substrate: 56% of this plugin's requirements are enforced by an agent *reading* these
@@ -98,13 +101,17 @@ you need:
 2. the artifact you are touching declares `phase: maintenance`;
 3. a cycle other than the one you are working in is `locked` and you need its rules.
 
-The five facts pipeline work must know without opening it: gate-locked artifacts and the MVP pack are
+The six facts pipeline work must know without opening it: gate-locked artifacts and the MVP pack are
 **never edited** (current truth lives in versioned `current-baseline-vN` projections) · authority is
 claim-specific (charter → intent, observations → implemented reality, graded evidence → empirical
 claims) · **observed reality may contradict, never confirm** · singleton gates are never reset
 post-LOCK — scoped validation runs and new cycles carry all post-LOCK verification · drift declared
 but not yet reconciled **blocks** pack issuing/relabeling, validation runs, and `switch-mode`
-(gate-check enforces this boundary inline — see its Drift boundary step, which needs no other reading).
+(gate-check enforces this boundary inline — see its Drift boundary step, which needs no other reading)
+· **a locked blueprint is amended, never edited**: build-time spec defects/gaps go through the
+`amend-blueprint` skill (immutable `ba-NNN` record + append-only amendment log, founder-answered scope
+test), and pack-level changes still route to declare-drift — current implementation truth = locked
+blueprint + amendment log.
 
 ## 11. Outward claim preflight (every word that leaves the machine)
 

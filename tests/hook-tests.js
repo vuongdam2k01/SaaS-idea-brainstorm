@@ -427,7 +427,9 @@ console.log("== v1.2 state-write: schema accept + cycle freeze ==");
   const dir = mkIdea("t7", null);
   const sp = path.join(dir, "state.json");
   const v12 = {
-    schema_version: "1.2.0", pipeline_version: "1.2.0", idea: "t7", mode: "analysis", active: [],
+    schema_version: "1.3.0",
+    market_shape: "single-sided",
+    sides: [], pipeline_version: "1.2.0", idea: "t7", mode: "analysis", active: [],
     gates: { LOCK: { status: "passed" } },
     thresholds: { signed_date: "2026-07-01", revisions: [] },
     kill_criteria: [],
@@ -455,7 +457,7 @@ console.log("== v1.2 state-write: schema accept + cycle freeze ==");
   down.gates.LOCK.status = "pending";
   delete down.cycles; delete down.active_cycle; delete down.maintenance; delete down.health_criteria; delete down.validation_runs;
   res = run(down, sp);
-  check("schema downgrade write => rejected", !res.ok && /requires 1\.2\.0/.test(res.err));
+  check("schema downgrade write => rejected", !res.ok && /requires 1\.3\.0/.test(res.err));
   // frozen inline cycle: changing gates must be rejected
   const mut = JSON.parse(JSON.stringify(v12));
   mut.gates.LOCK.status = "pending";
@@ -523,6 +525,7 @@ console.log("== v1.2 state-write: schema accept + cycle freeze ==");
     cycle_id: "C2", parent: "C1", status: "validation", mode: "analysis", active: ["0.0"],
     gates: { F: { status: "pending" } }, thresholds: { signed_date: null, revisions: [] },
     kill_criteria: [], waiting_on: [], artifacts: {}, validation_runs: [], updated: "2026-07-30",
+    market_shape: "single-sided", sides: [],
   };
   // root currently DOES index C2 (addC2 written above) — but with parent C1; parent mismatch check:
   const wrongParent = JSON.parse(JSON.stringify(frag));
@@ -581,7 +584,9 @@ console.log("== v1.2 state-write: schema accept + cycle freeze ==");
 console.log("== round-8 guard: historical artifacts of a locked cycle ==");
 {
   const st = {
-    schema_version: "1.2.0", pipeline_version: "1.2.0", idea: "t12", mode: "analysis", active: [],
+    schema_version: "1.3.0",
+    market_shape: "single-sided",
+    sides: [], pipeline_version: "1.2.0", idea: "t12", mode: "analysis", active: [],
     gates: { LOCK: { status: "passed" } }, thresholds: { signed_date: null, revisions: [] },
     kill_criteria: [], budget: { cap_usd: 0, spent_usd: 0, log: [] }, waiting_on: [], artifacts: {},
     cycles: [{ id: "C1", status: "locked", parent: null, state: null }], active_cycle: "C1",
@@ -1041,6 +1046,159 @@ console.log("== evals fixture transparency ==");
     warned = JSON.parse(out).warnings.some((w) => w.code === "possibly-prescriptive");
   } catch { /* handled by assertion */ }
   check("prescriptive-tier: flagged as a heuristic WARNING, still exit 0", warned);
+}
+
+// ===========================================================================
+// Stage 6 (implementation blueprint): gate BP frontmatter + the root
+// state.blueprint block. The block lives OUTSIDE the frozen cycle subtree on
+// purpose — these tests pin both the acceptance and the anti-erasure rules.
+// ===========================================================================
+console.log("== stage 6: gate BP frontmatter + blueprint state block ==");
+{
+  const dir = mkIdea("t14", { pipeline_version: "1.4.0" });
+  const bpDir = path.join(dir, "blueprint", "feature-specs");
+  fs.mkdirSync(bpDir, { recursive: true });
+  const f = path.join(bpDir, "fs-01-upload.md");
+  const fm14 = (stage, gate) =>
+    `---\nartifact: fs-01-upload\nidea: t14\nstage: ${stage}\ngate: ${gate}\nstatus: draft\nevidence_grade: none\nrung: baseline-auto\npipeline_version: 1.4.0\nupdated: 2026-07-31\n---\nbody\n`;
+  fs.writeFileSync(f, fm14(6, "BP"));
+  let r = runHook("validate-artifact.js", { tool_input: { file_path: f } });
+  check("stage 6 / gate BP artifact => silent", r === null);
+  fs.writeFileSync(f, fm14(5, "BP"));
+  r = runHook("validate-artifact.js", { tool_input: { file_path: f } });
+  check("gate BP on stage 5 => block", r && r.decision === "block");
+  fs.writeFileSync(f, fm14(6, "LOCK"));
+  r = runHook("validate-artifact.js", { tool_input: { file_path: f } });
+  check("gate LOCK on stage 6 => block", r && r.decision === "block");
+
+  // cold-start reports are records of an agent run, not artifacts
+  const cs = path.join(dir, "blueprint", "coldstart-l2-20260731-01.md");
+  fs.writeFileSync(cs, "VERDICT: PASS\n| file | sha256 |\n");
+  r = runHook("validate-artifact.js", { tool_input: { file_path: cs } });
+  check("coldstart-l2 report => frontmatter-exempt, silent", r === null);
+  // BAR ids are bound arithmetically
+  const amDir = path.join(dir, "blueprint", "amendments");
+  fs.mkdirSync(amDir, { recursive: true });
+  const barFm = (aid) =>
+    `---\nartifact: ba-007-fix-retry\nartifact_kind: blueprint-amendment\nidea: t14\nphase: maintenance\ncycle_id: C1\nmutation_policy: immutable-snapshot\npublication_status: locked\namendment_id: ${aid}\nas_of: 2026-08-10\npipeline_version: 1.4.1\nupdated: 2026-08-10\n---\nbody\n`;
+  const barPath = path.join(amDir, "ba-007-fix-retry.md");
+  fs.writeFileSync(barPath, barFm("BA-007"));
+  r = runHook("validate-artifact.js", { tool_input: { file_path: barPath } });
+  check("blueprint-amendment with matching digits => silent", r === null);
+  fs.writeFileSync(barPath, barFm("BA-012"));
+  r = runHook("validate-artifact.js", { tool_input: { file_path: barPath } });
+  check("amendment_id BA-012 in ba-007-*.md => block (one number, two spellings)", r && r.decision === "block" && /one number/.test(r.reason));
+  // reserved maintenance path may not opt out by omitting phase
+  const dr = path.join(dir, "blueprint", "deferred-register.md");
+  fs.writeFileSync(dr, "---\nartifact: deferred-register\nidea: t14\nstage: 6\ngate: BP\nstatus: draft\nevidence_grade: none\nrung: baseline-auto\npipeline_version: 1.4.1\nupdated: 2026-07-31\n---\nbody\n");
+  r = runHook("validate-artifact.js", { tool_input: { file_path: dr } });
+  check("deferred-register without phase: maintenance => block (reserved path)", r && r.decision === "block");
+
+  const sw = path.join(ROOT, "scripts", "state-write.js");
+  const runSW = (obj, tgt) => {
+    try {
+      execFileSync("node", [sw, tgt], { input: JSON.stringify(obj), encoding: "utf8" });
+      return { ok: true };
+    } catch (e) {
+      return { ok: false, err: String(e.stderr || e.message) };
+    }
+  };
+  const ideaDir = mkIdea("t15", null);
+  const sp = path.join(ideaDir, "state.json");
+  const base = {
+    schema_version: "1.3.0",
+    market_shape: "single-sided",
+    sides: [], pipeline_version: "1.4.0", idea: "t15", mode: "analysis", active: [],
+    gates: { LOCK: { status: "passed" } },
+    thresholds: { signed_date: "2026-07-01", revisions: [] },
+    kill_criteria: [], budget: { cap_usd: 0, spent_usd: 0, log: [] },
+    waiting_on: [], artifacts: {},
+    cycles: [{ id: "C1", status: "locked", parent: null, state: null }],
+    active_cycle: "C1",
+    maintenance: { drift_declared_at: null, active_reconcile: null, last_reconcile: null, current_baseline: null, blocking_claims: [], reality_sources: [] },
+    health_criteria: [], validation_runs: [],
+  };
+  let res = runSW(base, sp);
+  check("baseline state (no blueprint) accepted", res.ok);
+  const withBp = JSON.parse(JSON.stringify(base));
+  withBp.blueprint = { cycle_id: "C1", status: "in_progress", gate: { status: "pending", passed_date: null, notes: "" }, updated: "2026-07-31" };
+  res = runSW(withBp, sp);
+  check("valid blueprint block (frozen cycle untouched) => accepted", res.ok);
+  const badStatus = JSON.parse(JSON.stringify(withBp));
+  badStatus.blueprint.status = "done";
+  res = runSW(badStatus, sp);
+  check("invalid blueprint.status => rejected", !res.ok && /blueprint\.status/.test(res.err));
+  const smuggle = JSON.parse(JSON.stringify(withBp));
+  smuggle.blueprint.note_to_self = "extra";
+  res = runSW(smuggle, sp);
+  check("unknown blueprint key => rejected (closed set)", !res.ok && /unknown key/.test(res.err));
+  const unpaired = JSON.parse(JSON.stringify(withBp));
+  unpaired.blueprint.status = "locked"; // gate still pending
+  res = runSW(unpaired, sp);
+  check("blueprint locked without gate passed => rejected (pairing)", !res.ok && /imply each other/.test(res.err));
+  const dropBp = JSON.parse(JSON.stringify(base));
+  res = runSW(dropBp, sp);
+  check("dropping the blueprint record => rejected", !res.ok && /drops the blueprint record/.test(res.err));
+  const lockBp = JSON.parse(JSON.stringify(withBp));
+  lockBp.blueprint.status = "locked";
+  lockBp.blueprint.gate = { status: "passed", passed_date: "2026-08-15", notes: "" };
+  res = runSW(lockBp, sp);
+  check("blueprint locked + gate passed together => accepted", res.ok);
+  const rewrite = JSON.parse(JSON.stringify(lockBp));
+  rewrite.blueprint.gate.notes = "edited after the fact";
+  res = runSW(rewrite, sp);
+  check("rewriting a locked blueprint record (same cycle) => rejected", !res.ok && /gate are frozen/.test(res.err));
+  // amend-blueprint's one legal post-lock mutation: amendments + updated move, core stays
+  const amendUpd = JSON.parse(JSON.stringify(lockBp));
+  amendUpd.blueprint.amendments = { last_id: "BA-001", updated: "2026-08-20" };
+  amendUpd.blueprint.updated = "2026-08-20";
+  res = runSW(amendUpd, sp);
+  check("amendments update on a locked blueprint => accepted", res.ok);
+  const amendOnDraft = JSON.parse(JSON.stringify(withBp));
+  amendOnDraft.blueprint.amendments = { last_id: "BA-001", updated: "2026-08-20" };
+  res = runSW(amendOnDraft, sp);
+  check("amendments on a non-locked blueprint => rejected (post-gate work only)", !res.ok && /legal only on a locked blueprint/.test(res.err));
+  // v1.6.0: market shape + sides (roles, not a single "primary")
+  const ms1 = JSON.parse(JSON.stringify(base));
+  ms1.idea = "t16"; ms1.market_shape = "two-sided"; ms1.sides = [];
+  res = runSW(ms1, path.join(mkIdea("t16", null), "state.json"));
+  check("two-sided with no sides[] => rejected", !res.ok && /requires ≥2 sides/.test(res.err));
+  const ms2 = JSON.parse(JSON.stringify(ms1));
+  ms2.sides = [{ id: "buyer", role: "paying", label: "Người mua" }, { id: "seller", role: "other", label: "Người bán" }];
+  res = runSW(ms2, path.join(mkIdea("t16", null), "state.json"));
+  check("two-sided without a constrained side => rejected (gates bind to roles)", !res.ok && /"constrained"/.test(res.err));
+  ms2.sides[1].role = "constrained";
+  res = runSW(ms2, path.join(mkIdea("t16", null), "state.json"));
+  check("two-sided with paying + constrained roles => accepted", res.ok);
+  const ms3 = JSON.parse(JSON.stringify(base));
+  ms3.idea = "t16b"; ms3.market_shape = "everything-app";
+  res = runSW(ms3, path.join(mkIdea("t16b", null), "state.json"));
+  check("invalid market_shape => rejected", !res.ok && /market_shape/.test(res.err));
+
+  // Q4: a cycle switch may not orphan an in-flight blueprint (fresh idea dir so
+  // the previous state on disk is the in_progress record, not the locked one)
+  const sp2 = path.join(mkIdea("t15b", null), "state.json");
+  const draft2 = JSON.parse(JSON.stringify(withBp));
+  draft2.idea = "t15b";
+  res = runSW(draft2, sp2);
+  check("t15b: in_progress blueprint baseline accepted", res.ok);
+  const orphan = JSON.parse(JSON.stringify(draft2));
+  orphan.cycles.push({ id: "C2", status: "validation", parent: "C1", state: "cycles/C2/state.json" });
+  orphan.blueprint = { cycle_id: "C2", status: "in_progress", gate: { status: "pending", passed_date: null, notes: "" }, updated: "2026-09-01" };
+  res = runSW(orphan, sp2);
+  check("cycle switch on an in-progress blueprint => rejected (abandon first)", !res.ok && /abandoned/.test(res.err));
+  const abandon = JSON.parse(JSON.stringify(draft2));
+  abandon.blueprint.status = "abandoned";
+  res = runSW(abandon, sp2);
+  check("in_progress -> abandoned (deliberate one-step write) => accepted", res.ok);
+  res = runSW(orphan, sp2);
+  check("cycle switch AFTER abandonment => accepted", res.ok);
+  const supersede = JSON.parse(JSON.stringify(lockBp));
+  supersede.cycles.push({ id: "C2", status: "validation", parent: "C1", state: "cycles/C2/state.json" });
+  supersede.active_cycle = "C2";
+  supersede.blueprint = { cycle_id: "C2", status: "in_progress", gate: { status: "pending", passed_date: null, notes: "" }, updated: "2026-09-01" };
+  res = runSW(supersede, sp);
+  check("new cycle's blueprint supersedes a locked one => accepted", res.ok);
 }
 
 console.log("== FM-10 observable fail-open ==");

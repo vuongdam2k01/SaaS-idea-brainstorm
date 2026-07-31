@@ -1,7 +1,7 @@
 ---
 name: gate-check
 description: Run the three-layer gate check for a SaaS validation idea - formal contract checks, adversarial gatekeeper review, user approval. Use when a stage's artifacts are complete and a gate verdict is needed, or when the user asks to check a gate.
-argument-hint: "[idea-slug] [gate: F|C|V1|V2|V3|R1|R2|P|LOCK]"
+argument-hint: "[idea-slug] [gate: F|C|V1|V2|V3|R1|R2|P|LOCK|BP]"
 ---
 
 Run a gate check. Load the `method-rules` skill first, then load the `method-rules-gate-contracts` skill (Skill tool) — the per-gate contract is the law here; do not improvise requirements.
@@ -45,7 +45,7 @@ If a *full* LOCK check finds the charter not locked, that is a formal FAIL with 
 
 **Cycle resolution (every gate check)**: resolve the operating cycle first (maintenance-rules §4). For a fragment cycle, ALL reads and writes — gates, thresholds + signing ceremony, kill criteria, artifact statuses — target `cycles/<id>/state.json` and the `cycles/<id>/` artifact layout; the root cycle's frozen state is never touched.
 
-**Drift boundary (every gate check — self-contained, no other file needed)**: read `drift-inbox.md` (if it exists) and `maintenance.last_reconcile.consumed_through` in state. If any inbox `drift_id` exceeds `consumed_through`, drift is declared but unreconciled → **refuse** post-LOCK validation runs and any pack issuing/relabeling until `reconcile` completes; say so and offer to run it. Ordinary investigation, coding, and pre-LOCK gate work in a cycle that has not LOCKed are never blocked. (Stated in full here on purpose: this is the one maintenance rule every gate check needs, and requiring the 291-line maintenance-rules for it would put the whole file back in the default bundle — see method-rules §10.)
+**Drift boundary (every gate check — self-contained, no other file needed)**: read `drift-inbox.md` (if it exists) and `maintenance.last_reconcile.consumed_through` in state. If any inbox `drift_id` exceeds `consumed_through`, drift is declared but unreconciled → **refuse** post-LOCK validation runs, any pack issuing/relabeling, and the BP gate check until `reconcile` completes; say so and offer to run it. Ordinary investigation, coding, blueprint *drafting*, and pre-LOCK gate work in a cycle that has not LOCKed are never blocked. (Stated in full here on purpose: this is the one maintenance rule every gate check needs, and requiring the 291-line maintenance-rules for it would put the whole file back in the default bundle — see method-rules §10.)
 
 ## Layer 1 — Formal checks (mechanical, against the gate contract)
 
@@ -65,9 +65,17 @@ If a *full* LOCK check finds the charter not locked, that is a formal FAIL with 
 4. **Validate the ledger's structure at V1, P and LOCK** (the gates that compute or consume a metric):
    `node "${CLAUDE_SKILL_DIR}/../../scripts/validate-evidence-ledger.js" <idea-dir>/evidence-ledger.md --json`
    Errors are blockers. Its `max_independent_count` is a **ceiling on any denominator**: rows sharing a `root_source_id` are one source however many times the same complaint was reposted. Superseded rows never count. The validator checks structure and arithmetic only — semantically duplicated rows with different wording remain a Layer 2 judgement.
-5. **Outward-claim preflight (V2 before anything deploys; again at P and LOCK)**: every outward claim carries a `publication_disposition` (method-rules §11) consistent with its evidence. Any `do-not-publish` item still present in a kit that is about to run, or pack language stronger than its grades, is a blocker.
+5. **Outward-claim preflight (V2 before anything deploys; again at P, LOCK, and BP over the ux-spec copy inventory)**: every outward claim carries a `publication_disposition` (method-rules §11) consistent with its evidence. Any `do-not-publish` item still present in a kit that is about to run, or pack language stronger than its grades, is a blocker.
 6. **Pack-label honesty (LOCK)**: the label in `mvp-spec.md` and `evidence-quality-report.md` must be the string `scripts/pack-verdict.js` computes, and while `gates.LOCK` is not `passed` it must still carry `(PROSPECTIVE — LOCK not yet passed)`. A final-looking label on an unpassed LOCK is a blocker: that is exactly the state a prospective VALIDATED stamp leaves behind when its gate later fails.
-7. Formal failures → report, fix what is mechanical, and stop before layer 2 if the stage is simply unfinished — **but still run the gatekeeper in `advisory` mode** and persist its report the same way. The verdict remains the Layer 1 FAIL; the point is that the founder gets the adversarial findings on the FIRST attempt, when the artifacts are weakest, instead of after another full cycle. Mark the report `mode: advisory` and journal it as advisory so it is never mistaken for a gate verdict. (Run #3: the first F check stopped before Layer 2; the second one, nineteen minutes of work later, found twenty-one findings — twelve of them blockers — several of which had been present all along.)
+7. **Cold-start report verification (LOCK and BP)**: the cold-start bar is satisfied by a
+   **persisted report**, never a remembered run (method-rules §1 — session transcripts are not
+   evidence). At LOCK: the latest `coldstart-l1-YYYYMMDD-NN.md` at the idea root; at BP: the latest
+   `blueprint/coldstart-l2-YYYYMMDD-NN.md`. Check mechanically: the report exists, its verdict line
+   is `VERDICT: PASS`, and its inlined per-file sha256 table matches a fresh
+   `artifact-manifest.js create` over the current set (pack alone at LOCK; pack + blueprint at BP,
+   excluding the reports themselves). A missing report, a latest-NN FAIL, or a moved hash is a
+   blocker — the stage re-runs its cold-start sequence.
+8. Formal failures → report, fix what is mechanical, and stop before layer 2 if the stage is simply unfinished — **but still run the gatekeeper in `advisory` mode** and persist its report the same way. The verdict remains the Layer 1 FAIL; the point is that the founder gets the adversarial findings on the FIRST attempt, when the artifacts are weakest, instead of after another full cycle. Mark the report `mode: advisory` and journal it as advisory so it is never mistaken for a gate verdict. (Run #3: the first F check stopped before Layer 2; the second one, nineteen minutes of work later, found twenty-one findings — twelve of them blockers — several of which had been present all along.)
 
 ## Layer 2 — Adversarial review
 
@@ -108,3 +116,44 @@ scope only*, and downstream artifacts inherit the narrowing.
 **LOCK PASS post-decision sequence (in this order, only after the PASS decision is recorded):**
 1. **Kill-criterion disposition ceremony** — every still-`armed` kill criterion is dispositioned with the user: `retire` (its discovery question is settled) | `carry` (move into root `health_criteria` as a post-LOCK health criterion, state+date form, provenance to the original id) | `replace` (write a new health criterion; original gets a pointer). One `criterion-disposition` journal row each. The original criterion's runtime `status` becomes `retired` + `disposition: {result, date, health_id?}` (state-schema). `carry`/`replace` results go into `health-criteria-v1.md` (`phase: maintenance`), which this ceremony publishes as `publication_status: locked` (the one non-reconcile publication authority; later health versions come from reconcile with supersedes lineage). Running this strictly after PASS means a failed LOCK leaves no retired criteria and no published health file.
 2. **Freeze**: record the cycle `locked` in the `cycles` index, then write the state (the cycle's owned subtree freezes per state-schema; state-write enforces from then on).
+
+## Gate BP specifics (the one post-LOCK gate — stage 6, implementation blueprint)
+
+BP runs through the same three layers with these deltas; the contract row and coverage predicates
+are in the `method-rules-gate-contracts` skill (Gate BP section), which is the law here too.
+
+- **State location**: the verdict lands in root `state.blueprint.gate`, never in the frozen cycle
+  `gates` object. Entry verification is the contract's one sentence: `gates.LOCK` `passed` — or
+  `failed` AND a complete `mvp-pack/` on disk AND `unvalidated-build-decision.md` + its
+  `will-override` row (a UBD against any earlier gate is a stop: no pack, no stage 6).
+- **No Layer 0 ceremony**: thresholds were signed at F and the charter locked before LOCK; BP has
+  nothing to sign. The drift boundary check runs as on every gate.
+- **Layer 1**, in order:
+  1. Run `node "${CLAUDE_SKILL_DIR}/../../scripts/validate-blueprint.js" <idea-dir> --at-gate --json`
+     — exit 0 required; hand its warnings to Layer 2 **by name** (a legacy pack without join ids
+     gets more reading, never less).
+  2. **Pack immutability by arithmetic**: re-run `artifact-manifest.js verify` against the LOCK
+     verdict's own manifest (from its `gate-verdict` row) — any pack file whose hash moved since
+     LOCK is a blocker naming the file. A pre-manifest legacy verdict downgrades this to a Layer-2
+     reading, reported by name.
+  3. **Cold-start report verification** per Layer 1 item 7: latest `blueprint/coldstart-l2-*.md`,
+     `VERDICT: PASS`, hash table matches the current set. A full BP check before that report exists
+     is a guaranteed pointless FAIL, same as LOCK's rule.
+  4. Verify the remaining contract predicates by reading: refines-never-expands (an untraceable spec
+     is a scope addition = blocker), event dictionary + first-run flow present and consistent,
+     integration failure paths, milestone order, outward-claim preflight over the copy inventory,
+     zero unresolved markers, deferred register non-product with owner + date per row.
+  5. Pin the manifest over the blueprint files **plus `mvp-pack/`** (excluding coldstart reports) —
+     the pack is part of the reviewed input even though it cannot change.
+- **Layer 2**: gatekeeper as usual (its item 21 covers the blueprint-specific attacks); persist +
+  audit-trail section identically.
+- **Layer 3 PASS** (charter playback as usual): in one step promote every required pipeline artifact
+  `ready → locked` (deferred-register and any amendment-log are maintenance files outside promotion)
+  and write `blueprint.status: locked` + `gate.status: passed` + `passed_date` via state-write (it
+  enforces the pairing). Journal the `gate-verdict` row. Then point the founder at
+  `process/build-and-launch.md` — build starts here, with pack + blueprint as the two-layer contract,
+  and say explicitly: **from now on a spec defect/gap goes through `amend-blueprint`** (current truth
+  = locked blueprint + amendment log, log first in the read order); scope-level change still goes
+  through `declare-drift`. **FAIL**: name the exact documents/predicates; stage 6 fixes and re-runs
+  its 6.9 sequence (changed blueprint ⇒ cold-start re-run + fresh manifest). The pack label and all
+  validation gate states are untouched either way.

@@ -20,7 +20,7 @@ Walk through what a build session needs on day one:
 
 ## Rules
 
-- A question counts against the pack only if it is **in scope of decisions the pipeline claims to have locked**. "Which cloud region?" is a build-session decision — fine. "What are the core loop steps?" missing — blocker.
+- A question counts against the pack only if it is **in scope of decisions the pipeline claims to have locked**. "Which cloud region?" is a build-session decision — fine. "What are the core loop steps?" missing — blocker. (Product-level how-exactly questions — UI flow, field validation, error copy — are stage 6's job and its `blueprint-coldstart-tester` holds that bar; do not fail the pack for them.)
 - Do not fill gaps helpfully. Your value is finding them.
 
 ## Output (raw data)

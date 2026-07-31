@@ -713,7 +713,9 @@ console.log("== privacy retention index: checkable, and non-sensitive by constru
   fs.mkdirSync(dir, { recursive: true });
   const statePath = path.join(dir, "state.json");
   const base = {
-    schema_version: "1.2.0",
+    schema_version: "1.3.0",
+    market_shape: "single-sided",
+    sides: [],
     pipeline_version: "1.2.0",
     idea: "demo",
     gates: {},
@@ -883,7 +885,9 @@ console.log("== pack verdict: prospective mode, real state shape, contract-exact
     for (const g of ["F", "C", "V1", "V2", "V3", "R1", "R2", "P", "LOCK"])
       gates[g] = { status: over[g] || "passed", evidence_floor: "B", passed_date: null, notes: "" };
     gates.V3.evidence_grade_observed = grade;
-    fs.writeFileSync(statePath, JSON.stringify({ schema_version: "1.2.0", pipeline_version: "1.2.0", idea: "demo", gates }));
+    fs.writeFileSync(statePath, JSON.stringify({ schema_version: "1.3.0",
+    market_shape: "single-sided",
+    sides: [], pipeline_version: "1.2.0", idea: "demo", gates }));
     return statePath;
   };
 
@@ -931,7 +935,9 @@ console.log("== waiting_on entries must be able to end ==");
   fs.mkdirSync(dir, { recursive: true });
   const statePath = path.join(dir, "state.json");
   const base = {
-    schema_version: "1.2.0",
+    schema_version: "1.3.0",
+    market_shape: "single-sided",
+    sides: [],
     pipeline_version: "1.2.0",
     idea: "demo",
     gates: {},
@@ -1079,6 +1085,282 @@ console.log("== LOCK ordering is stated unambiguously in the contract files ==")
   check("gate-check no longer claims to copy the pack itself", !/proceed to Layer 1, which verifies the charter is locked, then copy it into/.test(gk));
   check("MSP is required by the LOCK predicate", /minimum service promise complete/i.test(gc));
   check("cross-gate manifest + ledger + preflight checks are in the contract", /artifact_manifest_sha256/.test(gc) && /max_independent_count/.test(gc) && /publication_disposition/.test(gc));
+}
+
+// ---------------------------------------------------------------------------
+console.log("== stage 6 (gate BP) is wired end-to-end across the contract files ==");
+{
+  // Stage 6 exists so that "the MVP is only a description" cannot recur: LOCK
+  // hands off to the blueprint, the blueprint has its own gate, and build is
+  // documented as starting only after BP. These checks pin the wiring, not the
+  // prose.
+  const gc = fs.readFileSync(path.join(ROOT, "skills", "method-rules-gate-contracts", "SKILL.md"), "utf8");
+  const gk = fs.readFileSync(path.join(ROOT, "skills", "gate-check", "SKILL.md"), "utf8");
+  const s5 = fs.readFileSync(path.join(ROOT, "skills", "stage-5-scope-lock", "SKILL.md"), "utf8");
+  const s6 = fs.readFileSync(path.join(ROOT, "skills", "stage-6-blueprint", "SKILL.md"), "utf8");
+  const ss = fs.readFileSync(path.join(ROOT, "skills", "method-rules-state-schema", "SKILL.md"), "utf8");
+  const bl = fs.readFileSync(path.join(ROOT, "process", "build-and-launch.md"), "utf8");
+  const gkAgent = fs.readFileSync(path.join(ROOT, "agents", "gatekeeper.md"), "utf8");
+  check("gate-contracts has a BP contract row + Gate BP section", /\| \*\*BP\*\* \|/.test(gc) && /## Gate BP/.test(gc));
+  check("refines-never-expands is a named BP rule", /refines?, never expands/i.test(gc));
+  check("BP requires the level-2 cold-start test", /level-2 cold-start/i.test(gc) && /blueprint-coldstart-tester/.test(gc));
+  check("BP state lives outside the frozen cycle gates (state-schema documents state.blueprint)", /\*\*`blueprint`\*\*\s*\(optional root key/.test(ss) && /frozen/.test(ss));
+  check("gate-check has BP specifics and pins pack read-only", /## Gate BP specifics/.test(gk) && /state\.blueprint\.gate/.test(gk));
+  check("stage 5 hands off to stage 6, not straight to build", /stage-6-blueprint/.test(s5) && /Build does not start here/i.test(s5));
+  check("stage 6 owns its closing sequence (self-containment → level-2 cold-start → gate BP)", /blueprint-coldstart-tester/.test(s6) && /gate-check/.test(s6));
+  check("build-and-launch starts after BP with the two-layer contract", /BP gate/.test(bl) && /two-layer contract/.test(bl));
+  check("gatekeeper covers gate BP", /BP/.test(gkAgent) && /Blueprint discipline/.test(gkAgent));
+  check("blueprint-coldstart-tester agent exists with the invent-nothing bar", /without inventing any product decision|invent/i.test(fs.readFileSync(path.join(ROOT, "agents", "blueprint-coldstart-tester.md"), "utf8")));
+}
+
+// ---------------------------------------------------------------------------
+console.log("== validate-blueprint: fixture passes, seeded defects fail ==");
+{
+  // Producer-validator fixture idiom (the prospect-table precedent): the shapes
+  // the stage-6 templates emit must be shapes the ONE validator accepts, and
+  // each seeded defect below is a class the v1.4.1 review named — including the
+  // archetypal FS-vs-schema limit conflict that motivated the whole script.
+  const os = require("os");
+  const { build } = require(path.join(ROOT, "tests", "blueprint-fixture.js"));
+  const tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), "sib-bpv-"));
+  const runV = (idea, extra = []) => {
+    try {
+      const out = execFileSync("node", [path.join(ROOT, "scripts", "validate-blueprint.js"), idea, "--json"].concat(extra), { encoding: "utf8" });
+      return { code: 0, ...JSON.parse(out) };
+    } catch (e) {
+      let parsed = {};
+      try { parsed = JSON.parse(e.stdout); } catch { /* non-json failure */ }
+      return { code: e.status === undefined ? -1 : e.status, ...parsed };
+    }
+  };
+  const fresh = (name) => build(fs.mkdtempSync(path.join(tmpRoot, name + "-")));
+  const has = (r, code) => (r.findings || []).some((f) => f.code === code);
+
+  let idea = fresh("valid");
+  let r = runV(idea, ["--at-gate"]);
+  check("valid fixture passes --at-gate with 0 errors", r.code === 0 && r.errors === 0, JSON.stringify((r.findings || []).filter((f) => f.level === "error")));
+  check("legacy warnings never fail a valid blueprint (no-lock-manifest is a warning)", has(r, "no-lock-manifest"));
+
+  idea = fresh("typeconflict");
+  const fsFile = path.join(idea, "blueprint", "feature-specs", "fs-01-upload.md");
+  fs.writeFileSync(fsFile, fs.readFileSync(fsFile, "utf8").replace("| report.title | varchar(255) | max 255 |", "| report.title | varchar(500) | max 500 |"));
+  r = runV(idea, ["--at-gate"]);
+  check("FS max 500 vs schema varchar(255) => type-conflict error", r.code === 1 && has(r, "type-conflict"));
+
+  idea = fresh("uncovered");
+  const tp = path.join(idea, "blueprint", "test-plan.md");
+  fs.writeFileSync(tp, fs.readFileSync(tp, "utf8").replace(/\| AC-02-1 \|[^\n]*\n/, ""));
+  r = runV(idea, ["--at-gate"]);
+  check("acceptance criterion missing from test-plan => ac-uncovered error", r.code === 1 && has(r, "ac-uncovered"));
+
+  idea = fresh("marker");
+  fs.appendFileSync(path.join(idea, "blueprint", "nfr-spec.md"), "\nRate limit: [GUESS] 10/phút\n");
+  r = runV(idea, ["--at-gate"]);
+  check("[GUESS] marker at the gate => error", r.code === 1 && has(r, "marker"));
+  r = runV(idea);
+  check("[GUESS] marker while drafting => warning only, exit 0", r.code === 0 && has(r, "marker"));
+
+  idea = fresh("event");
+  const fs2 = path.join(idea, "blueprint", "feature-specs", "fs-02-export.md");
+  fs.writeFileSync(fs2, fs.readFileSync(fs2, "utf8").replace("`report_exported` | khi job hoàn tất", "`report_downloaded` | khi job hoàn tất"));
+  r = runV(idea, ["--at-gate"]);
+  check("instrumentation event not in the dictionary => unknown-event error", r.code === 1 && has(r, "unknown-event"));
+
+  idea = fresh("copy");
+  const ux = path.join(idea, "blueprint", "ux-spec.md");
+  fs.writeFileSync(ux, fs.readFileSync(ux, "utf8").replace("test-as-proposition", "do-not-publish"));
+  r = runV(idea, ["--at-gate"]);
+  check("do-not-publish copy on a screen at the gate => error", r.code === 1 && has(r, "do-not-publish-on-screen"));
+
+  idea = fresh("legacy");
+  const spec = path.join(idea, "mvp-pack", "mvp-spec.md");
+  for (const f of ["mvp-spec.md", "definition-of-done.md", "tech-design.md"]) {
+    const p = path.join(idea, "mvp-pack", f);
+    fs.writeFileSync(p, fs.readFileSync(p, "utf8").replace(/<!--\s*pack:[a-z-]+\s*-->\r?\n/g, ""));
+  }
+  r = runV(idea, ["--at-gate"]);
+  check("anchor-less pack => legacy-pack WARNING, still exit 0", r.code === 0 && has(r, "legacy-pack"));
+
+  idea = fresh("amend");
+  const amDir = path.join(idea, "blueprint", "amendments");
+  fs.mkdirSync(amDir, { recursive: true });
+  const bar = (target) => `---
+artifact: ba-001-fix-title
+artifact_kind: blueprint-amendment
+idea: bpfix
+phase: maintenance
+cycle_id: C1
+mutation_policy: immutable-snapshot
+publication_status: locked
+amendment_id: BA-001
+as_of: 2026-08-10
+pipeline_version: 1.4.1
+updated: 2026-08-10
+---
+# BA-001
+targets: \`${target}\`
+class: defect
+old: "max 255" / new: "max 255, trim whitespace"
+`;
+  fs.writeFileSync(path.join(amDir, "ba-001-fix-title.md"), bar("data-schema.md#report.title"));
+  fs.writeFileSync(path.join(idea, "blueprint", "amendment-log.md"), `---
+artifact: amendment-log
+artifact_kind: blueprint-amendment-log
+idea: bpfix
+phase: maintenance
+cycle_id: C1
+mutation_policy: append-only
+publication_status: draft
+as_of: 2026-08-10
+pipeline_version: 1.4.1
+updated: 2026-08-10
+---
+| BA-id | date | targets | class | scope_test | summary |
+|---|---|---|---|---|---|
+| BA-001 | 2026-08-10 | data-schema.md#report.title | defect | NO | trim whitespace |
+`);
+  const st = JSON.parse(fs.readFileSync(path.join(idea, "state.json"), "utf8"));
+  st.blueprint = { cycle_id: "C1", status: "locked", gate: { status: "passed", passed_date: "2026-08-01", notes: "" }, updated: "2026-08-10", amendments: { last_id: "BA-001", updated: "2026-08-10" } };
+  fs.writeFileSync(path.join(idea, "state.json"), JSON.stringify(st, null, 2));
+  r = runV(idea, ["--at-gate", "--with-amendments"]);
+  check("valid amendment (resolving target, logged, state in sync) => 0 errors", r.code === 0 && r.errors === 0, JSON.stringify((r.findings || []).filter((f) => f.level === "error")));
+  fs.writeFileSync(path.join(amDir, "ba-001-fix-title.md"), bar("data-schema.md#report.nonexistent"));
+  r = runV(idea, ["--at-gate", "--with-amendments"]);
+  check("amendment targeting a nonexistent id => amendment-target-id error", r.code === 1 && has(r, "amendment-target-id"));
+
+  // ---- v1.5.0 interaction + subsystem layer mutations
+  idea = fresh("writers");
+  const im = path.join(idea, "blueprint", "interaction-map.md");
+  fs.writeFileSync(im, fs.readFileSync(im, "utf8").replace("| report | fs-01, fs-02 |", "| report | fs-02 |"));
+  r = runV(idea, ["--at-gate"]);
+  check("forgotten writer in a conflict-domain row => writers-set-mismatch error", r.code === 1 && has(r, "writers-set-mismatch"));
+
+  idea = fresh("sttrigger");
+  const ds = path.join(idea, "blueprint", "data-schema.md");
+  fs.writeFileSync(ds, fs.readFileSync(ds, "utf8").replace("| ST-report-1 | draft | exported | fs-02 |", "| ST-report-1 | draft | exported |  |"));
+  r = runV(idea, ["--at-gate"]);
+  check("transition with no trigger => st-no-trigger error (dead schema or missing spec)", r.code === 1 && has(r, "st-no-trigger"));
+
+  idea = fresh("orphancap");
+  const fs2b = path.join(idea, "blueprint", "feature-specs", "fs-02-export.md");
+  fs.writeFileSync(fs2b, fs.readFileSync(fs2b, "utf8").replace("- CAP-01-1", "- none"));
+  r = runV(idea, ["--at-gate"]);
+  check("capability no FS uses => orphan-cap error (scope addition in subsystem form)", r.code === 1 && has(r, "orphan-cap"));
+
+  idea = fresh("evinvent");
+  const ss1 = path.join(idea, "blueprint", "subsystem-specs", "ss-01-digest-llm.md");
+  fs.writeFileSync(ss1, fs.readFileSync(ss1, "utf8").replace("| EV-1 | độ đúng cụm vấn đề trên dữ liệu thật | 85% |", "| EV-1 | độ đúng cụm vấn đề trên dữ liệu thật | 92% |"));
+  r = runV(idea, ["--at-gate"]);
+  check("EV threshold absent from mvp-pack/eval => ev-threshold-invented error", r.code === 1 && has(r, "ev-threshold-invented"));
+
+  idea = fresh("asyncstate");
+  const fs2c = path.join(idea, "blueprint", "feature-specs", "fs-02-export.md");
+  fs.writeFileSync(fs2c, fs.readFileSync(fs2c, "utf8").replace(/\| queued \|[^\n]*\n/, ""));
+  r = runV(idea, ["--at-gate"]);
+  check("async-CAP feature missing a queued state row => missing-async-state error", r.code === 1 && has(r, "missing-async-state"));
+
+  idea = fresh("determinism");
+  const tp2 = path.join(idea, "blueprint", "test-plan.md");
+  fs.writeFileSync(tp2, fs.readFileSync(tp2, "utf8").replace("| AC-02-1 | xuất báo cáo + xoá theo yêu cầu | e2e | live-eval-threshold |", "| AC-02-1 | xuất báo cáo + xoá theo yêu cầu | e2e |  |"));
+  r = runV(idea, ["--at-gate"]);
+  check("llm/async-backed case with blank determinism cell => no-determinism-strategy error", r.code === 1 && has(r, "no-determinism-strategy"));
+
+  idea = fresh("touches");
+  const fs1b = path.join(idea, "blueprint", "feature-specs", "fs-01-upload.md");
+  fs.writeFileSync(fs1b, fs.readFileSync(fs1b, "utf8").replace(/\| report \| write \|[^\n]*\n/, ""));
+  r = runV(idea, ["--at-gate"]);
+  check("entity used but not declared in touches => touches-omission error", r.code === 1 && has(r, "touches-omission"));
+
+  // ---- v1.6.0 surface / compliance mutations
+  idea = fresh("headless");
+  const uxh = path.join(idea, "blueprint", "ux-spec.md");
+  fs.writeFileSync(uxh, fs.readFileSync(uxh, "utf8").replace("rung: baseline-auto\n", "rung: baseline-auto\nsurface: headless-api\n"));
+  for (const f of ["fs-01-upload.md", "fs-02-export.md"]) {
+    const p2 = path.join(idea, "blueprint", "feature-specs", f);
+    fs.writeFileSync(p2, fs.readFileSync(p2, "utf8").replace(/\| loading \|[^\n]*\n/, ""));
+  }
+  r = runV(idea, ["--at-gate"]);
+  check("headless surface without api-lifecycle => error (integration promises need a home)", r.code === 1 && has(r, "api-lifecycle-missing"));
+  const api = path.join(idea, "blueprint", "api-contract.md");
+  fs.appendFileSync(api, "\n<!-- bp:api-lifecycle -->\n## Lifecycle: semver, deprecation 90 ngày, breaking chỉ theo major, key xoay mỗi quý\n");
+  r = runV(idea, ["--at-gate"]);
+  check("headless surface: loading rows not required once api-lifecycle exists => 0 errors", r.code === 0 && r.errors === 0, JSON.stringify((r.findings || []).filter((f) => f.level === "error")));
+
+  idea = fresh("compliance");
+  const nfr = path.join(idea, "blueprint", "nfr-spec.md");
+  fs.writeFileSync(nfr, fs.readFileSync(nfr, "utf8").replace(/N\/A — founder[^\n]*\n/, "N/A\n"));
+  r = runV(idea, ["--at-gate"]);
+  check("compliance N/A without a recorded basis => error (no-regulation is a claim too)", r.code === 1 && has(r, "compliance-na-basis"));
+
+  idea = fresh("accessna");
+  const uxa = path.join(idea, "blueprint", "ux-spec.md");
+  fs.writeFileSync(uxa, fs.readFileSync(uxa, "utf8").replace("## Sàn accessibility: keyboard, contrast, labels", "N/A"));
+  r = runV(idea, ["--at-gate"]);
+  check("accessibility N/A => error (the floor substitutes per surface, never cuts)", r.code === 1 && has(r, "accessibility-na"));
+
+  fs.rmSync(tmpRoot, { recursive: true, force: true });
+}
+
+// ---------------------------------------------------------------------------
+console.log("== validate-beachhead --file confinement (two-sided lists) ==");
+{
+  const os = require("os");
+  const d = fs.mkdtempSync(path.join(os.tmpdir(), "sib-bh-"));
+  const runB = (args) => {
+    try { execFileSync("node", [path.join(ROOT, "scripts", "validate-beachhead.js"), d].concat(args), { encoding: "utf8", stdio: "pipe" }); return 0; }
+    catch (e) { return e.status === undefined ? -1 : e.status; }
+  };
+  check("--file with traversal => usage/fatal exit", runB(["--file", "../evil.md"]) === 2);
+  check("--file with a non-beachhead name => rejected", runB(["--file", "state.json"]) === 2);
+  check("--file beachhead-icp-seller.md (missing) => fatal, not crash", runB(["--file", "beachhead-icp-seller.md"]) === 2);
+  fs.rmSync(d, { recursive: true, force: true });
+}
+
+// ---------------------------------------------------------------------------
+console.log("== SS_KIND_ANCHORS parity: gate-contracts table vs validate-blueprint.js ==");
+{
+  // Third instance of the one-vocabulary-two-declarations pattern
+  // (THRESHOLD_FIELDS, artifact_kind — now subsystem kind anchors).
+  const vb = fs.readFileSync(path.join(ROOT, "scripts", "validate-blueprint.js"), "utf8");
+  const om = vb.match(/const SS_KIND_ANCHORS = \{([\s\S]*?)\};/);
+  check("validator declares SS_KIND_ANCHORS", !!om);
+  const validatorKinds = {};
+  for (const m of om[1].matchAll(/(\w+):\s*\[([^\]]*)\]/g))
+    validatorKinds[m[1]] = m[2].split(",").map((s) => s.trim().replace(/^["']|["']$/g, "")).filter(Boolean).sort();
+  const gc = fs.readFileSync(path.join(ROOT, "skills", "method-rules-gate-contracts", "SKILL.md"), "utf8");
+  const tbl = gc.match(/\| kind \| required anchors beyond trace\/capabilities\/degradation \|([\s\S]*?)\n\n/);
+  check("gate-contracts declares the per-kind anchor table", !!tbl);
+  const skillKinds = {};
+  for (const line of tbl[1].split(/\r?\n/)) {
+    const m = line.match(/^\s*\|\s*(\w+)\s*\|\s*([^|]*)\|/);
+    if (!m || /^-+$/.test(m[1])) continue;
+    skillKinds[m[1]] = m[2].trim() === "—" ? [] : m[2].split(",").map((s) => s.trim()).filter(Boolean).sort();
+  }
+  for (const k of Object.keys(validatorKinds))
+    check(`kind "${k}" anchors identical in contract and validator`,
+      JSON.stringify(validatorKinds[k]) === JSON.stringify(skillKinds[k] || null),
+      `validator=[${validatorKinds[k]}] contract=[${skillKinds[k]}]`);
+  check("contract table lists no kind the validator lacks",
+    Object.keys(skillKinds).every((k) => k in validatorKinds),
+    Object.keys(skillKinds).filter((k) => !(k in validatorKinds)).join(", "));
+}
+
+// ---------------------------------------------------------------------------
+console.log("== artifact_kind parity: maintenance-rules §9 vs validate-artifact.js ==");
+{
+  // THRESHOLD_FIELDS precedent: one vocabulary, two hand-kept declarations —
+  // drift must be a test failure, not a discovery. The skill declares the enum
+  // in §9's artifact_kind comment; the hook declares MAINT_ENUMS.artifact_kind.
+  const hook = fs.readFileSync(path.join(ROOT, "hooks", "scripts", "validate-artifact.js"), "utf8");
+  const m = hook.match(/artifact_kind:\s*\[([\s\S]*?)\]/);
+  const hookKinds = m[1].split(",").map((s) => s.trim().replace(/^["']|["']$/g, "")).filter(Boolean).sort();
+  const skill = fs.readFileSync(path.join(ROOT, "skills", "method-rules-maintenance-rules", "SKILL.md"), "utf8");
+  const block = skill.match(/artifact_kind: current-baseline\s+#([\s\S]*?)\nidea:/);
+  const skillKinds = (block[1].match(/[a-z][a-z-]+[a-z]/g) || []).filter((k) => k !== "current-baseline" || true).sort();
+  const missing = hookKinds.filter((k) => !skillKinds.includes(k));
+  const extra = skillKinds.filter((k) => !hookKinds.includes(k) && k !== "current-baseline");
+  check("every hook artifact_kind appears in maintenance-rules §9's enum comment", missing.length === 0, `missing from skill: ${missing.join(", ")}`);
+  check("§9's enum comment lists no kind the hook rejects", extra.length === 0, `extra in skill: ${extra.join(", ")}`);
 }
 
 console.log(`\n${pass} passed, ${fail} failed`);

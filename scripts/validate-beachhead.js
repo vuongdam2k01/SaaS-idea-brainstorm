@@ -128,7 +128,16 @@ function isLegacyWorkspace(ideaDir) {
 function validate(ideaDir, opts) {
   const min = opts.min, target = opts.target;
   const errors = [], warnings = [];
-  const file = path.join(ideaDir, "beachhead-icp.md");
+  // --file (v1.6.0, two-sided support): a second side's prospect list lives in its
+  // OWN file (beachhead-icp-<side>.md, identical 9-column shape) and the validator
+  // runs once per side. Two tables in one file was a proven corruption path:
+  // findTable takes the first Pid+Tier header, so the F floor could silently be
+  // computed against the wrong side. Confined to the idea dir, no traversal.
+  const fname = opts.file || "beachhead-icp.md";
+  if (/[\\/]|\.\./.test(fname) || !/^beachhead-icp(-[a-z0-9-]+)?\.md$/.test(fname)) {
+    return { fatal: `--file must be an idea-root beachhead-icp[-<side>].md filename (got "${fname}")` };
+  }
+  const file = path.join(ideaDir, fname);
   let text;
   try {
     text = fs.readFileSync(file, "utf8");
@@ -301,12 +310,18 @@ function main(argv) {
     const v = Number(args[i + 1]);
     return Number.isFinite(v) ? v : dflt;
   };
-  const dir = args.find((a, i) => !a.startsWith("--") && args[i - 1] !== "--min" && args[i - 1] !== "--target");
+  const NON_POSITIONAL = ["--min", "--target", "--file"];
+  const dir = args.find((a, i) => !a.startsWith("--") && !NON_POSITIONAL.includes(args[i - 1]));
   if (!dir) {
-    process.stderr.write("usage: validate-beachhead.js <idea-dir> [--json] [--min 15] [--target 20]\n");
+    process.stderr.write("usage: validate-beachhead.js <idea-dir> [--json] [--min 15] [--target 20] [--file beachhead-icp-<side>.md]\n");
     return 2;
   }
-  const res = validate(dir, { min: num("--min", DEFAULT_MIN), target: num("--target", DEFAULT_TARGET) });
+  const fileIdx = args.indexOf("--file");
+  const res = validate(dir, {
+    min: num("--min", DEFAULT_MIN),
+    target: num("--target", DEFAULT_TARGET),
+    file: fileIdx !== -1 ? args[fileIdx + 1] : undefined,
+  });
   if (res.fatal) {
     if (jsonOut) process.stdout.write(JSON.stringify({ ok: false, fatal: res.fatal }, null, 2) + "\n");
     else process.stderr.write(`UNUSABLE: ${res.fatal}\n`);

@@ -14,12 +14,12 @@ Frontmatter is **phase-conditional**: artifacts with `phase: maintenance` follow
 ---
 artifact: problem-hypothesis        # kebab-case id, unique within the idea
 idea: <slug>
-stage: 0                            # 0..5
-gate: F                             # F | C | V1 | V2 | V3 | R1 | R2 | P | LOCK
+stage: 0                            # 0..6
+gate: F                             # F | C | V1 | V2 | V3 | R1 | R2 | P | LOCK | BP
 status: draft                       # draft | ready | locked
 evidence_grade: none                # highest grade backing this artifact: A | B | C | D | none
 rung: baseline-auto                 # enhanced-auto | baseline-auto | handoff  (exactly three — see below)
-pipeline_version: 1.3.0
+pipeline_version: 1.6.0
 updated: YYYY-MM-DD
 ---
 ```
@@ -79,6 +79,7 @@ Any model-drafted value inside an artifact that is not yet backed by a ledger en
 | 3 | `spike/` (code + `data-manifest.md`), `error-analysis/` (canonical `summary.md`; `batch-NNN.md` worker files are frontmatter-exempt trace data), `eval/` (harness — or `eval/README.md` when R1 is OPEN), `promise-scope.md`, `concierge-kit.md`, `data-acquisition-plan.md` (R1 OPEN only) |
 | 4 | `positioning.md` |
 | 5 | `mvp-pack/` → `mvp-spec.md`, `tech-design.md`, `definition-of-done.md`, `carry-forward.md`, `evidence-quality-report.md` |
+| 6 | `blueprint/` → `blueprint-overview.md`, `feature-specs/fs-NN-<slug>.md` (one per core-loop step/feature), `data-schema.md`, `ux-spec.md`, `api-contract.md`, `integration-specs.md`, `nfr-spec.md`, `test-plan.md`, `build-plan.md`, `interaction-map.md` (when required), `subsystem-specs/ss-NN-<slug>.md` (one per ADR-named engine; frontmatter adds `kind`) — post-LOCK, gate BP; the pack itself is read-only. Beside them, maintenance-phase: `deferred-register.md` (append-only), and post-BP `amendment-log.md` + `amendments/ba-NNN-<slug>.md` (amend-blueprint skill) |
 | Cross-stage | `decision-log.md` (append-only journal, created at init), `audit-trail.md` (append-only, tracked, redacted review record — see below), `founder-charter.md` (append-superseding intent ledger, created at init, ships in mvp-pack — item rules in maintenance-rules §7), `post-mortem.md` (written only when an idea is stopped), `unvalidated-build-decision.md` (written only when the founder builds against a failed mandatory gate — see below) |
 | Post-LOCK (`phase: maintenance` — schema in maintenance-rules §9) | `current-baseline-vN.md`, `reconcile/<id>/manifest-<id>.json` (canonical) + `manifest-<id>.md` (labelled human view) (+ intake/claims files), `validation-runs/<run_id>-spec.md` + `<run_id>-report.md`, `drift-inbox.md`, `health-criteria-vN.md` |
 
@@ -109,7 +110,7 @@ nothing. `detail` holds `key=value; key=value` pairs:
 - **`manifest=`** (gate-verdict) — the manifest of the exact artifact set the verdict was made against (`scripts/artifact-manifest.js`, `--purpose gate-input`). Without it a verdict can silently appear to authorize a materially different set of files. Legacy rows without it stay valid and are never backfilled — that would fabricate a hash for content nobody hashed.
 - **`cutoff=` / `reopen_on=`** (gate-verdict, when time-sensitive) — the date the evidence set closed, and the condition that would reopen it ("if the eval threshold is loaded", "if price changes", "after 2026-09-01"). An approval with no validity boundary quietly becomes permanent.
 - **Column count is stable.** A pre-existing journal keeps its own header: append a new versioned table (with a `migration` row pointing at it) rather than rewriting old rows — the log is append-only, so its history includes its own format history.
-`type`: `gate-verdict` (incl. gatekeeper findings count + blockers) | `pivot` (segment/problem/solution — what changed, from what) | `mode-switch` | `sampling-frame-snapshot` (V1 frame text + sha256, appended BEFORE collection starts — gate V1 recomputes and compares) | `threshold-revision` (mirrors state.thresholds.revisions) | `spend` (mirrors state.budget.log) | `market-verdict` | `will-override` (founder knowingly decides against evidence — cite E-ids + charter item) | `invariant-change` (a charter invariant is added/reworded/removed — exact old wording, exact new wording, founder approval; legal even while the charter is still `draft`) | `migration` (schema migration, from → to) | `reconciliation` (summary row: reconcile ID, manifest hash, drift dimensions, intake authority — never replaces the specialized rows above) | `run-signed` (validation-run spec signed: run_id, claim ids, threshold snapshot, window) | `run-verdict` (validation-run outcome: run_id, verdict, report ref) | `criterion-disposition` (LOCK ceremony: kill criterion retired/carried/replaced, provenance) | `source-registry-change` (reality source added/removed/rescoped, user-approved) | `signing-blocked` (the F signing ceremony ran and did NOT produce a signature — see the `detail` table above; was ordered by gate-check but missing from this enum until v1.3.0) | `other`.
+`type`: `gate-verdict` (incl. gatekeeper findings count + blockers) | `pivot` (segment/problem/solution — what changed, from what) | `mode-switch` | `sampling-frame-snapshot` (V1 frame text + sha256, appended BEFORE collection starts — gate V1 recomputes and compares) | `threshold-revision` (mirrors state.thresholds.revisions) | `spend` (mirrors state.budget.log) | `market-verdict` | `will-override` (founder knowingly decides against evidence — cite E-ids + charter item) | `invariant-change` (a charter invariant is added/reworded/removed — exact old wording, exact new wording, founder approval; legal even while the charter is still `draft`) | `migration` (schema migration, from → to) | `reconciliation` (summary row: reconcile ID, manifest hash, drift dimensions, intake authority — never replaces the specialized rows above) | `run-signed` (validation-run spec signed: run_id, claim ids, threshold snapshot, window) | `run-verdict` (validation-run outcome: run_id, verdict, report ref) | `criterion-disposition` (LOCK ceremony: kill criterion retired/carried/replaced, provenance) | `source-registry-change` (reality source added/removed/rescoped, user-approved) | `signing-blocked` (the F signing ceremony ran and did NOT produce a signature — see the `detail` table above; was ordered by gate-check but missing from this enum until v1.3.0) | `blueprint-amendment` (amend-blueprint recorded a BA-id against a locked blueprint: targets, class, scope-test outcome) | `blueprint-abandoned` (an in-flight blueprint was deliberately abandoned because a new cycle superseded its pack — names the cycle) | `other`.
 
 ## audit-trail.md (append-only, tracked — the review record that survives a clone)
 
@@ -176,7 +177,7 @@ gate: <the failed gate, e.g. V1>
 status: ready
 evidence_grade: <the failed gate's actual evidence grade, honestly>
 rung: baseline-auto
-pipeline_version: 1.3.0
+pipeline_version: 1.6.0
 updated: YYYY-MM-DD
 ---
 # Unvalidated build decision — <title>

@@ -1,5 +1,7 @@
 # Stage 0 — Framing
 
+> **v1.6.0**: before 0.4 classify market shape (single/two/multi-sided; sides with `constrained`/`paying` roles; constrained side carries the full F/V1 bar; other sides in their own `beachhead-icp-<side>.md` with a founder-set floor + a founder-executable seeding strategy) and regulated domain (deadly assumption + compliance kill criterion). The skill `stage-0-framing` is normative.
+
 > **Manual-mode rendering.** The normative producer of these artifact shapes is the plugin skill
 > `stage-0-*-templates` (skills win on any disagreement). Load-bearing table
 > headers here are fixture-checked against the validators by `tests/pipeline-contract-tests.js`.

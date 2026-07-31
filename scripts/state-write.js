@@ -39,12 +39,47 @@ process.stdin.on("end", () => {
     }
   }
   // Shape validation (review finding: writer must reject retired/invalid shapes).
-  // Writer accepts ONLY the current schema: legacy 1.1.0 fixtures may sit on disk
-  // untouched, but every WRITE must be the migrated 1.2.0 shape ("never write the
-  // old shape") — accepting 1.1.0 here was a proven freeze-bypass (downgrade attack).
-  if (obj.schema_version !== "1.2.0") {
-    console.error(`REJECTED: unsupported schema_version "${obj.schema_version}" (writer requires 1.2.0 — migrate first; legacy states are migrated on first touch, never written back as-is)`);
+  // Writer accepts ONLY the current schema: legacy fixtures may sit on disk
+  // untouched, but every WRITE must be the migrated current shape ("never write
+  // the old shape") — accepting an older version was a proven freeze-bypass
+  // (downgrade attack). 1.3.0 adds market_shape + sides[] (two-sided support);
+  // migration from 1.2.0 = add defaults (single-sided, []), never fabricate a shape.
+  if (obj.schema_version !== "1.3.0") {
+    console.error(`REJECTED: unsupported schema_version "${obj.schema_version}" (writer requires 1.3.0 — migrate first: absent market_shape defaults to "single-sided", sides to []; legacy states are migrated on first touch, never written back as-is)`);
     process.exit(1);
+  }
+  // market_shape + sides[] (v1.3.0): founder-confirmed market shape; sides carry
+  // ROLES (constrained/paying may be the same side) so gates bind to roles, not
+  // to a single "primary" — a binary primary/secondary design breaks at 3 sides.
+  const SHAPES = ["single-sided", "two-sided", "multi-sided"];
+  if (!SHAPES.includes(obj.market_shape)) {
+    console.error(`REJECTED: "market_shape" must be one of ${SHAPES.join("|")} (migration default: "single-sided" — never fabricate a shape the founder did not confirm)`);
+    process.exit(1);
+  }
+  if (!Array.isArray(obj.sides)) {
+    console.error('REJECTED: "sides" must be an array (empty for single-sided)');
+    process.exit(1);
+  }
+  const SIDE_ROLES = ["constrained", "paying", "both", "other"];
+  const seenSide = new Set();
+  for (const sd of obj.sides) {
+    if (!sd || typeof sd !== "object" || !/^[a-z0-9-]+$/.test(sd.id || "") || typeof sd.label !== "string" || !SIDE_ROLES.includes(sd.role)) {
+      console.error(`REJECTED: sides[] entry needs {id: kebab-case, role: ${SIDE_ROLES.join("|")}, label}: ${JSON.stringify(sd)}`);
+      process.exit(1);
+    }
+    if (seenSide.has(sd.id)) { console.error(`REJECTED: duplicate side id "${sd.id}"`); process.exit(1); }
+    seenSide.add(sd.id);
+  }
+  if (obj.market_shape !== "single-sided") {
+    if (obj.sides.length < 2) {
+      console.error(`REJECTED: market_shape "${obj.market_shape}" requires ≥2 sides[] entries`);
+      process.exit(1);
+    }
+    for (const role of ["constrained", "paying"])
+      if (!obj.sides.some((sd) => sd.role === role || sd.role === "both")) {
+        console.error(`REJECTED: a ${obj.market_shape} market must name which side is "${role}" (or a side with role "both") — gates bind to roles`);
+        process.exit(1);
+      }
   }
   if ("current_stage" in obj) {
     console.error('REJECTED: retired v1.0 field "current_stage" present — use active[]');
@@ -78,7 +113,7 @@ process.stdin.on("end", () => {
   const HC_STATUSES = ["armed", "triggered", "cleared"];
   validateKillCriteria(obj.kill_criteria, "kill_criteria");
   // v1.2 maintenance/cycle shape validation
-  if (obj.schema_version === "1.2.0") {
+  if (obj.schema_version === "1.3.0") {
     if (!Array.isArray(obj.cycles) || !obj.cycles.length) {
       console.error('REJECTED: v1.2 state requires a non-empty "cycles" index');
       process.exit(1);
@@ -212,6 +247,116 @@ process.stdin.on("end", () => {
         }
       }
     }
+    // blueprint (stage 6, optional root key): the post-LOCK implementation-blueprint
+    // phase. Root-level ON PURPOSE — a LOCKed cycle's gates object is frozen, so the
+    // BP gate cannot live inside it (same reasoning as `maintenance`). Closed key
+    // set; the artifacts under blueprint/ stay ground truth, this is only the index.
+    if (obj.blueprint !== undefined) {
+      const bp = obj.blueprint;
+      const BP_KEYS = ["cycle_id", "status", "gate", "updated", "amendments"];
+      // "abandoned" is the deliberate, visible exit for an in-flight blueprint
+      // whose pack was superseded (a new cycle) — without it, a cycle_id change
+      // could silently orphan half-written blueprint files (Opus review Q4).
+      const BP_STATUS = ["in_progress", "ready", "locked", "abandoned"];
+      const BP_GATE_STATUS = ["pending", "in_progress", "passed", "failed"];
+      if (!bp || typeof bp !== "object" || Array.isArray(bp)) {
+        console.error('REJECTED: "blueprint" must be an object {cycle_id, status, gate, updated}');
+        process.exit(1);
+      }
+      for (const k of Object.keys(bp)) {
+        if (!BP_KEYS.includes(k)) {
+          console.error(`REJECTED: blueprint carries unknown key "${k}" (closed set: ${BP_KEYS.join(", ")})`);
+          process.exit(1);
+        }
+      }
+      if (!/^C\d+$/.test(bp.cycle_id || "") || !obj.cycles.some((c) => c && c.id === bp.cycle_id)) {
+        console.error(`REJECTED: blueprint.cycle_id must name an entry in cycles[] (got ${JSON.stringify(bp.cycle_id)})`);
+        process.exit(1);
+      }
+      if (!BP_STATUS.includes(bp.status)) {
+        console.error(`REJECTED: blueprint.status must be one of ${BP_STATUS.join("|")}`);
+        process.exit(1);
+      }
+      if (!bp.gate || typeof bp.gate !== "object" || !BP_GATE_STATUS.includes(bp.gate.status)) {
+        console.error(`REJECTED: blueprint.gate must be {status: ${BP_GATE_STATUS.join("|")}, passed_date, notes}`);
+        process.exit(1);
+      }
+      if (bp.gate.passed_date !== null && !isRealDate(bp.gate.passed_date)) {
+        console.error(`REJECTED: blueprint.gate.passed_date must be null or a real YYYY-MM-DD`);
+        process.exit(1);
+      }
+      if ((bp.status === "locked") !== (bp.gate.status === "passed")) {
+        console.error('REJECTED: blueprint.status "locked" and gate.status "passed" imply each other — gate-check sets both in one step');
+        process.exit(1);
+      }
+      if (!isRealDate(bp.updated)) {
+        console.error('REJECTED: blueprint.updated must be a real YYYY-MM-DD');
+        process.exit(1);
+      }
+      if (bp.amendments !== undefined) {
+        const am = bp.amendments;
+        if (!am || typeof am !== "object" || Array.isArray(am)) {
+          console.error('REJECTED: blueprint.amendments must be {last_id, updated}');
+          process.exit(1);
+        }
+        for (const k of Object.keys(am)) {
+          if (!["last_id", "updated"].includes(k)) {
+            console.error(`REJECTED: blueprint.amendments carries unknown key "${k}" (closed set: last_id, updated)`);
+            process.exit(1);
+          }
+        }
+        if (!/^BA-\d{3}$/.test(am.last_id || "")) {
+          console.error(`REJECTED: blueprint.amendments.last_id must be BA-<NNN> zero-padded 3 digits (got ${JSON.stringify(am.last_id)})`);
+          process.exit(1);
+        }
+        if (!isRealDate(am.updated)) {
+          console.error('REJECTED: blueprint.amendments.updated must be a real YYYY-MM-DD');
+          process.exit(1);
+        }
+        if (bp.status !== "locked") {
+          console.error('REJECTED: blueprint.amendments is legal only on a locked blueprint — amendments are post-gate work (amend-blueprint skill)');
+          process.exit(1);
+        }
+      }
+    }
+    // A blueprint record may be superseded by a later cycle's blueprint; it may not
+    // vanish or be quietly rewritten after its gate passed. Same anti-erasure shape
+    // as retention duties and the cycle freeze.
+    if (fs.existsSync(target)) {
+      let prevBp = null;
+      try {
+        const prevState = JSON.parse(fs.readFileSync(target, "utf8"));
+        prevBp = prevState && prevState.blueprint ? prevState.blueprint : null;
+      } catch {
+        console.error("REJECTED: the existing state.json could not be parsed, so the blueprint record cannot be compared — repair it first (fails closed on purpose)");
+        process.exit(1);
+      }
+      if (prevBp) {
+        if (obj.blueprint === undefined) {
+          console.error("REJECTED: this write drops the blueprint record — a blueprint phase is superseded by a later cycle's blueprint (different cycle_id), never removed");
+          process.exit(1);
+        }
+        // A cycle_id change is legal ONLY from a locked or abandoned record: an
+        // in_progress blueprint cannot be silently orphaned by a new cycle —
+        // abandoning it is a deliberate one-step write (+ a blueprint-abandoned
+        // journal row, which is the skill's obligation and the gatekeeper's check).
+        if (obj.blueprint.cycle_id !== prevBp.cycle_id && !["locked", "abandoned"].includes(prevBp.status)) {
+          console.error(
+            `REJECTED: blueprint for cycle ${prevBp.cycle_id} is still "${prevBp.status}" — set it to "abandoned" first (with a blueprint-abandoned decision-log row) before starting cycle ${obj.blueprint.cycle_id}'s blueprint`
+          );
+          process.exit(1);
+        }
+        // Locked same-cycle record: identity and verdict freeze; only the
+        // amendments index and its date may move (amend-blueprint appends there).
+        if (prevBp.status === "locked" && obj.blueprint.cycle_id === prevBp.cycle_id) {
+          const core = (b) => JSON.stringify({ cycle_id: b.cycle_id, status: b.status, gate: b.gate });
+          if (core(obj.blueprint) !== core(prevBp)) {
+            console.error(`REJECTED: blueprint for cycle ${prevBp.cycle_id} is locked (gate BP passed) — cycle_id/status/gate are frozen; only "amendments" and "updated" may change (amend-blueprint), and a new blueprint phase belongs to a new cycle`);
+            process.exit(1);
+          }
+        }
+      }
+    }
     // Duties may change status; they may not vanish. Dropping the `privacy` key or
     // emptying the array silently erased live obligations — the same shape as the
     // two-step unfreeze bypass found earlier.
@@ -274,7 +419,7 @@ process.stdin.on("end", () => {
         const prevInline = prevCycles.find((c) => c && c.state === null);
         const frozen = prevInline && ["locked", "stopped"].includes(prevInline.status);
         if (frozen) {
-          const FROZEN_KEYS = ["gates", "thresholds", "kill_criteria", "active", "mode", "waiting_on", "artifacts"];
+          const FROZEN_KEYS = ["gates", "thresholds", "kill_criteria", "active", "mode", "waiting_on", "artifacts", "market_shape", "sides"];
           const changed = FROZEN_KEYS.filter((k) => JSON.stringify(prev[k]) !== JSON.stringify(obj[k]));
           if (changed.length) {
             console.error(
@@ -428,9 +573,10 @@ function writeFragment(obj, resolvedTarget) {
   for (const k of [
     "cycle_id", "parent", "status", "mode", "active", "gates", "thresholds",
     "kill_criteria", "waiting_on", "artifacts", "validation_runs", "updated",
+    "market_shape", "sides",
   ]) {
     if (!(k in obj)) {
-      console.error(`REJECTED: cycle fragment missing required key "${k}"`);
+      console.error(`REJECTED: cycle fragment missing required key "${k}" (market_shape/sides are cycle-owned since schema 1.3.0 — a new cycle may re-shape the market)`);
       process.exit(1);
     }
   }
@@ -500,7 +646,7 @@ function writeFragment(obj, resolvedTarget) {
     if (fs.existsSync(resolvedTarget)) {
       const prev = JSON.parse(fs.readFileSync(resolvedTarget, "utf8"));
       if (["locked", "stopped"].includes(prev.status)) {
-        const FROZEN_KEYS = ["cycle_id", "parent", "status", "gates", "thresholds", "kill_criteria", "active", "mode", "waiting_on", "artifacts", "validation_runs"];
+        const FROZEN_KEYS = ["cycle_id", "parent", "status", "gates", "thresholds", "kill_criteria", "active", "mode", "waiting_on", "artifacts", "validation_runs", "market_shape", "sides"];
         const changed = FROZEN_KEYS.filter((k) => JSON.stringify(prev[k]) !== JSON.stringify(obj[k]));
         if (changed.length) {
           console.error(

@@ -111,6 +111,17 @@ process.stdin.on("end", () => {
           line += `; !! PARTICIPANT-DATA RETENTION DUE: ${dueDuties
             .map((d) => `${d.duty_id || "?"}/${d.participant_id || "?"} by ${d.delete_by} (${d.manifest_ref || "private/participant-data-manifest.md"})`)
             .join("; ")} — confirm disposal with the founder over the exact files; never delete unprompted`;
+        const bp = st.blueprint && typeof st.blueprint === "object" ? st.blueprint : null;
+        if (bp) {
+          line += `; blueprint(${bp.cycle_id || "?"}): ${bp.status || "?"}, gate BP ${
+            (bp.gate && bp.gate.status) || "?"
+          }`;
+          if (bp.amendments && bp.amendments.last_id)
+            line += `, amendments through ${bp.amendments.last_id} (read blueprint/amendment-log.md FIRST — current truth = locked blueprint + amendments)`;
+          if (bp.status === "abandoned") line += " (superseded — a later cycle owns the current blueprint)";
+          else if (bp.status !== "locked")
+            line += " — stage 6 in progress: resume at the first non-ready row of blueprint-overview.md's index before build work";
+        }
         if (lastRec && lastRec.completed_at)
           line += `; last reconcile ${lastRec.id || "?"} ${lastRec.completed_at} (${lastRec.intake_authority || "?"})`;
         if (driftPending)

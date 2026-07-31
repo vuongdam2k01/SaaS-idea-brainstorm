@@ -70,6 +70,15 @@ process.stdin.on("end", () => {
         );
       }
       if (/^status:\s*locked\s*$/m.test(fm) || /^publication_status:\s*locked\s*$/m.test(fm)) {
+        // Blueprint files get a signposted LEGAL route instead of a dead end —
+        // the dead end is where a real session decides to override (Opus review,
+        // v1.4.1 finding #1): the locked bytes never change; the fix is a
+        // Blueprint Amendment Record.
+        if (/\/blueprint\//i.test(norm)) {
+          return ask(
+            `${path.basename(fp)} is a LOCKED blueprint artifact (gate BP passed). It is never edited in place — record the discovery with the amend-blueprint skill instead: it runs the founder's scope test, writes an immutable ba-NNN amendment + amendment-log row, and current truth becomes locked blueprint + amendment log. Approve only if the user explicitly requested an in-place history correction.`
+          );
+        }
         return ask(
           `${path.basename(fp)} is LOCKED (signed/published). Locked artifacts (kill criteria, DoD, positioning, MVP spec, published baselines/manifests) exist so decisions and history cannot be renegotiated silently — changes go into a same-kind successor (supersedes) or a new cycle, never in place. Approve only if the user explicitly requested this revision.`
         );
@@ -81,7 +90,7 @@ process.stdin.on("end", () => {
     //    (contains-check allowed prepend-tampering; whitespace-trimmed comparison
     //    allowed silent trailing-row edits — both review findings). Tolerance:
     //    exactly one missing/added trailing newline, nothing else.
-    if (/\/(decision-log|drift-inbox|evidence-ledger|audit-trail)\.md$/i.test(norm) && exists && newText !== null) {
+    if (/\/(decision-log|drift-inbox|evidence-ledger|audit-trail|amendment-log|deferred-register)\.md$/i.test(norm) && exists && newText !== null) {
       const which = norm.match(/\/([^/]+\.md)$/)[1];
       const oldBase = oldText.replace(/\r?\n$/, ""); // tolerate ONE trailing newline difference
       if (oldBase && !(newText === oldText || newText.startsWith(oldText) || newText.startsWith(oldBase + "\n") || newText.startsWith(oldBase + "\r\n") || newText === oldBase)) {
@@ -98,7 +107,12 @@ process.stdin.on("end", () => {
     if (
       /\.md$/i.test(norm) && exists && newText !== null &&
       !/\/(decision-log|drift-inbox|evidence-ledger|audit-trail|founder-charter|post-mortem|README)\.md$/i.test(norm) &&
-      !/\/private\//i.test(norm)
+      !/\/private\//i.test(norm) &&
+      // blueprint/ is the legal post-LOCK pipeline-phase workspace (stage 6):
+      // drafting there must not trip the historical freeze; once BP passes, its
+      // files are status: locked and section 1 (with the amend-blueprint route)
+      // owns their protection.
+      !/\/blueprint\//i.test(norm)
     ) {
       const fmH = (oldText.match(/^---\r?\n([\s\S]*?)\r?\n---/) || [, ""])[1];
       const isMaint = /^phase:\s*maintenance\s*$/m.test(fmH);

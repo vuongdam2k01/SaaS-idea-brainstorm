@@ -17,7 +17,7 @@ gate: C
 status: draft          # stays draft until calibrated by customer words in stage 2
 evidence_grade: B
 rung: <enhanced-auto|baseline-auto|handoff>
-pipeline_version: 1.3.0
+pipeline_version: 1.6.0
 updated: YYYY-MM-DD
 ---
 # Competitive map (DRAFT — calibrate against customer words in stage 2; do not position against phantom competitors)
@@ -64,7 +64,7 @@ gate: C
 status: draft
 evidence_grade: B
 rung: <rung>
-pipeline_version: 1.3.0
+pipeline_version: 1.6.0
 updated: YYYY-MM-DD
 ---
 # Negative-review mining (1–3★, verbatim only)

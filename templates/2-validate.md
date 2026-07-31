@@ -1,4 +1,6 @@
-# Stage 2 — Validate (3 sequential gates: V1 → V2 → V3)
+# Stage 2 — Validate
+
+> **v1.6.0 (two-/multi-sided)**: one sampling frame per side, threshold binds the constrained side, denominators never merged; V2 needs matchmaking + single-player value (or an executable seeding plan + armed cold-start criterion); V3 money from the paying side, Mom-Test commitments from the rest. The skill `stage-2-validate` is normative. (3 sequential gates: V1 → V2 → V3)
 
 > **Manual-mode rendering.** The normative producer of these artifact shapes is the plugin skill
 > `stage-2-*-templates` (skills win on any disagreement). Load-bearing table

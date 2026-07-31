@@ -23,12 +23,19 @@ Every artifact has exactly one policy; semantic role never overrides it.
 | `immutable-snapshot` | Frozen at its ceremony, never edited; changes happen only in a successor of the same kind or a new cycle | gate-locked artifacts, mvp-pack (frozen at LOCK — "build completion" is not a pipeline event), reconcile manifests + intake + claims registers, executed-kit snapshots, validation-run specs and reports |
 
 Post-LOCK disposition of surviving pipeline artifacts (complete matrix — nothing is unassigned):
-gate-locked artifacts (kill-criteria, positioning, DoD, mvp-spec, charter copy in pack) = immutable-snapshot ·
+gate-locked artifacts (kill-criteria, positioning, DoD, mvp-spec, charter copy in pack, **and the
+blueprint pipeline set once gate BP passes**) = immutable-snapshot ·
 evidence-ledger + decision-log + founder-charter = append-only ·
 draft/ready pipeline artifacts that never got gate-locked (canvas, competitive-map, assumption-map, …) =
 frozen as historical context at LOCK — they are not projections; their current-truth role passes to the
 baseline. Editing one post-LOCK is a mistake the hooks surface; the correct move is always a baseline
-amendment or a new cycle's fresh artifact set.
+amendment or a new cycle's fresh artifact set. **Blueprint exception with its own machinery**: a
+locked blueprint's current truth = the locked files **plus `blueprint/amendment-log.md`** — a
+build-time spec defect/gap is recorded by the `amend-blueprint` skill (immutable `ba-NNN` record +
+appended log row + journaled founder scope test), never by editing the file and never through a
+baseline (a spec correction is not implemented-reality drift). Pack-predicate changes still route to
+declare-drift/reconcile. Stage-6 *drafting* (blueprint files before gate BP) is the one legal
+post-LOCK pipeline-phase workspace and is exempt from the historical freeze.
 
 Scratch material has no authority and is not a maintained class. Kits are executable protocols while
 their gate is open; the exact executed version becomes an immutable audit snapshot; a kit is never
@@ -253,7 +260,8 @@ nothing changes for existing artifacts. `phase: maintenance` → required keys:
 artifact: current-baseline-v2        # the artifact_id; basename must match; lowercase kebab-case
 artifact_kind: current-baseline      # current-baseline | reconcile-manifest | reconcile-intake |
                                      # claims-register | validation-run-spec | validation-run-report |
-                                     # health-criteria | drift-inbox
+                                     # health-criteria | drift-inbox | blueprint-amendment |
+                                     # blueprint-amendment-log | deferred-register
 idea: <slug>
 phase: maintenance
 cycle_id: C1
@@ -262,13 +270,14 @@ publication_status: draft            # draft | locked — locked is set only in 
                                      # FINAL render (reconcile publish; run-validation for run specs/
                                      # reports; the LOCK disposition ceremony for health-criteria-v1)
 as_of: YYYY-MM-DD
-pipeline_version: 1.3.0
+pipeline_version: 1.6.0
 updated: YYYY-MM-DD
 ---
 ```
 
 Kind ↔ policy pairing (enforced): current-baseline, health-criteria → `versioned-projection` ·
-drift-inbox → `append-only` · everything else → `immutable-snapshot`.
+drift-inbox, blueprint-amendment-log, deferred-register → `append-only` · everything else →
+`immutable-snapshot`.
 
 `stage`/`gate` do not apply and must be absent. All ids are lowercase kebab-case (reconcile ids
 `r-YYYYMMDD-NN`, run ids `vr-YYYYMMDD-NN`). Conditionals: `supersedes` (idea-relative path, no
@@ -277,11 +286,14 @@ traversal — required on current-baseline AND health-criteria vN>1; target must
 supersession time); `run_id` (required on validation-run-spec/-report; artifact id must be
 `<run_id>-spec` / `<run_id>-report`, under `validation-runs/`); `reconcile_id` (required on
 reconcile-manifest/intake/claims-register; files live under `reconcile/<reconcile_id>/`; manifest id
-is `manifest-<reconcile_id>`). Uniqueness scope: `(cycle_id, artifact_id)`. Maintenance-reserved
+is `manifest-<reconcile_id>`). `amendment_id` (required on
+blueprint-amendment: `BA-<NNN>`, same zero-padded digits as the `ba-<NNN>-<slug>.md` filename; files
+live under `blueprint/amendments/`). Uniqueness scope: `(cycle_id, artifact_id)`. Maintenance-reserved
 filenames/paths always validate under this schema — omitting `phase` does not opt out. Directory
 layout per cycle: `current-baseline-vN.md`, `reconcile/<reconcile_id>/manifest-<reconcile_id>.md`
 (+ intake/claims files), `validation-runs/<run_id>-spec.md` + `<run_id>-report.md`, `drift-inbox.md`,
-`health-criteria-vN.md`.
+`health-criteria-vN.md`, `blueprint/deferred-register.md`, `blueprint/amendment-log.md`,
+`blueprint/amendments/ba-<NNN>-<slug>.md`.
 
 ## 10. LOCK kill-criterion disposition (gate-check Layer 3, strictly AFTER the PASS decision)
 

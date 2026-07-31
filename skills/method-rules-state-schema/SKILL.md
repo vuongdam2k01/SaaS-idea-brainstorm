@@ -10,13 +10,15 @@ Location: `ideas/<slug>/state.json` in the **user's working repository** (never 
 
 ```json
 {
-  "schema_version": "1.2.0",
-  "pipeline_version": "1.3.0",
+  "schema_version": "1.3.0",
+  "pipeline_version": "1.6.0",
   "idea": "<slug>",
   "title": "Short human title",
   "created": "YYYY-MM-DD",
   "updated": "YYYY-MM-DD",
   "mode": "analysis",
+  "market_shape": "single-sided",
+  "sides": [],
   "auto_continue": false,
   "active": ["0.0"],
   "gates": {
@@ -79,6 +81,7 @@ Location: `ideas/<slug>/state.json` in the **user's working repository** (never 
 
 - **`active[]`** replaces the old scalar `current_stage` (v1.0.0 states are migrated: `current_stage: N` → `active: ["<N>"]`). It lists the task/branch ids currently in progress, e.g. `["2.V1", "3.R1"]` — the pipeline is a DAG (stage 1 starts after 0.1; stage 3 runs parallel to stage 2). Gate ordering itself is enforced by the `method-rules-gate-contracts` skill `Requires`, not by this list.
 - `mode`: `"analysis"` (default) | `"market-evidence"`. Switching is done via the `switch-mode` skill only (journaled, kit/capability preconditions checked).
+- **`market_shape`** (v1.3.0): `single-sided` | `two-sided` | `multi-sided` — founder-confirmed at 0.3b, journaled, never model-assigned. **`sides[]`**: `{id: kebab-case, role: constrained|paying|both|other, label}` — a LIST with ROLES, not a primary/secondary pair (a binary design breaks at three sides; gates bind to roles: F/V1 → constrained, V3 → paying; roles may coincide on one side via `both`). Non-single shapes require ≥2 sides and both roles present. **Cycle-owned like `mode`**: fragment cycles carry their own `market_shape`/`sides` (a new cycle may re-shape the market), and both keys freeze with the cycle's subtree. **Migration 1.2.0 → 1.3.0**: absent `market_shape` defaults to `"single-sided"`, `sides` to `[]` — never fabricate a shape the founder did not confirm; journal the migration.
 - `gates.*.evidence_grade_observed`: the grade actually backing this gate, recorded when its verdict is written (`A`|`B`|`C`|`none`). Distinct from `evidence_floor`, which is the *requirement* — `scripts/pack-verdict.js` reads the observation, because reading the floor would make every pack look validated. V3's is the one the pack predicate consumes.
 - `gates.*.status`: `pending` | `in_progress` | `passed` | `failed` | `open`. `open` is legal only where gate-contracts allows it (V2, V3, R2, and R1-with-Pre-feasibility-downgrade), analysis mode only.
 - `thresholds`: reference defaults above; user may override during stage 0; `signed_date` set at gate F **together with a `threshold-snapshot` row in decision-log.md** (hook-independent integrity — gate-check compares every time). Post-signing edits require a `revisions` entry `{date, field, from, to, reason, user_approved: true}`.
@@ -97,5 +100,6 @@ Location: `ideas/<slug>/state.json` in the **user's working repository** (never 
 - **`maintenance`**: `drift_declared_at` (full ISO-8601 timestamp, set by declare-drift), `active_reconcile` (reconcile_id while a reconcile is in flight), `last_reconcile` (index data only: `{id, completed_at, consumed_through, manifest, intake_authority, drift_dimensions}` — `consumed_through` is the highest drift_id consumed, the AUTHORITATIVE boundary marker; full history lives in manifests + journal), `current_baseline` (head pointer, idea-relative path — updated LAST in the reconcile transaction), `blocking_claims` (claim_ids currently in `contradicted-retro`), `reality_sources` (user-declared locators — see maintenance-rules §5).
 - **`health_criteria[]`**: post-LOCK health criteria (state+date form, like kill criteria) written by the LOCK disposition ceremony (`retire|carry|replace`); root-level because they govern the idea, not one cycle. Overdue armed entries are surfaced like kill criteria.
 - **`validation_runs[]`**: index only — `{run_id, cycle_id, gate_kind, verdict, report}`; full run specs live in `validation-runs/<run_id>.md`.
+- **`blueprint`** (optional root key — absent means "stage 6 not started", like `privacy`): the post-LOCK implementation-blueprint phase index. Root-level ON PURPOSE: a LOCKed cycle's `gates` object is frozen, so gate BP cannot live inside it (same placement reasoning as `maintenance`). Closed key set, validated by state-write when present: `{"cycle_id": "C1", "status": "in_progress|ready|locked|abandoned", "gate": {"status": "pending|in_progress|passed|failed", "passed_date": null, "notes": ""}, "updated": "YYYY-MM-DD", "amendments": {"last_id": "BA-007", "updated": "YYYY-MM-DD"}}` (`amendments` optional, legal only on a locked blueprint — written by `amend-blueprint` so session-start can surface it). Created by the `stage-6-blueprint` skill at entry; `status: locked` and `gate.status: passed` imply each other and are set together by gate-check on BP PASS (state-write enforces the pairing). Transition rules (state-write enforced): a locked record freezes its `cycle_id`/`status`/`gate` — only `amendments` + `updated` may move; a **`cycle_id` change is legal only from a `locked` or `abandoned` record** — an in-flight blueprint superseded by a new cycle is deliberately set to `abandoned` (one visible write + a `blueprint-abandoned` decision-log row, which is the skill's obligation and the gatekeeper's check), never silently orphaned. The block is never dropped once present. Artifacts are ground truth (`blueprint/` for the root cycle, `cycles/<id>/blueprint/` for fragment cycles); this is only the index.
 - **Hard boundary**: blocked while any inbox drift_id exceeds `last_reconcile.consumed_through` (the exact check skills use); hooks approximate with epoch-parsed timestamp comparison where ties and unparsable values count as PENDING. Blocked: pack issuing/relabeling, post-LOCK validation runs, switch-mode. Investigation and ordinary coding are not.
 - **Migration 1.1.0 → 1.2.0**: add the new blocks with defaults/nulls above (`cycles` = inline C1 whose `status` reflects current progress; `active_cycle: "C1"`; `privacy: {retention_duties: []}` — and if interactive contact already happened, populate it from `private/participant-data-manifest.md` rather than leaving it empty, since an empty index reads as "no obligations"); normalize any `handoff-only` capability rung to `handoff`; never fabricate a lock manifest, reconcile history, health criteria, or a retention deadline nobody agreed to. Journal a `migration` row. The `privacy` key stays optional on read: its absence means "no interactive contact recorded yet", never "duties were cleared".

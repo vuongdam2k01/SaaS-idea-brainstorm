@@ -25,7 +25,7 @@ const REQUIRED = [
   "updated",
 ];
 const ENUMS = {
-  gate: ["F", "C", "V1", "V2", "V3", "R1", "R2", "P", "LOCK"],
+  gate: ["F", "C", "V1", "V2", "V3", "R1", "R2", "P", "LOCK", "BP"],
   status: ["draft", "ready", "locked"],
   evidence_grade: ["A", "B", "C", "D", "none"],
   // Exactly three rungs (v1.2.0). `handoff-only` duplicated `handoff`; `simulate`
@@ -36,7 +36,10 @@ const ENUMS = {
   rung: ["enhanced-auto", "baseline-auto", "handoff"],
 };
 const LEGACY_RUNGS = ["handoff-only", "simulate"];
-const PIPELINE_VERSIONS = ["1.0.0", "1.1.0", "1.2.0"];
+const PIPELINE_VERSIONS = ["1.0.0", "1.1.0", "1.2.0", "1.3.0", "1.4.0", "1.4.1", "1.5.0", "1.6.0"];
+// Maintenance frontmatter shape is unchanged since its introduction in 1.2.0;
+// artifacts stamped by later template versions carry the later literal.
+const MAINT_VERSIONS = ["1.2.0", "1.3.0", "1.4.0", "1.4.1", "1.5.0", "1.6.0"];
 const MAINT_REQUIRED = [
   "artifact",
   "artifact_kind",
@@ -59,6 +62,9 @@ const MAINT_ENUMS = {
     "validation-run-report",
     "health-criteria",
     "drift-inbox",
+    "blueprint-amendment",
+    "blueprint-amendment-log",
+    "deferred-register",
   ],
   mutation_policy: ["append-only", "versioned-projection", "immutable-snapshot"],
   publication_status: ["draft", "locked"],
@@ -73,15 +79,22 @@ const KIND_POLICY = {
   "claims-register": "immutable-snapshot",
   "validation-run-spec": "immutable-snapshot",
   "validation-run-report": "immutable-snapshot",
+  "blueprint-amendment": "immutable-snapshot",
+  "blueprint-amendment-log": "append-only",
+  "deferred-register": "append-only",
 };
 // Filenames/paths reserved for maintenance artifacts: they must declare
 // phase: maintenance — a reserved name validated under pipeline rules would be
 // a phase-laundering path.
 function isReservedMaintPath(norm) {
+  // Suffix-anchored on purpose: fragment cycles (cycles/C2/blueprint/…) must not
+  // escape the reserved-path dispatch (Opus review, v1.4.1 Q1).
   return (
     /\/(current-baseline-v\d+|drift-inbox|health-criteria-v\d+)\.md$/i.test(norm) ||
     /\/validation-runs\/[^/]+\.md$/i.test(norm) ||
-    /\/reconcile\/[^/]+\/[^/]+\.md$/i.test(norm)
+    /\/reconcile\/[^/]+\/[^/]+\.md$/i.test(norm) ||
+    /\/blueprint\/amendments\/[^/]+\.md$/i.test(norm) ||
+    /\/blueprint\/(amendment-log|deferred-register)\.md$/i.test(norm)
   );
 }
 // Collapse "." and ".." segments so exclusion/dispatch decisions run on the
@@ -109,6 +122,8 @@ process.stdin.on("end", () => {
     if (/\/private\//i.test(norm) || /README\.md$/i.test(norm)) return process.exit(0);
     if (/\/(decision-log|post-mortem|audit-trail)\.md$/i.test(norm))
       return process.exit(0); // journal formats, not artifact frontmatter
+    if (/\/coldstart-l[12]-\d{8}-\d{2}\.md$/i.test(norm))
+      return process.exit(0); // cold-start reports: records of an agent run, not artifacts
     if (/\/error-analysis\/batch-\d+\.md$/i.test(norm))
       return process.exit(0); // frontmatter-exempt worker trace files (canonical artifact is summary.md)
     if (!sentinelOk(norm)) return process.exit(0);
@@ -161,7 +176,7 @@ process.stdin.on("end", () => {
     }
     if (fm.evidence_grade && /[+-]$/.test(fm.evidence_grade))
       problems.push(`grade modifiers are forbidden: "${fm.evidence_grade}" — grades are strictly A/B/C/D`);
-    if (fm.stage && !/^[0-5]$/.test(fm.stage)) problems.push(`invalid stage: "${fm.stage}" (0-5)`);
+    if (fm.stage && !/^[0-6]$/.test(fm.stage)) problems.push(`invalid stage: "${fm.stage}" (0-6)`);
     // Real calendar date, not just shape (2026-99-99 must fail)
     if (fm.updated) {
       const m = fm.updated.match(/^(\d{4})-(\d{2})-(\d{2})$/);
@@ -190,7 +205,7 @@ process.stdin.on("end", () => {
     if (fm.artifact && base && fm.artifact !== base && !(base === "summary" && /^error-analysis/.test(fm.artifact)))
       problems.push(`artifact id "${fm.artifact}" must match filename "${base}.md"`);
     // stage/gate compatibility
-    const STAGE_GATES = { 0: ["F"], 1: ["C"], 2: ["V1", "V2", "V3"], 3: ["R1", "R2"], 4: ["P"], 5: ["LOCK"] };
+    const STAGE_GATES = { 0: ["F"], 1: ["C"], 2: ["V1", "V2", "V3"], 3: ["R1", "R2"], 4: ["P"], 5: ["LOCK"], 6: ["BP"] };
     if (fm.stage && fm.gate && STAGE_GATES[fm.stage] && !STAGE_GATES[fm.stage].includes(fm.gate))
       problems.push(`gate ${fm.gate} is illegal for stage ${fm.stage} (allowed: ${STAGE_GATES[fm.stage].join("|")})`);
 
@@ -245,8 +260,8 @@ process.stdin.on("end", () => {
     // stage/gate belong to the pipeline phase only
     if ("stage" in fm) problems.push(`maintenance artifacts must not carry "stage"`);
     if ("gate" in fm) problems.push(`maintenance artifacts must not carry "gate"`);
-    if (fm.pipeline_version && fm.pipeline_version !== "1.2.0")
-      problems.push(`maintenance artifacts require pipeline_version 1.2.0 (got "${fm.pipeline_version}")`);
+    if (fm.pipeline_version && !MAINT_VERSIONS.includes(fm.pipeline_version))
+      problems.push(`maintenance artifacts require pipeline_version ${MAINT_VERSIONS.join("|")} (got "${fm.pipeline_version}")`);
     if (fm.cycle_id && !/^C\d+$/.test(fm.cycle_id))
       problems.push(`invalid cycle_id: "${fm.cycle_id}" (shape: C<number>)`);
     for (const dk of ["as_of", "updated"]) {
@@ -284,6 +299,24 @@ process.stdin.on("end", () => {
       if (!/\/validation-runs\/[^/]+\.md$/i.test(norm))
         problems.push(`${fm.artifact_kind} must live under validation-runs/`);
     }
+    // blueprint amendment records: the file id and amendment_id are bound
+    // ARITHMETICALLY (same zero-padded three digits) — a prefix match let
+    // ba-007-foo.md carry amendment_id BA-12 and the log then indexed an
+    // amendment no file claims.
+    if (fm.artifact_kind === "blueprint-amendment") {
+      if (!/\/blueprint\/amendments\/[^/]+\.md$/i.test(norm))
+        problems.push(`blueprint-amendment must live under blueprint/amendments/`);
+      const fa = (fm.artifact || "").match(/^ba-(\d{3})-[a-z0-9]+(?:-[a-z0-9]+)*$/);
+      if (!fa) problems.push(`blueprint-amendment artifact id must be "ba-<NNN>-<slug>" with zero-padded 3 digits (got "${fm.artifact}")`);
+      const aid = (fm.amendment_id || "").match(/^BA-(\d{3})$/);
+      if (!aid) problems.push(`blueprint-amendment requires "amendment_id" of shape BA-<NNN> (zero-padded 3 digits; got "${fm.amendment_id || ""}")`);
+      if (fa && aid && fa[1] !== aid[1])
+        problems.push(`amendment_id BA-${aid[1]} does not match the filename digits ba-${fa[1]}-… — the two ids are one number`);
+    }
+    if (fm.artifact_kind === "blueprint-amendment-log" && !/\/blueprint\/amendment-log\.md$/i.test(norm))
+      problems.push(`blueprint-amendment-log must be blueprint/amendment-log.md`);
+    if (fm.artifact_kind === "deferred-register" && !/\/blueprint\/deferred-register\.md$/i.test(norm))
+      problems.push(`deferred-register must be blueprint/deferred-register.md`);
     // reconcile artifacts: reconcile_id required, path must be reconcile/<reconcile_id>/,
     // manifest basename must be manifest-<reconcile_id>
     if (["reconcile-manifest", "reconcile-intake", "claims-register"].includes(fm.artifact_kind)) {

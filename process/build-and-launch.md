@@ -1,13 +1,13 @@
 # Build & Launch — after MVP scope is locked
 
-Apply **after** the main pipeline ([pipeline.md](pipeline.md)) ends at Stage 5's final gate. The locked MVP scope is a contract — any scope change during build must re-check against the frozen cut list and Definition of Done. When reality departs from the locked scope (features changed/added/removed, price or buyer shifted), declare it (`declare-drift`) and reconcile on demand (`reconcile`) — the pack itself is never edited; current truth lives in versioned baselines (see the method-rules maintenance rules).
+Apply **after** the main pipeline ([pipeline.md](pipeline.md)) passes Stage 5's LOCK gate **and Stage 6's BP gate** — build starts from the two-layer contract: the MVP Pack bounds scope, the implementation blueprint (`blueprint/`) binds implementation (feature specs, field-level schema, UX, interface contracts, NFRs, test plan, build plan). **Read order on build day one: `blueprint/amendment-log.md` if it exists (current truth = locked blueprint + amendments), then the pack, then the blueprint.** Two different discoveries route two different ways during build: **the spec is defective or silent on an in-scope case** (an edge case only code exposes, a provider behaving differently than documented, a logic conflict between two specs) → `amend-blueprint` (founder-answered scope test, immutable `ba-NNN` amendment, append-only log; the locked files never change); **reality departs from the locked scope** (features changed/added/removed, price or buyer shifted) → declare it (`declare-drift`) and reconcile on demand (`reconcile`) — the pack itself is never edited; current truth lives in versioned baselines (see the method-rules maintenance rules).
 
 ---
 
 ## BUILD PHASE
 
 1. **Build only the locked core loop; the cut list is the boundary.** For a Validated pack, "people paid for it" is what LOCK already proved. For a Hypothesis/Pre-feasibility pack (V3 or R1 accepted-open), the locked scope IS buildable as-is — its unpaid slices are labeled hypotheses whose learning routes through validation runs, not a reason to add features. Overbuilding is the common founder mistake — ship the minimum that closes the core loop; features are addable post-launch based on real feedback.
-2. Follow technical design contract locked at 5.4: schema/domain model, condensed ADR (context for AI coding), code-understanding boundary (money/data/auth = 100% understand), event tracking plan with aha event.
+2. **The blueprint is the implementation authority**: feature specs (acceptance criteria, states, edge cases), field-level data-schema, api-contract, integration specs, test plan — with the 5.4 technical design contract as its parent (schema/domain model, condensed ADR as context for AI coding, code-understanding boundary: money/data/auth = 100% understand, event tracking plan with aha event). If code and blueprint disagree, that is either a spec defect (→ `amend-blueprint`) or unbuilt scope — never a silent divergence.
 3. **Split Dev/Prod environment from day one** — historical pattern with public post-mortem: Resend (02/2024) ran migration from local pointing wrong to production, dropped all tables, 12-hour outage; GitLab (01/2017) deleted data directory on primary and all 5 backup/replication mechanisms failed on demand. Lesson from both: **no role from local machine can write to production database** — migrations run through CI only; disaster-recovery drill is routine, not one-time.
 4. **Stay connected with interview/pre-order group** — they're beta testers; build in public to gather audience.
 
@@ -27,6 +27,8 @@ Items that **cannot be missing**:
 - [ ] **Configure dunning / Smart Retries** upfront — Stripe default: 8 attempts over 2 weeks. Empirical: ~25% subscription churn purely from payment failure (Stripe); involuntary churn averages ~22% of total churn (Churnkey).
 
 ### Legal & trust
+- [ ] **Regulated-domain gate (blocking when flagged at 0.3b)**: the regulated-domain Test Card's `load_before_event` is exactly here — **before the first outside user touches real regulated data**, the compliance obligations in the blueprint's `bp:compliance` section are verified against a real source or professional advice (model-drafted obligations are `[GUESS]` and do not count), and the MSP's explicitly-unsupported field states the regulated boundary.
+
 - [ ] **Privacy policy, terms, data handling standards**. (Myth "~30% churn from GDPR" circulates without source — removed from workflow.) Real basis: Cisco Data Privacy Benchmark 2023 (3.1k+ orgs, 26 markets): **94%** won't buy if data isn't protected right. B2B adds: buyer often demands **DPA + subprocessor list** in procurement — pre-built helps close deals faster.
 
 ### User testing

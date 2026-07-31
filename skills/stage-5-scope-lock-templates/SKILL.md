@@ -16,7 +16,7 @@ gate: LOCK
 status: draft            # locked at gate LOCK
 evidence_grade: <highest backing grade>
 rung: <rung>
-pipeline_version: 1.3.0
+pipeline_version: 1.6.0
 updated: YYYY-MM-DD
 ---
 # MVP Spec — <title>   [label COMPUTED by `scripts/pack-verdict.js`, never chosen]
@@ -27,9 +27,11 @@ updated: YYYY-MM-DD
 > failed gate. If label and gate state ever disagree, the gate state is right.
 > Read order for a build session: this file → tech-design.md → definition-of-done.md → **founder-charter.md** (the interpretive authority: how the founder decides anything this pack doesn't decide) → carry-forward.md → evidence-quality-report.md
 ## Core loop (≤5–7 steps, each traced)
+<!-- pack:core-loop -->
 | # | User does | System does | User gets | Trace (E-ids / ops-log) |
 |---|---|---|---|---|
 ## Aha event (named, measurable)
+<!-- pack:aha -->
 - Event: `event_name` — definition: ___ — source: R2 observation / dry-run [ASSUMED]
 ## Cut list — v1 will NOT do
 | feature cut | who asked (Pid/E-id) | why cut (no paying-customer trace) |
@@ -46,18 +48,22 @@ updated: YYYY-MM-DD
 > uptime numbers, no support-response times the founder has not agreed to. Every field is answered
 > or explicitly `N/A because ___`; a blank is a LOCK blocker.
 
-| Field | Commitment |
-|---|---|
-| Who may use it (eligibility) | |
-| Supported use cases | |
-| **Explicitly NOT supported** (say it plainly, so nobody buys the wrong thing) | |
-| Beta / experimental status disclosed how | |
-| Data collected · purpose | |
-| Retention · deletion path · who can request it | |
-| Export / manual correction / recovery expectation | |
-| Support intake (where a user reports a problem) + who answers | |
-| What happens if it breaks (rollback / manual fallback / honest "we fix it next day") | |
-| Pause / exit / sunset behaviour (what happens to their data) | |
+<!-- pack:msp -->
+| id | Field | Commitment |
+|---|---|---|
+| MSP-1 | Who may use it (eligibility) | |
+| MSP-2 | Supported use cases | |
+| MSP-3 | **Explicitly NOT supported** (say it plainly, so nobody buys the wrong thing) | |
+| MSP-4 | Beta / experimental status disclosed how | |
+| MSP-5 | Data collected · purpose | |
+| MSP-6 | Retention · deletion path · who can request it | |
+| MSP-7 | Export / manual correction / recovery expectation | |
+| MSP-8 | Support intake (where a user reports a problem) + who answers | |
+| MSP-9 | What happens if it breaks (rollback / manual fallback / honest "we fix it next day") | |
+| MSP-10 | Pause / exit / sunset behaviour (what happens to their data) | |
+
+(The `MSP-<n>` ids are join keys — stage 6's blueprint and `scripts/validate-blueprint.js` reference
+them; keep them verbatim and untranslated.)
 
 "Minimum" means removing whatever does not protect the value, the learning, safety, or an honest
 promise. It never means dropping security, privacy, data integrity, accessibility, or a support path.
@@ -70,17 +76,21 @@ artifact: tech-design ... gate: LOCK ...
 ---
 # Technical design contract
 ## Domain model (the expensive-to-change part — think here)
-Entities, relations, states (diagram or table):
+<!-- pack:entities -->
+Entities, relations, states (diagram or table; entity names lowercase snake_case — stage 6's
+field-level schema joins on them):
 ## ADRs (one paragraph each: chose X over Y because Z)
 | # | Decision | Chose | Over | Because |
 |---|---|---|---|---|
 ## Buy-don't-build
+<!-- pack:buy -->
 auth: · payments: · email: · analytics: · storage:
 ## The final-20% list (planned up front)
 - [ ] error handling · [ ] edge cases · [ ] authz/injection/rate-limit · [ ] failed payments · [ ] backup · [ ] dev/prod separation (no local write access to prod DB; migrations via CI only)
 ## Comprehension boundary (must understand 100%)
 money, user data, auth/authz. Loose elsewhere.
 ## Event tracking plan (day one)
+<!-- pack:tracking -->
 | event | name | note |
 |---|---|---|
 | aha | `event_name` | REQUIRED |
@@ -94,15 +104,16 @@ money, user data, auth/authz. Loose elsewhere.
 artifact: definition-of-done ... status: ready ...   # NOT locked here — gate-check Layer 3 promotes ready→locked on LOCK PASS (single-owner rule, the `method-rules-artifact-schema` skill); stage 5 only freezes/dates the content
 ---
 # Definition of Done (frozen BEFORE build — no self-negotiation later)
-## Universal invariants (every product)
-- [ ] Core loop end-to-end
-- [ ] Tracking fires the aha event
-- [ ] Backup runs (and restore tested)
-- [ ] Dogfooded
+<!-- pack:dod -->
+## Universal invariants (every product) — `DOD-<n>` ids are join keys, keep verbatim
+- [ ] DOD-1 Core loop end-to-end
+- [ ] DOD-2 Tracking fires the aha event
+- [ ] DOD-3 Backup runs (and restore tested)
+- [ ] DOD-4 Dogfooded
 ## Conditional modules — select by product profile; mark the rest N/A WITH a reason
-- [ ] (paid product) Real payment collected; failed payment handled; pricing page — or N/A because: ___
-- [ ] (multi-tenant) User A cannot see user B's data — or N/A because: ___
-- [ ] (collects personal data) Privacy/terms pages + deletion path — or N/A because: ___
+- [ ] DOD-5 (paid product) Real payment collected; failed payment handled; pricing page — or N/A because: ___
+- [ ] DOD-6 (multi-tenant) User A cannot see user B's data — or N/A because: ___
+- [ ] DOD-7 (collects personal data) Privacy/terms pages + deletion path — or N/A because: ___
 Frozen on: YYYY-MM-DD (content is fixed from this date; `status` still `ready` until LOCK PASS) · Changes require user-approved changelog entry below.
 ## Changelog
 ```

@@ -2,9 +2,9 @@
 
 [English](README.md) | **Tiếng Việt**
 
-Plugin Claude Code và Codex CLI nhận một ý tưởng SaaS thô và lái nó tới bản scope MVP được khóa — làm rõ, quét cạnh tranh, validate thị trường, kiểm chứng khả thi, định vị, khóa phạm vi — và từ chối gọi là "đã validate" thứ chưa được chứng minh. Quy trình không dừng ở LOCK: khai báo drift, đối soát theo yêu cầu với thực tế sản phẩm, và các lượt validation có ký trước giữ cho ý tưởng đã khóa luôn trung thực trong lúc bạn build ([Hậu LOCK](#hậu-lock-bảo-trì)).
+Plugin Claude Code và Codex CLI nhận một ý tưởng SaaS thô và lái nó tới tận trạng thái **sẵn sàng build** — làm rõ, quét cạnh tranh, validate thị trường, kiểm chứng khả thi, định vị, khóa phạm vi, và một bản **thiết kế triển khai (implementation blueprint) đầy đủ** — và từ chối gọi là "đã validate" thứ chưa được chứng minh. Quy trình không dừng ở LOCK: khai báo drift, đối soát theo yêu cầu với thực tế sản phẩm, và các lượt validation có ký trước giữ cho ý tưởng đã khóa luôn trung thực trong lúc bạn build ([Hậu LOCK](#hậu-lock-bảo-trì)).
 
-Sản phẩm bàn giao là **MVP Pack**: hợp đồng đầu vào tự đủ cho giai đoạn build, dán nhãn *Validated*, *Hypothesis*, hay *Pre-feasibility Hypothesis* đúng theo thứ thực sự chứng minh được. Nó sẽ thường xuyên nói rằng ý tưởng của bạn chưa được chứng minh. Một quy trình lúc nào cũng phán "đã validate" thì chẳng đáng giá gì.
+Sản phẩm bàn giao có hai lớp. Trước hết là **MVP Pack** — hợp đồng phạm vi tự đủ, dán nhãn *Validated*, *Hypothesis*, hay *Pre-feasibility Hypothesis* đúng theo thứ thực sự chứng minh được (nó sẽ thường xuyên nói rằng ý tưởng của bạn chưa được chứng minh; một quy trình lúc nào cũng phán "đã validate" thì chẳng đáng giá gì). Sau đó là **Implementation Blueprint** (giai đoạn 6, cửa BP) — đặc tả từng chức năng với trạng thái lỗi và edge case được trả lời hết, schema dữ liệu tới từng field, **bản đồ tương tác** (ai thắng khi hai chức năng cùng ghi một bản ghi, job cho tác vụ chạy dài, bất biến toàn cục), **đặc tả subsystem** cho phần lõi phi-CRUD (lõi LLM, engine 3D — capability, acceptance gắn eval, ngân sách, ghim version), đặc tả UX, hợp đồng API và tích hợp, NFR, kế hoạch test, kế hoạch build — để khi bắt đầu viết code, không còn quyết định sản phẩm nào phải tự bịa.
 
 Ba nguyên tắc làm nên nó:
 
@@ -36,7 +36,7 @@ npx codex-marketplace add vuongdam2k01/SaaS-idea-brainstorm
 
 Mọi tài liệu quy phạm (state schema, artifact schema, gate contracts, maintenance rules, và templates của từng stage) được ship dưới dạng **skill nạp được**, không phải file nằm cạnh một skill. Đây là chủ ý: bản cài từ marketplace nằm ở `~/.claude/plugins/cache/...`, ngoài allowed directories của phiên, nên bất cứ thứ gì skill chỉ đọc được bằng đường dẫn tương đối trên đĩa sẽ không đọc được đúng lúc người dùng thật cài theo đúng hướng dẫn. Không cần `--add-dir`, không cần nới quyền, không cần cấu hình gì.
 
-Skills và hooks chạy y nguyên trên cả hai CLI; bốn agent nghiên cứu/audit đóng gói riêng dạng `.codex/agents/*.toml` cho Codex. Thân agent được giữ y hệt từng byte giữa hai nền tảng bằng `scripts/sync-codex-agents.js --check`.
+Skills và hooks chạy y nguyên trên cả hai CLI; năm agent nghiên cứu/audit đóng gói riêng dạng `.codex/agents/*.toml` cho Codex. Thân agent được giữ y hệt từng byte giữa hai nền tảng bằng `scripts/sync-codex-agents.js --check`.
 
 Khởi động CLI ngay trong repo bạn muốn chứa workspace ý tưởng — artifact được ghi vào `ideas/<slug>/` tương đối so với thư mục làm việc, không bao giờ nằm trong plugin. Node.js trên PATH chạy ba hook và trình ghi state; không có nó thì chúng fail open kèm thông báo hiện rõ, ngoài ra không hỏng gì.
 
@@ -72,10 +72,11 @@ Chạy trọn vẹn không gói trong một buổi. Đó là chuỗi phiên, xen
 | `declare-drift` | `[slug] [điều đã đổi]` | Hậu-LOCK: ghi "đã ship/đổi/bỏ/đổi giá X" thành một dòng chỉ-thêm trong drift inbox — rẻ, lúc nào cũng được, không nghi thức |
 | `reconcile` | `[slug]` | Hậu-LOCK: đối soát thực tế sản phẩm từ các nguồn đã đăng ký, tiêu thụ drift inbox, phát hành current-baseline mới có hash, ký các spec validation run |
 | `run-validation` | `[slug] [run_id]` | Thực thi và phân xử một validation run đã ký — con đường duy nhất đưa một khẳng định từ `guess` lên `supported` |
+| `amend-blueprint` | `[slug] [điều phát hiện]` | Hậu-BP: ghi nhận lỗi/thiếu sót spec phát hiện giữa lúc build vào blueprint đã khóa — scope test do founder trả lời, bản amendment `ba-NNN` bất biến + log chỉ-thêm; file đã khóa không bao giờ đổi |
 
-Mọi lệnh nằm trong namespace `/saas-idea-brainstorm:`. Các cửa: `F`, `C`, `V1`, `V2`, `V3`, `R1`, `R2`, `P`, `LOCK` — bỏ trống thì nó suy ra từ state.
+Mọi lệnh nằm trong namespace `/saas-idea-brainstorm:`. Các cửa: `F`, `C`, `V1`, `V2`, `V3`, `R1`, `R2`, `P`, `LOCK`, `BP` — bỏ trống thì nó suy ra từ state.
 
-Sáu skill giai đoạn (`stage-0-framing` … `stage-5-scope-lock`) tự kích hoạt theo tiến độ; bạn không phải gọi. `method-rules` là hiến pháp — mọi thứ đều nạp nó, không ai gọi trực tiếp được — kèm bốn vệ tinh quy phạm (`method-rules-{state-schema, artifact-schema, gate-contracts, maintenance-rules}`); bộ quy tắc bảo trì cố ý nằm ngoài bundle mặc định và do chính các skill hậu-LOCK tự nạp.
+Bảy skill giai đoạn (`stage-0-framing` … `stage-6-blueprint`) tự kích hoạt theo tiến độ; bạn không phải gọi. `method-rules` là hiến pháp — mọi thứ đều nạp nó, không ai gọi trực tiếp được — kèm bốn vệ tinh quy phạm (`method-rules-{state-schema, artifact-schema, gate-contracts, maintenance-rules}`); bộ quy tắc bảo trì cố ý nằm ngoài bundle mặc định và do chính các skill hậu-LOCK tự nạp.
 
 ---
 
@@ -85,10 +86,11 @@ Sáu skill giai đoạn (`stage-0-framing` … `stage-5-scope-lock`) tự kích 
 Giai đoạn 0 Framing ──F──> Giai đoạn 1 Cạnh tranh ──C──> Giai đoạn 2 Validate (V1 → V2 → V3)
                                                               ∥ (song song)
                                                         Giai đoạn 3 Verify (R1, R2)
-                                    ──> Giai đoạn 4 Định vị ──P──> Giai đoạn 5 Khóa scope ──> MVP Pack
+                                    ──> Giai đoạn 4 Định vị ──P──> Giai đoạn 5 Khóa scope ──LOCK──> MVP Pack
+                                    ──> Giai đoạn 6 Thiết kế triển khai ──BP──> bắt đầu build
 ```
 
-Đây là DAG, không phải hàng đợi. Giai đoạn 1 khởi động ngay sau việc 0.1. Giai đoạn 3 chạy song song giai đoạn 2 mỗi khi khả thi là giả định chết người — luôn đúng với sản phẩm có AI trong lõi, vì nếu mô hình không đạt được chất lượng cần thiết thì mọi giờ validate cho hướng đó đều phí.
+Đây là DAG, không phải hàng đợi. Giai đoạn 1 khởi động ngay sau việc 0.1. Nó cũng thích ứng theo hình dạng ý tưởng thay vì giả định một khuôn: **sản phẩm hai/nhiều phía** ghi các phía với vai trò `constrained`/`paying` (bar khó chạy trên phía khan hiếm, tiền chạy trên phía trả tiền, kèm kế hoạch seeding founder tự thực thi được và kill criterion cho vòng xoáy gà-trứng); **sản phẩm không màn hình** (API/CLI/SDK) khai surface và nhận lời hứa API-lifecycle thay cho màn hình; **domain quản chế** có mục compliance không bao giờ vắng mặt im lặng; lõi phi-CRUD (LLM, 3D, ledger) có subsystem spec hạng nhất. Giai đoạn 3 chạy song song giai đoạn 2 mỗi khi khả thi là giả định chết người — luôn đúng với sản phẩm có AI trong lõi, vì nếu mô hình không đạt được chất lượng cần thiết thì mọi giờ validate cho hướng đó đều phí.
 
 | Cửa | Câu hỏi | Cần trước | Được để mở? |
 |---|---|---|---|
@@ -101,6 +103,7 @@ Giai đoạn 0 Framing ──F──> Giai đoạn 1 Cạnh tranh ──C──>
 | **R2** | Thứ giao ra có tạo được kết quả đã hứa, kèm lần quay lại không cần nhắc? | R1, V3 | Có (chế độ analysis) |
 | **P** | Định vị có truy về đúng chữ khách hàng và sống sót copy test? | V1, V3, R1, R2 đã ngã ngũ | Không (dán nhãn "thesis") |
 | **LOCK** | Scope đã tự đủ để một phiên mới build được chưa? | V2, V3, R1, R2, P đã ngã ngũ | Không |
+| **BP** | Một phiên build có thể implement mọi chức năng mà **không phải tự bịa bất kỳ quyết định sản phẩm nào**? | LOCK đã qua | Không |
 
 Mỗi lần kiểm cửa chạy ba lớp. **Hình thức**: cửa tiền đề còn hiệu lực, artifact tồn tại đúng trạng thái chấp nhận được, ngưỡng ký trước ngày thu bằng chứng và vẫn khớp bản snapshot đã ký, hạng đúng nghiêm ngặt A/B/C/D, không mục hạng D nào được đếm, mọi khẳng định truy về id bằng chứng, chỉ số tính trên mẫu số đã đăng ký trước. **Đối kháng**: agent `gatekeeper` đọc mọi thứ bằng con mắt mới và cố làm cửa trượt — phát hiện báo cáo nguyên văn, xếp hạng, không làm nhẹ đi. **Quyết định**: bạn phê duyệt, và phán quyết rơi vào `decision-log.md`.
 
@@ -192,6 +195,10 @@ ideas/support-digest/
 │   ├── mvp-spec.md · tech-design.md · definition-of-done.md
 │   ├── carry-forward.md · evidence-quality-report.md · audit-trail.md
 │   └── eval/ · experiments/{landing,presell,concierge}/
+├── blueprint/                    # giai đoạn 6 (cửa BP): lớp triển khai — pack luôn chỉ-đọc
+│   ├── blueprint-overview.md · feature-specs/fs-NN-*.md
+│   ├── data-schema.md · ux-spec.md · api-contract.md · integration-specs.md
+│   └── nfr-spec.md · test-plan.md · build-plan.md
 ├── drift-inbox.md · health-criteria-vN.md · current-baseline-vN.md    # hậu-LOCK: inbox chỉ-thêm + các projection có phiên bản
 ├── reconcile/<r-id>/ · validation-runs/                               # giao dịch đối soát có hash · spec + report của run đã ký
 ├── cycles/C2/                    # cycle mới sao chép đúng bố cục này với state.json và các cửa của riêng nó
@@ -218,12 +225,13 @@ Tên thật, liên hệ và danh tính thanh toán chỉ nằm trong `ideas/<slu
 
 ## Agents và hooks
 
-Bốn subagent chạy với context mới tinh nên không thừa hưởng được sự lạc quan của hội thoại chính:
+Năm subagent chạy với context mới tinh nên không thừa hưởng được sự lạc quan của hội thoại chính:
 
 - **competitor-scanner** vẽ bản đồ năm tầng — trực tiếp, gián tiếp, tự chế/spreadsheet, công cụ AI phổ thông, không-làm-gì — mỗi khẳng định một URL nguồn.
 - **community-review-miner** kéo về trích dẫn nguyên văn kèm URL theo khung lấy mẫu trung lập đăng ký trước. Chính việc đếm cả những người *không* có hành vi chắp vá mới làm tỷ lệ phần trăm có nghĩa. Nó không bao giờ bịa trích dẫn.
 - **gatekeeper** được trả công để đánh trượt cửa của bạn. Cửa nào sống sót qua nó thì xứng đáng được qua.
 - **coldstart-tester** đóng vai một phiên build chỉ có MVP pack, không lịch sử, và liệt kê mọi câu hỏi nó vẫn phải hỏi. Danh sách rỗng thì pack đạt.
+- **blueprint-coldstart-tester** giữ chuẩn khó hơn của giai đoạn 6: chỉ đọc pack + blueprint, nó liệt kê mọi *quyết định sản phẩm* nó vẫn phải tự bịa — câu chữ báo lỗi, giới hạn field, retry của webhook, ranh giới quyền. Danh sách rỗng thì blueprint đạt.
 
 Ba hook Node, tất cả fail open: `session-start.js` tiêm trạng thái quy trình của các ý tưởng trong workspace; `guard-thresholds.js` bắt các lần sửa ngưỡng theo ngữ nghĩa — kể cả sửa một phần từ `60` thành `70` — nâng cảnh báo với artifact `locked` và giữ tính chỉ-thêm của nhật ký quyết định; `validate-artifact.js` kiểm frontmatter và chặn kèm hướng dẫn sửa. Cả ba đều kiểm sentinel là một `state.json` cùng cấp có chứa `pipeline_version`, nên một repo không liên quan mà có thư mục `ideas/` sẽ không bị đụng tới.
 
@@ -250,8 +258,8 @@ Phương pháp cũng tồn tại dưới dạng tài liệu thuần. Tạo `idea
 | Đường dẫn | Nội dung |
 |---|---|
 | `.claude-plugin/` · `.codex-plugin/` | Manifest plugin, mỗi nền tảng một bản |
-| `skills/` | Các skill — lệnh (gồm `reconcile`, `declare-drift`, `run-validation` cho hậu-LOCK), 6 giai đoạn kèm các skill template, và `method-rules` với các skill `method-rules-{state-schema, artifact-schema, gate-contracts, maintenance-rules}`. **Nguồn chuẩn**: tài liệu nào lệch với skill thì skill thắng |
-| `agents/` · `.codex/agents/` · `hooks/` · `scripts/` | Bốn subagent, một bản markdown Claude Code và một bản TOML Codex (`sync-codex-agents.js --check` giữ chúng y hệt); `hooks.json` (dùng chung cho cả hai nền tảng) cùng ba script hook; các validator (`validate-evidence-ledger`, `validate-beachhead`, `verify-threshold-snapshot`, `validate-run-contract`, `pack-verdict`, `artifact-manifest`), trình ghi state nguyên tử, `coverage-report.js`, và `preflight.js` |
+| `skills/` | Các skill — lệnh (gồm `reconcile`, `declare-drift`, `run-validation` cho hậu-LOCK), 7 giai đoạn kèm các skill template, và `method-rules` với các skill `method-rules-{state-schema, artifact-schema, gate-contracts, maintenance-rules}`. **Nguồn chuẩn**: tài liệu nào lệch với skill thì skill thắng |
+| `agents/` · `.codex/agents/` · `hooks/` · `scripts/` | Năm subagent, một bản markdown Claude Code và một bản TOML Codex (`sync-codex-agents.js --check` giữ chúng y hệt); `hooks.json` (dùng chung cho cả hai nền tảng) cùng ba script hook; các validator (`validate-evidence-ledger`, `validate-beachhead`, `verify-threshold-snapshot`, `validate-run-contract`, `pack-verdict`, `artifact-manifest`), trình ghi state nguyên tử, `coverage-report.js`, và `preflight.js` |
 | `tests/` | `hook-tests.js` + `pipeline-contract-tests.js` — hai bộ test hồi quy (test đầu tiên: `node --check` mọi file `.js`) |
 | `evals/` | **Chỉ dành cho dev.** Fixture gieo lỗi + grader đo tỉ lệ bắt của gatekeeper ở tầng diễn giải (`run-gatekeeper-eval.js`). Generator ghi vào thư mục temp của HĐH, không bao giờ ghi trong repo |
 | `process/` | Phương pháp (tiếng Việt): pipeline, foundations, build-and-launch, research-verification. Mang tính giải thích — lệch thì skill thắng |
