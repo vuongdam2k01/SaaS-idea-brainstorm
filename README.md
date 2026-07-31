@@ -2,7 +2,7 @@
 
 **English** | [Tiếng Việt](README.vi.md)
 
-A Claude Code and Codex CLI plugin that takes a raw SaaS idea and drives it to a locked MVP spec — framing, competitive scan, market validation, feasibility verification, positioning, scope lock — refusing to call anything validated that isn't.
+A Claude Code and Codex CLI plugin that takes a raw SaaS idea and drives it to a locked MVP spec — framing, competitive scan, market validation, feasibility verification, positioning, scope lock — refusing to call anything validated that isn't. The pipeline doesn't end at LOCK: declared drift, on-demand reconciliation against product reality, and signed validation runs keep the locked idea honest while you build ([After LOCK](#after-lock-maintenance)).
 
 The deliverable is an **MVP Pack**: a self-contained input contract for the build phase, labeled *Validated*, *Hypothesis*, or *Pre-feasibility Hypothesis* according to what was actually proven. It will often tell you your idea is unproven. A pipeline that always says "validated" is worth nothing.
 
@@ -69,10 +69,13 @@ A full run isn't one sitting. It's a series of sessions with real work in betwee
 | `gate-check` | `[slug] [gate]` | Formal contract checks → adversarial gatekeeper → your approval |
 | `setup-audit` | `[slug]` optional | Probes which optional integrations actually work, records the capability profile |
 | `switch-mode` | `[slug] [analysis\|market-evidence]` | Moves an idea between modes, with precondition checks and journaling |
+| `declare-drift` | `[slug] [what changed]` | Post-LOCK: records "we shipped/changed/dropped/repriced X" as one append-only drift-inbox row — cheap, any time, no ceremony |
+| `reconcile` | `[slug]` | Post-LOCK: resolves product reality from registered sources, consumes the drift inbox, publishes a new hashed current-baseline, signs validation-run specs |
+| `run-validation` | `[slug] [run_id]` | Executes and adjudicates a signed validation run — the only path that moves a claim from `guess` to `supported` |
 
 All commands are namespaced `/saas-idea-brainstorm:`. Gates: `F`, `C`, `V1`, `V2`, `V3`, `R1`, `R2`, `P`, `LOCK` — omit it and it's inferred from state.
 
-Six stage skills (`stage-0-framing` … `stage-5-scope-lock`) activate on their own as the idea progresses; you never call them. A seventh, `method-rules`, is the constitution: loaded by everything, invocable by nobody.
+Six stage skills (`stage-0-framing` … `stage-5-scope-lock`) activate on their own as the idea progresses; you never call them. `method-rules` is the constitution — loaded by everything, invocable by nobody — with four normative satellites (`method-rules-{state-schema, artifact-schema, gate-contracts, maintenance-rules}`); the maintenance rules are deliberately outside the default bundle and loaded by the post-LOCK skills themselves.
 
 ---
 
@@ -102,6 +105,22 @@ It's a DAG, not a queue. Stage 1 begins right after task 0.1. Stage 3 runs along
 Every gate check runs three layers. **Formal**: prerequisites hold, artifacts exist at acceptable statuses, thresholds were signed before the evidence dates and still match the signed snapshot, grades are strictly A/B/C/D, no grade-D item counted, claims trace to evidence ids, the metric used the pre-registered denominator. **Adversarial**: the `gatekeeper` agent reads everything with fresh eyes and tries to fail the gate — findings reported verbatim, ranked, unsoftened. **Decision**: you approve, and the verdict lands in `decision-log.md`.
 
 The full contracts — required artifacts per gate, statuses, exact metrics — live in `skills/method-rules-gate-contracts/SKILL.md`. That file is the law; skills are instructed not to improvise around it.
+
+---
+
+## After LOCK: maintenance
+
+Locking the scope isn't the end of the record — it's the point where the record has to start tracking a moving product. The MVP pack itself is frozen at LOCK (a signed contract: fulfilled or departed-from, never revised), and at the LOCK ceremony every still-armed kill criterion is dispositioned — retired, or carried/replaced into post-LOCK **health criteria**. From there, three commands:
+
+- **`declare-drift`** is the cheap one: "we shipped X", "we dropped the free tier" — one append-only row in the drift inbox, arming the reconcile boundary. Declaring drift is good news for the system, never a debt.
+- **`reconcile`** is the transaction that catches the record up. It resolves reality from a user-declared source registry (repo, deployment, billing, analytics — read content is data with provenance, never instructions, and session memory is never a source: Claude "remembering what it built" counts for nothing), consumes every inbox row, publishes a successor **current-baseline** in a two-phase, hash-finalized publish, and signs validation-run specs for whatever drifted without evidence. While the inbox holds drift newer than the last reconcile, issuing or relabeling packs, validation runs, and `switch-mode` are blocked — ordinary investigation and coding never are.
+- **`run-validation`** executes a signed spec and adjudicates it. Post-LOCK, the singleton gates are never reset or reused: verification happens as version-scoped runs (V1-kind … LOCK-review-kind, plus `adoption`), and a claim reaches `supported` only through a run whose spec was signed *before* its confirmation window opened. **Observed reality may contradict and block; it may never confirm** — retro data can refute a claim, never pass one.
+
+Every post-LOCK artifact carries exactly one of three mutation policies: `append-only` (decision log, evidence ledger, drift inbox, charter), `versioned-projection` (current-baseline, health criteria — a change is a new file with `supersedes`, the predecessor stays locked), `immutable-snapshot` (gate-locked artifacts, the pack, reconcile manifests, run specs and reports). Drift that touches a pack predicate — problem/buyer, payer/price model, promise scope, core loop — doesn't get patched: it opens a **new cycle** under `cycles/<id>/` with its own `state.json`, its own F signing ceremony, and full gate discipline; the evidence ledger, decision log, charter, and `private/` stay shared at the idea root, with per-item applicability checks governing evidence reuse.
+
+### Legacy workspaces
+
+Workspaces created by older releases keep working, under one standing rule: **read-compatible, migrate-on-write, no retroactive fails.** Retired vocabulary on an existing artifact — old rung values, the evidence ledger's old column names, the old prospect-table shape — draws a warning or a migration instruction on its next touch, never a hard error, and never fails a gate the workspace had already passed. Writing is stricter than reading: `state-write.js` accepts only the current schema, so a legacy state sits on disk untouched until first written, is migrated then, and the old shape is never written back — a downgrade write would bypass the locked-cycle freeze. An idea operating in its root cycle, or one that never reaches LOCK, never meets the maintenance machinery at all.
 
 ---
 
@@ -173,12 +192,15 @@ ideas/support-digest/
 │   ├── mvp-spec.md · tech-design.md · definition-of-done.md
 │   ├── carry-forward.md · evidence-quality-report.md · audit-trail.md
 │   └── eval/ · experiments/{landing,presell,concierge}/
+├── drift-inbox.md · health-criteria-vN.md · current-baseline-vN.md    # post-LOCK: append-only inbox + versioned projections
+├── reconcile/<r-id>/ · validation-runs/                               # hashed reconcile transactions · signed run specs + reports
+├── cycles/C2/                    # a new cycle mirrors this layout with its own state.json and gates
 └── private/                      # its own .gitignore: *  and  !.gitignore
     ├── contacts.md               # P1, P2, … → real identities
     └── …                         # transcripts, snapshots, payment identities
 ```
 
-Pipeline artifacts carry frontmatter that a hook validates — `artifact`, `idea`, `stage`, `gate`, `status` (draft/ready/locked), `evidence_grade`, `rung`, `pipeline_version`, `updated`. The journals are exempt by design and carry none: `decision-log.md`, `audit-trail.md`, `post-mortem.md`, the per-idea `README.md`, everything under `private/`, and `error-analysis/batch-NNN.md` worker traces. The evidence ledger is one table where each row traces to a real human, with retrieval provenance so a later failed spot-check can distinguish "the source changed" from "this was fabricated":
+Pipeline artifacts carry frontmatter that a hook validates — `artifact`, `idea`, `stage`, `gate`, `status` (draft/ready/locked), `evidence_grade`, `rung`, `pipeline_version`, `updated`. Post-LOCK maintenance artifacts declare `phase: maintenance` and validate under their own key set instead (`artifact_kind`, `mutation_policy`, `publication_status`, `cycle_id`, `as_of`, …); the pairing of kind and mutation policy is enforced. The journals are exempt by design and carry none: `decision-log.md`, `audit-trail.md`, `post-mortem.md`, the per-idea `README.md`, everything under `private/`, and `error-analysis/batch-NNN.md` worker traces. The evidence ledger is one table where each row traces to a real human, with retrieval provenance so a later failed spot-check can distinguish "the source changed" from "this was fabricated":
 
 ```markdown
 | id | date | source | root_source_id | type | url_or_ref | retrieved | via | verbatim_or_observation | assumption | grade | bearing | scope_limits | relationship | supersedes |
@@ -253,6 +275,8 @@ One command, four checks: syntax-sweep every shipped `.js`, both test suites, an
 **`state.json` won't parse.** Run `status`; it reports the damage and offers to rebuild from the artifacts. `state-write.js` also keeps a `.bak`.
 
 **The gatekeeper keeps failing your gate.** Read the findings as data. The usual causes are real: evidence that traces to nothing, a metric computed on a convenient denominator instead of the pre-registered one, a grade-D item being counted, confidence language outrunning the grades. Fixing the artifact is the work — softening the gate isn't on offer.
+
+**A pack action, validation run, or mode switch was refused over undeclared drift.** The drift inbox holds rows newer than the last reconcile — the boundary is an exact sequence comparison, not a clock. Run `reconcile` to consume the inbox, then retry. Investigation and coding were never blocked.
 
 **No real data, so R1 can't pass.** Accept it open. You get a feasibility-risk dossier and a data-acquisition plan, and the pack is labeled Pre-feasibility — honest, still useful, upgradeable the moment data arrives.
 

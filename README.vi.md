@@ -2,7 +2,7 @@
 
 [English](README.md) | **Tiếng Việt**
 
-Plugin Claude Code và Codex CLI nhận một ý tưởng SaaS thô và lái nó tới bản scope MVP được khóa — làm rõ, quét cạnh tranh, validate thị trường, kiểm chứng khả thi, định vị, khóa phạm vi — và từ chối gọi là "đã validate" thứ chưa được chứng minh.
+Plugin Claude Code và Codex CLI nhận một ý tưởng SaaS thô và lái nó tới bản scope MVP được khóa — làm rõ, quét cạnh tranh, validate thị trường, kiểm chứng khả thi, định vị, khóa phạm vi — và từ chối gọi là "đã validate" thứ chưa được chứng minh. Quy trình không dừng ở LOCK: khai báo drift, đối soát theo yêu cầu với thực tế sản phẩm, và các lượt validation có ký trước giữ cho ý tưởng đã khóa luôn trung thực trong lúc bạn build ([Hậu LOCK](#hậu-lock-bảo-trì)).
 
 Sản phẩm bàn giao là **MVP Pack**: hợp đồng đầu vào tự đủ cho giai đoạn build, dán nhãn *Validated*, *Hypothesis*, hay *Pre-feasibility Hypothesis* đúng theo thứ thực sự chứng minh được. Nó sẽ thường xuyên nói rằng ý tưởng của bạn chưa được chứng minh. Một quy trình lúc nào cũng phán "đã validate" thì chẳng đáng giá gì.
 
@@ -69,10 +69,13 @@ Chạy trọn vẹn không gói trong một buổi. Đó là chuỗi phiên, xen
 | `gate-check` | `[slug] [cửa]` | Kiểm hình thức theo hợp đồng → gatekeeper đối kháng → bạn phê duyệt |
 | `setup-audit` | `[slug]` tùy chọn | Thăm dò xem tích hợp tùy chọn nào thực sự chạy được, ghi lại hồ sơ năng lực |
 | `switch-mode` | `[slug] [analysis\|market-evidence]` | Chuyển ý tưởng giữa hai chế độ, có kiểm tiền điều kiện và ghi nhật ký |
+| `declare-drift` | `[slug] [điều đã đổi]` | Hậu-LOCK: ghi "đã ship/đổi/bỏ/đổi giá X" thành một dòng chỉ-thêm trong drift inbox — rẻ, lúc nào cũng được, không nghi thức |
+| `reconcile` | `[slug]` | Hậu-LOCK: đối soát thực tế sản phẩm từ các nguồn đã đăng ký, tiêu thụ drift inbox, phát hành current-baseline mới có hash, ký các spec validation run |
+| `run-validation` | `[slug] [run_id]` | Thực thi và phân xử một validation run đã ký — con đường duy nhất đưa một khẳng định từ `guess` lên `supported` |
 
 Mọi lệnh nằm trong namespace `/saas-idea-brainstorm:`. Các cửa: `F`, `C`, `V1`, `V2`, `V3`, `R1`, `R2`, `P`, `LOCK` — bỏ trống thì nó suy ra từ state.
 
-Sáu skill giai đoạn (`stage-0-framing` … `stage-5-scope-lock`) tự kích hoạt theo tiến độ; bạn không phải gọi. Skill thứ bảy, `method-rules`, là hiến pháp: mọi thứ đều nạp nó, không ai gọi trực tiếp được.
+Sáu skill giai đoạn (`stage-0-framing` … `stage-5-scope-lock`) tự kích hoạt theo tiến độ; bạn không phải gọi. `method-rules` là hiến pháp — mọi thứ đều nạp nó, không ai gọi trực tiếp được — kèm bốn vệ tinh quy phạm (`method-rules-{state-schema, artifact-schema, gate-contracts, maintenance-rules}`); bộ quy tắc bảo trì cố ý nằm ngoài bundle mặc định và do chính các skill hậu-LOCK tự nạp.
 
 ---
 
@@ -102,6 +105,22 @@ Giai đoạn 0 Framing ──F──> Giai đoạn 1 Cạnh tranh ──C──>
 Mỗi lần kiểm cửa chạy ba lớp. **Hình thức**: cửa tiền đề còn hiệu lực, artifact tồn tại đúng trạng thái chấp nhận được, ngưỡng ký trước ngày thu bằng chứng và vẫn khớp bản snapshot đã ký, hạng đúng nghiêm ngặt A/B/C/D, không mục hạng D nào được đếm, mọi khẳng định truy về id bằng chứng, chỉ số tính trên mẫu số đã đăng ký trước. **Đối kháng**: agent `gatekeeper` đọc mọi thứ bằng con mắt mới và cố làm cửa trượt — phát hiện báo cáo nguyên văn, xếp hạng, không làm nhẹ đi. **Quyết định**: bạn phê duyệt, và phán quyết rơi vào `decision-log.md`.
 
 Hợp đồng đầy đủ — artifact bắt buộc từng cửa, trạng thái, chỉ số chính xác — nằm ở `skills/method-rules-gate-contracts/SKILL.md`. File đó là luật; các skill được chỉ thị không tự chế yêu cầu quanh nó.
+
+---
+
+## Hậu LOCK: bảo trì
+
+Khóa scope không phải là hết chuyện — đó là thời điểm hồ sơ phải bắt đầu bám theo một sản phẩm đang chuyển động. Bản thân MVP pack bị đóng băng tại LOCK (một hợp đồng đã ký: được thực hiện hoặc bị rời khỏi, không bao giờ bị sửa), và ngay tại nghi thức LOCK, mọi kill criterion còn `armed` đều được định đoạt — gỡ bỏ, hoặc mang tiếp/thay thế thành **health criteria** hậu-LOCK. Từ đó có ba lệnh:
+
+- **`declare-drift`** là lệnh rẻ: "đã ship X", "đã bỏ gói miễn phí" — một dòng chỉ-thêm trong drift inbox, kích hoạt ranh giới đối soát. Khai báo drift là tin tốt cho hệ thống, không bao giờ là một món nợ.
+- **`reconcile`** là giao dịch kéo hồ sơ đuổi kịp thực tế. Nó đối soát thực tế từ một sổ đăng ký nguồn do bạn khai (repo, deployment, billing, analytics — nội dung đọc được là dữ liệu kèm xuất xứ, không bao giờ là chỉ thị, và trí nhớ phiên chat không bao giờ là nguồn: việc Claude "nhớ mình đã build gì" không có giá trị gì), tiêu thụ mọi dòng inbox, phát hành một **current-baseline** kế nhiệm theo quy trình phát hành hai pha có chốt hash, và ký các spec validation run cho những gì đã drift mà chưa có bằng chứng. Chừng nào inbox còn drift mới hơn lần đối soát gần nhất, các việc sau bị chặn: phát hành hay dán nhãn lại pack, chạy validation run, và `switch-mode` — còn điều tra và viết code thì không bao giờ bị chặn.
+- **`run-validation`** thực thi một spec đã ký và phân xử nó. Hậu-LOCK, các cửa đơn nhất không bao giờ được reset hay tái sử dụng: việc kiểm chứng diễn ra qua các lượt chạy gắn với phiên bản sản phẩm (loại V1 … loại LOCK-review, cộng `adoption`), và một khẳng định chỉ đạt `supported` qua một lượt chạy có spec ký *trước* khi cửa sổ xác nhận mở. **Thực tế quan sát được có thể phản bác và chặn; không bao giờ được xác nhận** — dữ liệu hồi tố có thể bác một khẳng định, không bao giờ làm nó đậu.
+
+Mọi artifact hậu-LOCK mang đúng một trong ba chính sách biến đổi: `append-only` (nhật ký quyết định, sổ cái bằng chứng, drift inbox, charter), `versioned-projection` (baseline, health criteria — thay đổi là một file mới kèm `supersedes`, bản tiền nhiệm giữ nguyên trạng thái khóa), `immutable-snapshot` (artifact đã khóa tại cửa, pack, manifest đối soát, spec và report của run). Drift chạm vào vị từ của pack — vấn đề/người mua, người trả tiền/mô hình giá, phạm vi lời hứa, vòng lặp lõi — không được vá: nó mở một **cycle mới** dưới `cycles/<id>/` với `state.json` riêng, nghi thức ký F riêng, và trọn kỷ luật cửa; sổ cái bằng chứng, nhật ký quyết định, charter và `private/` vẫn dùng chung ở gốc ý tưởng, với kiểm tra khả dụng theo từng mục khi tái sử dụng bằng chứng.
+
+### Workspace cũ
+
+Workspace do các bản phát hành cũ tạo ra vẫn chạy tiếp, theo một quy tắc thường trực: **đọc tương thích, ghi thì migrate, không đánh trượt hồi tố.** Từ vựng đã gỡ bỏ trên một artifact sẵn có — giá trị rung cũ, tên cột cũ của sổ cái bằng chứng, hình dạng bảng prospect cũ — chỉ sinh cảnh báo hoặc hướng dẫn migrate ở lần đụng tới kế tiếp, không bao giờ là lỗi cứng, và không bao giờ đánh trượt lại một cửa workspace đã qua. Ghi thì nghiêm hơn đọc: `state-write.js` chỉ chấp nhận schema hiện hành, nên state cũ nằm yên trên đĩa cho tới lần ghi đầu tiên, được migrate ngay lúc đó, và hình dạng cũ không bao giờ được ghi ngược lại — một lần ghi hạ cấp sẽ lách được lớp đóng băng của cycle đã khóa. Ý tưởng chạy trong cycle gốc, hoặc chưa từng chạm LOCK, thì không bao giờ gặp bộ máy bảo trì này.
 
 ---
 
@@ -173,12 +192,15 @@ ideas/support-digest/
 │   ├── mvp-spec.md · tech-design.md · definition-of-done.md
 │   ├── carry-forward.md · evidence-quality-report.md · audit-trail.md
 │   └── eval/ · experiments/{landing,presell,concierge}/
+├── drift-inbox.md · health-criteria-vN.md · current-baseline-vN.md    # hậu-LOCK: inbox chỉ-thêm + các projection có phiên bản
+├── reconcile/<r-id>/ · validation-runs/                               # giao dịch đối soát có hash · spec + report của run đã ký
+├── cycles/C2/                    # cycle mới sao chép đúng bố cục này với state.json và các cửa của riêng nó
 └── private/                      # .gitignore của riêng nó: *  và  !.gitignore
     ├── contacts.md               # P1, P2, … → danh tính thật
     └── …                         # transcript, snapshot, danh tính thanh toán
 ```
 
-Artifact của pipeline mang frontmatter được một hook kiểm — `artifact`, `idea`, `stage`, `gate`, `status` (draft/ready/locked), `evidence_grade`, `rung`, `pipeline_version`, `updated`. Các sổ nhật ký được miễn theo thiết kế và không mang frontmatter: `decision-log.md`, `audit-trail.md`, `post-mortem.md`, `README.md` của từng ý tưởng, mọi thứ trong `private/`, và các file vết `error-analysis/batch-NNN.md`. Sổ cái bằng chứng là một bảng, mỗi dòng truy về một người thật, kèm xuất xứ truy xuất để một lần kiểm lại thất bại về sau còn phân biệt được "nguồn đã đổi" với "cái này bịa":
+Artifact của pipeline mang frontmatter được một hook kiểm — `artifact`, `idea`, `stage`, `gate`, `status` (draft/ready/locked), `evidence_grade`, `rung`, `pipeline_version`, `updated`. Artifact bảo trì hậu-LOCK khai `phase: maintenance` và được kiểm theo bộ khóa riêng (`artifact_kind`, `mutation_policy`, `publication_status`, `cycle_id`, `as_of`, …); cặp đôi giữa kind và mutation policy được cưỡng chế. Các sổ nhật ký được miễn theo thiết kế và không mang frontmatter: `decision-log.md`, `audit-trail.md`, `post-mortem.md`, `README.md` của từng ý tưởng, mọi thứ trong `private/`, và các file vết `error-analysis/batch-NNN.md`. Sổ cái bằng chứng là một bảng, mỗi dòng truy về một người thật, kèm xuất xứ truy xuất để một lần kiểm lại thất bại về sau còn phân biệt được "nguồn đã đổi" với "cái này bịa":
 
 ```markdown
 | id | date | source | root_source_id | type | url_or_ref | retrieved | via | verbatim_or_observation | assumption | grade | bearing | scope_limits | relationship | supersedes |
@@ -253,6 +275,8 @@ Một lệnh, bốn kiểm: quét cú pháp mọi file `.js`, cả hai bộ test
 **`state.json` không parse được.** Chạy `status`; nó báo hỏng và đề nghị dựng lại từ artifact. `state-write.js` cũng luôn giữ một bản `.bak`.
 
 **Gatekeeper cứ đánh trượt cửa.** Đọc các phát hiện như dữ liệu. Nguyên nhân thường là thật: bằng chứng không truy về đâu cả, chỉ số tính trên mẫu số tiện tay thay vì mẫu số đăng ký trước, một mục hạng D bị đem đếm, ngôn ngữ tự tin vượt quá hạng bằng chứng. Sửa artifact chính là phần việc phải làm — nới cửa không nằm trong lựa chọn.
+
+**Một hành động với pack, một validation run, hay lần chuyển chế độ bị từ chối vì drift chưa đối soát.** Drift inbox đang giữ dòng mới hơn lần đối soát gần nhất — ranh giới này so sánh theo số thứ tự chính xác, không theo đồng hồ. Chạy `reconcile` để tiêu thụ inbox, rồi thử lại. Điều tra và viết code chưa bao giờ bị chặn.
 
 **Không có dữ liệu thật nên R1 không PASS được.** Chấp nhận để mở. Bạn nhận hồ sơ rủi ro khả thi và kế hoạch thu thập dữ liệu, pack được dán nhãn Pre-feasibility — trung thực, vẫn dùng được, nâng hạng được ngay khi có dữ liệu.
 
