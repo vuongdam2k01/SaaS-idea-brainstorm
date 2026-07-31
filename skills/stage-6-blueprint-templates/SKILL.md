@@ -18,7 +18,7 @@ gate: BP
 status: draft                    # ready when its checklist has no unanswered cell; locked at gate BP
 evidence_grade: none             # blueprint files are design contracts, not evidence claims
 rung: baseline-auto
-pipeline_version: 1.6.0
+pipeline_version: 1.7.0
 updated: YYYY-MM-DD
 ---
 ```
@@ -44,6 +44,7 @@ identifiers per method-rules §Language — never translated), while all prose a
 | eval binding | `EV-<n>` (threshold restated from mvp-pack/eval) | llm-kind ss spec evals table | AC cells, test-plan coverage |
 | state transition | `ST-<entity>-<n>` | data-schema state-machines table | FS `touches`, conflict domains |
 | invariant / job | `INV-<n>` / `JOB-<n>` | interaction-map.md | test-plan coverage / FS states |
+| delegated decision | `DR-<n>` | blueprint-overview decision register | FS open-decision cells |
 | state-row tokens | `error` \| `empty` \| `loading` \| `success` (+ `queued` \| `running` \| `cancelled` \| `partial` for async-CAP features) | FS/ux state tables | validator (fixed tokens, untranslated) |
 
 ## blueprint-overview.md (entry point + resume ledger)
@@ -51,6 +52,16 @@ identifiers per method-rules §Language — never translated), while all prose a
 # Implementation Blueprint — <title>   [pack verdict VERBATIM from mvp-spec.md — never upgraded; on the UBD path it keeps its (PROSPECTIVE …) marker]
 > Line 1 carries `supports unvalidated-build-decision.md (<date>)` iff that is the entry path.
 > Read order for a build session: **blueprint/amendment-log.md if it exists (current truth = locked blueprint + amendments)** → mvp-pack/ (its own read order) → this file → feature-specs/ → data-schema.md → ux-spec.md → api-contract.md → integration-specs.md → nfr-spec.md → test-plan.md → build-plan.md → deferred-register.md
+## Blueprint profile — which optional layers apply, and why (a simple CRUD product provably needs
+## the 9 core files and skips subsystems/interaction-map; declaring it stops "required" reading as universal)
+<!-- bp:profile -->
+| layer | applies? | why |
+|---|---|---|
+| subsystem specs | yes/no | (an ADR names an engine/model/pipeline?) |
+| interaction map | yes/no | (≥2 writers on an entity, an async capability, or an invariant?) |
+| compliance rows | yes/no | (regulated domain flagged at 0.3b?) |
+| per-side flows | yes/no | (state.sides has ≥2 sides?) |
+| surface | ui/headless-api/cli/sdk/mixed | (declared in ux-spec frontmatter) |
 ## Artifact & feature index — THE resume ledger (one row per blueprint artifact AND per FS; a resuming session continues at the first non-ready row)
 <!-- bp:index -->
 | id (artifact / fs-NN) | title | pack trace (core-loop step # / DOD-n / MSP-n) | status | open decisions |
@@ -60,10 +71,20 @@ Next open decision batch: ___ (which artifact, which questions — updated every
 <!-- bp:event-dictionary -->
 | event (snake_case) | pack tracking-plan trace (aha row REQUIRED, marked `aha`) | payload fields | fired by (fs-NN list) |
 |---|---|---|---|
-## Carry-forward awareness
+## Decision register — every DELEGATED decision (the founder let the model choose a CLASS of
+## decision). Lives here, not in the charter: the pack's charter copy froze at LOCK, so a build-phase
+## charter item is invisible to the build session that must obey it. A charter id may be cited as
+## provenance only if it resolves in mvp-pack/founder-charter.md.
+<!-- bp:decisions -->
+| DR-n | scope delegated (class of decision) | founder's exact words | date | charter provenance (optional, must resolve in the pack copy) |
+|---|---|---|---|---|
+## Carry-forward awareness — open assumptions AND every quantitative assumption the blueprint rests
+## on (attempts per success, per-user volume, concurrent users, artifact retention): each marked with
+## its E-id if observed, or [GUESS]. A number nobody observed is the way green checks and a wrong
+## product coexist — this table is where reality gets to disagree, and it feeds amend-blueprint/drift.
 <!-- bp:carry-forward -->
-| open assumption (from pack carry-forward) | which FS/docs depend on it | what changes if it falls |
-|---|---|---|
+| open assumption / quantity | value + source (E-id or [GUESS]) | which FS/docs depend on it | what changes if it falls |
+|---|---|---|---|
 ```
 
 ## feature-specs/fs-NN-<slug>.md (one per core-loop step / behaviour-implying DoD module)
@@ -106,7 +127,7 @@ Next open decision batch: ___ (which artifact, which questions — updated every
 | permission boundary (incl. cross-tenant) | |
 | dependency failure (LLM / webhook / export target) | |
 | retry / idempotency (user does it twice) | |
-| concurrency (two sessions, same record) | |
+| concurrency (two sessions, same record) | cite `interaction-map` conflict domain if this entity has other writers — do not restate |
 | timezone / locale / currency (where dates or money appear) | |
 ## Instrumentation (events MUST exist in the overview event dictionary — reference, don't redefine payloads)
 <!-- bp:instrumentation -->
@@ -114,7 +135,7 @@ Next open decision batch: ___ (which artifact, which questions — updated every
 |---|---|
 ## Open decisions   <!-- empty at status: ready -->
 <!-- bp:open-decisions -->
-| # | question | resolution order tried (pack trace → charter item → founder) | founder's answer or [DELEGATED — charter item, scope] (date) |
+| # | question | resolution order tried (pack trace → charter rule → founder) | founder's answer or `[DELEGATED — DR-n]` (date) |
 |---|---|---|---|
 ```
 
@@ -168,8 +189,12 @@ Aha event: `<event from dictionary>` — time bound restated from the pack: ___
 <!-- bp:navigation -->
 ## Navigation map
 <!-- bp:copy -->
-## Outward copy inventory (every user-visible claim; publication_disposition per method-rules §11)
-| where (SC-n / state row) | copy (verbatim) | source (positioning / E-id / proposition) | publication_disposition |
+## Outward CLAIM inventory — **pack-class claims only**, not every UI string: anything asserting an
+## outcome, benefit, quantity, guarantee, security/compliance property, price/terms, or a restatement
+## of the pitch. Labels, field hints, empty-state prompts and error copy are NOT claims and are
+## specified in their FS. (v1.7.0 narrowing: a disposition per UI string was bureaucracy; the real
+## risk is marketing-grade assertions, which ship to paying users.)
+| where (SC-n / state row) | claim (verbatim) | source (positioning / E-id / proposition) | publication_disposition |
 |---|---|---|---|
 <!-- bp:accessibility -->
 ## Accessibility floor — NEVER N/A; substitute per surface, don't cut:
@@ -225,7 +250,7 @@ Aha event: `<event from dictionary>` — time bound restated from the pack: ___
 # Test plan
 <!-- bp:coverage -->
 ## Coverage map (every DOD-n + MSP-n + INV-n + EV-n → ≥1 scenario; every AC id → exactly one case BY REFERENCE)
-| source (DOD-n / MSP-n / INV-n / EV-n / AC-NN-n) | scenario | kind (unit/integration/e2e/eval) | determinism (required when the FS uses an llm/async CAP: recorded-fixtures / seeded / live-eval-threshold / manual) |
+| source (DOD-n / MSP-n / INV-n / EV-n / AC-NN-n) | scenario | kind (unit/integration/e2e/eval) | determinism (blank = INHERIT the CAP's declaration; fill only to override) |
 |---|---|---|---|
 Mandatory unless the matching DoD module is N/A: cross-tenant isolation · payment-failure path · backup restore.
 A stochastic core with no determinism strategy makes CI flaky by construction — a blank cell on an
@@ -267,6 +292,9 @@ If scope is single-user-multi-session and multi-user is out of MVP: cite the cut
 ## product promise wearing an invariant's clothes; each covered in test-plan like DOD/MSP)
 | INV-n | invariant | trace (pack / ST-… / CAP-…) | covered by |
 |---|---|---|---|
+An invariant already expressed as a DoD item (e.g. "user A cannot see user B's data" = DOD-6) stays
+a DoD item and is NOT duplicated here — two homes for one rule means nothing can tell which is
+authoritative when they drift. INV-n is for invariants the DoD does not express.
 <!-- bp:jobs -->
 ## Jobs (a job outlives the screen AND the capability call — durable object, not a loading state.
 ## Undo-across-a-generation-boundary lives here, because undo is a job-vs-edit interaction.)
@@ -285,8 +313,8 @@ per kind are declared in the gate-contracts BP section and mirrored by the valid
   with no pack trace is a scope addition in subsystem form)
 <!-- bp:capabilities -->
 ## Capabilities (FS reference these ids in their `uses` line; an orphan CAP no FS uses = scope addition)
-| CAP-NN-<n> | what | inputs | output schema | p95 latency budget | cost/call budget | async? | source (R1/eval/founder-confirmed) |
-|---|---|---|---|---|---|---|---|
+| CAP-NN-<n> | what | inputs | output schema | p95 latency budget | cost/call budget | async? | source (R1/eval/founder-confirmed) | determinism (recorded-fixtures/seeded/live-eval-threshold/manual — INHERITED by every test case using this CAP) |
+|---|---|---|---|---|---|---|---|---|
 <!-- bp:degradation -->
 ## Degradation ladder (provider slow/down/quota — per rung: what the user gets instead)
 <!-- llm kind only -->
@@ -352,7 +380,7 @@ cycle_id: C<n>
 mutation_policy: append-only
 publication_status: draft
 as_of: YYYY-MM-DD
-pipeline_version: 1.6.0
+pipeline_version: 1.7.0
 updated: YYYY-MM-DD
 ---
 # Deferred register (NON-PRODUCT deferrals only — a deferred product decision fails the level-2 test)

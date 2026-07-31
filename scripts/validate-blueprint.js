@@ -169,7 +169,7 @@ if (defRegText !== null) {
 
 // ---------------------------------------------------------------- 3. anchors
 const ANCHORS = {
-  "blueprint-overview.md": ["index", "event-dictionary", "carry-forward"],
+  "blueprint-overview.md": ["profile", "index", "event-dictionary", "decisions", "carry-forward"],
   "data-schema.md": ["entities", "retention"],
   "ux-spec.md": ["screens", "flows", "first-run", "copy"],
   "api-contract.md": ["endpoints"],
@@ -302,6 +302,20 @@ if (files["blueprint-overview.md"]) {
   if (rows.length && !ahaEvent) err("no-aha-event", "blueprint/blueprint-overview.md", "event dictionary has no row marked `aha` in its pack-trace column — the aha event is REQUIRED first");
   if (!rows.length) err("empty-event-dictionary", "blueprint/blueprint-overview.md", "event dictionary is empty");
 }
+// decision register (v1.7.0): DELEGATED decisions live INSIDE the blueprint —
+// the pack's charter copy froze at LOCK, so a build-phase charter item is
+// invisible to the build session that must obey it. A charter id is legal only
+// as provenance, and only if it resolves in the pack copy.
+const drIds = new Set();
+if (files["blueprint-overview.md"]) {
+  for (const r of dataRows(section(files["blueprint-overview.md"], "bp", "decisions"))) {
+    if (!/^DR-\d+$/i.test(r[0] || "")) { if (nonEmpty(r[0])) err("bad-dr-id", "blueprint/blueprint-overview.md", `decision id "${r[0]}" is not DR-<n>`); continue; }
+    drIds.add(r[0].toUpperCase());
+    for (const [i, nm] of [[1, "scope delegated"], [2, "founder's exact words"], [3, "date"]])
+      if (!nonEmpty(r[i])) err("dr-cell-blank", "blueprint/blueprint-overview.md", `${r[0]}: empty "${nm}" — a delegation without the founder's own words is a silent model choice wearing a record`);
+    if (r[3] && !realDate(r[3])) err("dr-date", "blueprint/blueprint-overview.md", `${r[0]}: date must be a real YYYY-MM-DD (got "${r[3]}")`);
+  }
+}
 // deferred register rows
 if (defRegText !== null) {
   for (const r of dataRows(section(defRegText, "bp", "deferred"))) {
@@ -363,7 +377,7 @@ for (const f of ssFiles) {
     for (const [i, nm] of [[4, "p95 latency budget"], [5, "cost/call budget"], [7, "source"]])
       if (!nonEmpty(r[i])) err("cap-cell", rf, `${r[0]}: empty ${nm} cell — a capability without a budget/source is an invented promise`);
     if (isAsync) anyAsyncCap = true;
-    capMeta[r[0]] = { ss: ssId[1].toLowerCase(), async: isAsync, latencyInts: ints(r[4]), file: rf };
+    capMeta[r[0]] = { ss: ssId[1].toLowerCase(), async: isAsync, latencyInts: ints(r[4]), file: rf, determinism: (r[8] || "").trim() };
   }
   if ((m.kind || "") === "llm") {
     const evRows = dataRows(section(t, "bp", "evals"));
@@ -413,6 +427,7 @@ const fsTouches = {};   // fs-NN -> [{entity, access}]
 const fsUses = {};      // fs-NN -> [CAP ids]
 const fsAcRows = {};    // fs-NN -> AC data rows
 const fsFieldEntities = {}; // fs-NN -> Set(entity prefixes in its fields table)
+const fsEdgeRows = {};      // fs-NN -> edge-case rows (concurrency cross-check)
 for (const f of fsFiles) {
   const t = fsTexts[f];
   const fsId = f.match(/^(fs-(\d{2}))/i);
@@ -507,11 +522,22 @@ for (const f of fsFiles) {
     if (!nonEmpty(r[1])) err("edge-blank", rf, `edge case "${(r[0] || "").slice(0, 40)}": blank behaviour cell — "N/A <reason>" is legal, a blank is not`);
     else if (isNA(r[1]) && !naHasReason(r[1])) err("na-without-reason", rf, `edge case "${(r[0] || "").slice(0, 40)}": N/A without a reason`);
   }
+  // concurrency: one answer, one home. If this FS writes an entity that other
+  // features also write, the cell cites the conflict domain instead of restating
+  // it — "last write wins" beside "lease + reject" is undetectable otherwise.
+  fsEdgeRows[fid] = edges;
   // instrumentation references the dictionary
   for (const r of dataRows(section(t, "bp", "instrumentation"))) {
     const name = (r[0] || "").replace(/`/g, "").trim();
     if (!name || name === "—") continue;
     if (!eventNames.has(name)) err("unknown-event", rf, `instrumentation references event "${name}" not in the overview event dictionary (single payload source)`);
+  }
+  // delegation references: [DELEGATED — DR-n] must resolve in the register;
+  // any CH-n cited anywhere must resolve in the pack's charter COPY (round-5 blocker)
+  for (const m of stripComments(body(t)).matchAll(/\[DELEGATED[^\]]*\]/g)) {
+    const dr = m[0].match(/DR-\d+/);
+    if (!dr) err("delegation-no-dr", rf, `${m[0]} does not cite a DR-n row — the decision register inside the blueprint is the identifier, because the pack's charter copy froze at LOCK`);
+    else if (!drIds.has(dr[0].toUpperCase())) err("delegation-unregistered", rf, `${m[0]} cites ${dr[0]}, which is not in blueprint-overview's decision register`);
   }
   // open decisions must be empty at the gate
   const od = dataRows(section(t, "bp", "open-decisions"));
@@ -552,6 +578,16 @@ for (const [st, meta] of Object.entries(stMeta)) {
     if (!visible && !excused)
       err("st-invisible", "blueprint/data-schema.md", `${st} is system-triggered (${meta.trigger}) and appears in no FS state / ux flow — background work the user never sees, or a missing spec; state \`invisible <reason>\` in the guard if truly invisible`);
   }
+}
+// concurrency citation (v1.7.0): a multi-writer FS must point at the domain row
+for (const f of fsFiles) {
+  const fid = f.match(/^(fs-\d{2})/i)[1].toLowerCase();
+  const rf = `blueprint/feature-specs/${f}`;
+  const sharesEntity = (fsTouches[fid] || []).some((t) => writers[t.entity] && writers[t.entity].size >= 2);
+  if (!sharesEntity) continue;
+  const row = (fsEdgeRows[fid] || []).find((r) => /concurren/i.test(r[0] || ""));
+  if (row && !/interaction-map/i.test(row[1] || ""))
+    err("concurrency-not-cited", rf, "this FS writes an entity with other writers, so its concurrency cell must CITE the interaction-map conflict domain rather than restate the rule (two homes for one answer is how they silently diverge)");
 }
 // interaction-map: required iff any entity has ≥2 writers, any CAP is async, or any INV exists
 const imText = read(path.join(bpDir, "interaction-map.md"));
@@ -595,6 +631,7 @@ if (imText !== null) {
     if (!/^INV-\d+$/.test(r[0] || "")) { if (nonEmpty(r[0])) err("bad-inv-id", "blueprint/interaction-map.md", `invariant id "${r[0]}" is not INV-<n>`); continue; }
     invIds.add(r[0]);
     if (!nonEmpty(r[2])) err("inv-untraced", "blueprint/interaction-map.md", `${r[0]} has no trace (pack / ST / CAP) — an untraced invariant is a new product promise wearing an invariant's clothes`);
+    else if (/^\s*DOD-\d+\s*$/i.test(r[2])) err("inv-duplicates-dod", "blueprint/interaction-map.md", `${r[0]} traces only to ${r[2].trim()} — an invariant already expressed as a DoD item stays a DoD item; two homes for one rule means nothing can tell which is authoritative when they drift`);
   }
   // jobs
   const jobRows = dataRows(section(imText, "bp", "jobs"));
@@ -749,8 +786,13 @@ for (const ev of evIds) {
     const src = r[0] || "";
     const acm = src.match(/AC-(\d{2})-\d+/);
     const stoch = (acm && stochFs.has(acm[1])) || /EV-\d+/.test(src);
-    if (stoch && !nonEmpty(r[3]))
-      err("no-determinism-strategy", "blueprint/test-plan.md", `case "${src}": blank determinism cell on an llm/async-backed case (recorded-fixtures / seeded / live-eval-threshold / manual)`);
+    if (!stoch || nonEmpty(r[3])) continue;
+    // blank = inherit the CAP's declaration (v1.7.0: forty cases sharing one
+    // strategy should declare it once); only a CAP that declares nothing fails
+    const caps = acm ? (fsUses["fs-" + acm[1]] || []) : Object.values(fsUses).flat();
+    const inherited = caps.some((c) => capMeta[c] && capMeta[c].determinism);
+    if (!inherited)
+      err("no-determinism-strategy", "blueprint/test-plan.md", `case "${src}": no determinism strategy — declare it once on the CAP (inherited by every case) or per case (recorded-fixtures / seeded / live-eval-threshold / manual)`);
   }
 }
 
@@ -888,6 +930,16 @@ function report() {
   } else {
     for (const f of findings) console.log(`${f.level.toUpperCase()} [${f.code}] ${f.file}: ${f.message}`);
     console.log(`\n${errors.length} error(s), ${warnings.length} warning(s), ${unparseableCells} unparseable cell(s) never compared`);
+    if (!errors.length) {
+      console.log(
+        "\nWhat a green run does NOT mean: this proves the documents are internally consistent and\n" +
+        "complete in FORM — every id resolves, every cell is answered, types agree. It cannot tell you\n" +
+        "the specified product is the right product. A quality bar validated with a human in the loop,\n" +
+        "a per-user volume nobody observed, or a milestone that satisfies 'core loop first' while\n" +
+        "reducing no risk all pass this check. Those live in the carry-forward table's quantitative\n" +
+        "rows and in the founder's judgement — not here."
+      );
+    }
   }
   process.exit(errors.length ? 1 : 0);
 }

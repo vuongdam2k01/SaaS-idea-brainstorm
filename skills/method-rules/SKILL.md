@@ -162,6 +162,24 @@ it — then return control to the founder. Applies to unreachable sources, faile
 yields nothing new, and gate re-checks that fail the same way. Repeating a loop is not diligence, and
 a third attempt with identical inputs is not new information.
 
+## 14. Requirement moratorium (how this method stops growing)
+
+Every high-value rule in this plugin cites an **observed failure**: run #2's six tier-4 prospects of
+whom five were advice-givers; run #3's 3–5 real prospects claimed as 16; run #2's 0/21 direct state
+writes with one real truncation. Rules derived that way have earned their context cost. Rules derived
+from *hypothetical* product shapes have not — and context is the enforcement substrate (§10), so an
+unearned rule does not merely sit there: it dilutes attention on the rules that were paid for.
+
+**Standing rule, adopted v1.7.0 after the round-5 depth review:** a new requirement may be added only
+if it (a) names an observed failure — a real run, a real build, a real defect — or (b) removes an
+existing requirement of at least equal weight. A design argument alone, however good, is not
+sufficient. When neither holds, the honest next action is not another design round: it is to run the
+thing and let the next defect cost a real run to find.
+
+Corollary for reviews: "this could go wrong" is a finding only when paired with an observation or a
+subtraction. The plugin is now more thoroughly specified than any part of it that has ever executed
+end-to-end successfully, and **that ratio — designed vs exercised — is the live risk**.
+
 ## 12. Language
 
 Answer, and write every artifact, in the **founder's language** — detect it from their first message and record it as `state.language`. Do not answer a Vietnamese founder in English and wait to be asked; a founder who cannot read the reply cannot correct it, and the whole method depends on them correcting you.
@@ -174,5 +192,5 @@ Answer, and write every artifact, in the **founder's language** — detect it fr
 
 - State file: **load the `method-rules-state-schema` skill (Skill tool)** before creating or updating `state.json`.
 - Artifact frontmatter and evidence ledger format: **load the `method-rules-artifact-schema` skill (Skill tool)** before writing any artifact.
-- Gate requirements, prerequisites, and the exact pack-verdict predicate: **load the `method-rules-gate-contracts` skill (Skill tool)** before any gate work.
+- Gate requirements, prerequisites, and the exact pack-verdict predicate: **load the `method-rules-gate-contracts` skill (Skill tool)** before any gate work. Gate BP's own contract is a satellite — **load the `method-rules-gate-contracts-bp` skill only for stage-6 work, `amend-blueprint`, or a BP gate check** (v1.7.0: it is ~2,300 words the other nine gates never need).
 - Post-LOCK rules (mutation policies, claim transitions, reality intake, reconcile transaction, maintenance frontmatter): **load the `method-rules-maintenance-rules` skill (Skill tool)** before any post-LOCK work.

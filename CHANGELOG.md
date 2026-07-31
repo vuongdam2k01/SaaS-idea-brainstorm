@@ -5,6 +5,45 @@ multi-session conflict inventory and its resolution log) was development residue
 from the working tree — it remains recoverable in git history at commit `fd7732b` and earlier
 (`git show fd7732b:plugin/conflicts-inventory.md`, etc.).
 
+## v1.7.0 — 2026-07-31 · depth review: subtraction, not addition (round 5)
+
+Round 5 inverted the question — not "what is missing" but "is this too heavy, where is the
+confidence unearned, and should we stop?" The review measured the surface (≈400 product judgements
+and ~19,000 words of contract for a 5-step idea) and named a realistic abandonment point around
+feature spec #4–5. **Net effect of this release: one contract split out, four requirement
+reductions, three small additions, one blocker fixed.**
+
+- **Blocker — `CH-nn` delegations dangled.** Stage 6 recorded delegated decisions against the live
+  `founder-charter.md`, but the pack's charter copy **freezes at LOCK**, so a build-phase charter
+  item is invisible to the build session and the level-2 tester — the exact readers the record was
+  written for. Delegations now live in `blueprint-overview.md`'s **decision register** (`DR-n` with
+  the founder's exact words, date and delegated scope); a charter id is legal only as provenance and
+  only if it resolves in `mvp-pack/founder-charter.md`. Validator enforces both.
+- **Contract split (context subtraction).** Gate BP's 2,264 words moved to
+  `method-rules-gate-contracts-bp`, loaded only by stage 6, `amend-blueprint`, and a BP gate check —
+  the same reasoning that put maintenance-rules outside the default bundle (method-rules §10).
+  `method-rules-gate-contracts` drops from 5,452 → 3,269 words for the other nine gates.
+- **Four reductions.** Copy dispositions narrowed to **pack-class claims** (outcome/benefit/
+  quantity/guarantee/security/price/pitch), not every UI string — labels and error copy belong to
+  their FS. Determinism strategy is **declared once per CAP and inherited** by test cases (~40
+  duplicated cells removed). `INV-n` may no longer duplicate a DoD item — one rule, one home, so
+  nothing can drift between two authorities. FS concurrency cells **cite** the conflict domain
+  instead of restating it (the duplicated-authority class the review hunted).
+- **Three additions, paid for by the reductions.** A `bp:profile` table declaring which optional
+  layers apply and why (a simple CRUD product provably needs 9 files and skips the subsystem layer).
+  Quantitative-assumption rows in the carry-forward table (attempts per success, per-user volume,
+  retention) each marked with an E-id or `[GUESS]` — the gap where green checks and a wrong product
+  coexist. And an honest-boundary statement in the BP contract **and in the validator's own footer**:
+  what a green run does not mean.
+- **§14 Requirement moratorium.** Standing rule: a new requirement may be added only if it names an
+  **observed failure** or removes an existing requirement of equal weight. Rules born from
+  hypothetical shapes dilute attention on the rules that were paid for in real dogfood runs. The
+  honest next action is a run, not another design round — and the review's sharpest point stands:
+  **all three dogfood runs died at or before gate F, while stage 6 is only reachable after nine
+  gates succeed.** The designed-to-exercised ratio is now the live risk.
+- Suites: 198 hook + 205 contract tests green (6 new: delegation resolution ×3, concurrency
+  citation, INV-vs-DoD, determinism inheritance ×2). Coverage: 129 requirements, 61% deterministic.
+
 ## v1.6.0 — 2026-07-31 · idea-diversity layers (round-4 review)
 
 The founder's fourth attack: ideas are enormously diverse and four biases remained — single-segment

@@ -11,7 +11,8 @@ typing. Output: `blueprint/` beside `mvp-pack/`. Quality bar: the **level-2 cold
 competent build session reading only pack + blueprint can implement every feature **without
 inventing any product decision**. Load `method-rules`; read `state.json`; resolve the operating
 cycle (fragment cycles use `cycles/<id>/blueprint/`). Templates: the `stage-6-blueprint-templates`
-skill. The BP contract: the `method-rules-gate-contracts` skill (Gate BP section).
+skill. The BP contract: the **`method-rules-gate-contracts-bp` skill** (a satellite since v1.7.0 —
+only stage 6, `amend-blueprint` and a BP gate check load it).
 
 **Working posture for the whole stage**: the model drafts, the founder decides. Resolution order
 for every open decision is normative: **(1) pack trace → (2) standing charter rule, cited by item id
@@ -19,8 +20,13 @@ and replayed at the next checkpoint → (3) ask the founder.** Consulting the ch
 it is the declared interpretive authority, and re-asking what the founder already settled is how
 decision fatigue produces rubber-stamping. Every detail not derivable from the pack starts
 `[GUESS]`; it is lifted only by founder confirmation (intent), a pack trace (derivation), or an
-explicit journaled **delegation** — `[DELEGATED — charter item CH-nn, scope: <class of decision>]`,
-which is a founder act with a record, never a silent model choice. **`auto_continue` never covers a
+explicit journaled **delegation**, recorded as a row in `blueprint-overview.md`'s **decision
+register** (`[DELEGATED — DR-n]` in the spec cell; the register row carries the founder's exact
+words, the date and the scope). The register lives inside the blueprint on purpose: the pack's
+charter copy froze at LOCK, so a build-phase charter item is **not** in the copy a build session
+reads — a bare `CH-nn` would dangle for exactly the reader it was written for (round-5 blocker). A
+charter id may still be cited as provenance, but only one that resolves in
+`mvp-pack/founder-charter.md`; the identifier is the `DR-n` row. **`auto_continue` never covers a
 blueprint product decision.** Batch decisions with AskUserQuestion (≤4 per batch; when it is
 unavailable, present the same content in prose and take the decision from the reply — the mechanism
 may degrade, the checkpoint may not), **schema-affecting decisions first** (they are the expensive
@@ -90,6 +96,10 @@ Per feature, in this order:
   value's formula shown inline (traceability rule 4: derived numbers carry their arithmetic).
 - **The three states nobody specs until it's too late**: error, empty, loading — per screen-touching
   feature, each with its user-visible copy.
+- **One answer, one home**: if the feature writes an entity that other features also write, its
+  concurrency edge-case cell **cites the interaction map's conflict-domain row** rather than
+  restating the rule — two homes for one answer is how "last write wins" ends up beside
+  "lease + reject" with nothing able to see the contradiction.
 - **Edge-case checklist, answered not just listed**: empty/duplicate/oversized input · permission
   boundary (who else can see/do this — cross-tenant explicitly) · dependency failure (the LLM call,
   the webhook, the export target) · retry/idempotency (what happens when the user does it twice) ·

@@ -100,6 +100,15 @@ const REQUIREMENTS = [
   { id: "bp-ledger-kind-anchors", where: "gate-contracts BP kinds table", tier: "code", by: "validate-blueprint.js SS_KIND_ANCHORS.ledger + parity test" },
   { id: "bp-agentic-llm-anchors", where: "gate-contracts BP kinds", tier: "code", by: "validate-blueprint.js LLM_ACTION_ANCHORS (takes_actions: yes)" },
 
+  // ---- v1.7.0 round-5 depth review (net: 4 reductions, 3 additions)
+  { id: "bp-delegation-resolves-in-pack", where: "gate-contracts-bp decision discipline", tier: "code", by: "validate-blueprint.js delegation-no-dr + delegation-unregistered (DR register lives inside the blueprint; the pack's charter copy froze at LOCK)" },
+  { id: "bp-concurrency-single-home", where: "gate-contracts-bp interaction layer", tier: "code", by: "validate-blueprint.js concurrency-not-cited" },
+  { id: "bp-inv-not-a-second-dod", where: "gate-contracts-bp interaction layer", tier: "code", by: "validate-blueprint.js inv-duplicates-dod" },
+  { id: "bp-determinism-inherited", where: "gate-contracts-bp subsystem layer", tier: "code", by: "validate-blueprint.js CAP determinism inheritance (removes ~40 duplicated cells)" },
+  { id: "bp-profile-declared", where: "stage-6-blueprint-templates", tier: "code", by: "validate-blueprint.js ANCHORS bp:profile (a simple product provably skips optional layers)" },
+  { id: "bp-quantitative-assumptions-listed", where: "gate-contracts-bp", tier: "agent", by: "level-2 coldstart + gatekeeper (a number nobody observed is how green checks and a wrong product coexist)" },
+  { id: "requirement-moratorium", where: "method-rules §14", tier: "prose", by: "INTENTIONAL: a process rule for the humans and models extending this plugin — no mechanism can enforce 'cite an observed failure'" },
+
   // ---- evidence integrity
   { id: "ledger-required-columns", where: "method-rules-artifact-schema", tier: "code", by: "validate-evidence-ledger.js" },
   { id: "grade-d-never-in-ledger", where: "method-rules §2", tier: "code", by: "validate-evidence-ledger.js" },

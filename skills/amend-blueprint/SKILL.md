@@ -4,7 +4,8 @@ description: Record a mid-build discovery against a locked implementation bluepr
 argument-hint: "[idea-slug] [what was discovered]"
 ---
 
-Amend a **locked** blueprint after a build-time discovery. Load `method-rules`; read `state.json`.
+Amend a **locked** blueprint after a build-time discovery. Load `method-rules` and the
+`method-rules-gate-contracts-bp` skill (BP's contract satellite); read `state.json`.
 This exists because a mid-build discovery is **not drift**: nothing built departs from recorded truth
 — the *spec* is defective or silent, still inside MVP scope, and the correction must land where a
 build session will actually read it. Reconcile's machinery (source observations, claim registry,

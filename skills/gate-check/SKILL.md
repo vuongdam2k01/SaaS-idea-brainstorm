@@ -4,7 +4,7 @@ description: Run the three-layer gate check for a SaaS validation idea - formal 
 argument-hint: "[idea-slug] [gate: F|C|V1|V2|V3|R1|R2|P|LOCK|BP]"
 ---
 
-Run a gate check. Load the `method-rules` skill first, then load the `method-rules-gate-contracts` skill (Skill tool) — the per-gate contract is the law here; do not improvise requirements.
+Run a gate check. Load the `method-rules` skill first, then load the `method-rules-gate-contracts` skill (Skill tool) — the per-gate contract is the law here; do not improvise requirements. **If and only if gate == BP**, also load the `method-rules-gate-contracts-bp` skill: BP's contract is a satellite so that the other nine gates never carry it in working context (v1.7.0, the maintenance-rules §10 precedent).
 
 Arguments: idea slug = $0, gate = $1 (if missing, read `state.json` and infer from active work).
 
@@ -120,7 +120,8 @@ scope only*, and downstream artifacts inherit the narrowing.
 ## Gate BP specifics (the one post-LOCK gate — stage 6, implementation blueprint)
 
 BP runs through the same three layers with these deltas; the contract row and coverage predicates
-are in the `method-rules-gate-contracts` skill (Gate BP section), which is the law here too.
+are in the **`method-rules-gate-contracts-bp` skill**, which is the law here too (load it for this
+gate only).
 
 - **State location**: the verdict lands in root `state.blueprint.gate`, never in the frozen cycle
   `gates` object. Entry verification is the contract's one sentence: `gates.LOCK` `passed` — or

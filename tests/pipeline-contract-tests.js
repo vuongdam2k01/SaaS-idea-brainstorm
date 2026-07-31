@@ -1094,13 +1094,20 @@ console.log("== stage 6 (gate BP) is wired end-to-end across the contract files 
   // hands off to the blueprint, the blueprint has its own gate, and build is
   // documented as starting only after BP. These checks pin the wiring, not the
   // prose.
-  const gc = fs.readFileSync(path.join(ROOT, "skills", "method-rules-gate-contracts", "SKILL.md"), "utf8");
+  const gcMain = fs.readFileSync(path.join(ROOT, "skills", "method-rules-gate-contracts", "SKILL.md"), "utf8");
+  // v1.7.0: BP's contract is a satellite (maintenance-rules section 10 precedent) —
+  // the main file keeps only the row + pointer, so BP predicates are asserted there.
+  const gcBp = fs.readFileSync(path.join(ROOT, "skills", "method-rules-gate-contracts-bp", "SKILL.md"), "utf8");
+  const gc = [gcMain, gcBp].join("\n");
   const gk = fs.readFileSync(path.join(ROOT, "skills", "gate-check", "SKILL.md"), "utf8");
   const s5 = fs.readFileSync(path.join(ROOT, "skills", "stage-5-scope-lock", "SKILL.md"), "utf8");
   const s6 = fs.readFileSync(path.join(ROOT, "skills", "stage-6-blueprint", "SKILL.md"), "utf8");
   const ss = fs.readFileSync(path.join(ROOT, "skills", "method-rules-state-schema", "SKILL.md"), "utf8");
   const bl = fs.readFileSync(path.join(ROOT, "process", "build-and-launch.md"), "utf8");
   const gkAgent = fs.readFileSync(path.join(ROOT, "agents", "gatekeeper.md"), "utf8");
+  check("BP contract split into its own satellite (context subtraction for the other 9 gates)",
+    gcMain.includes("## Gate BP → its own skill") && !gcMain.includes("## Gate BP (stage 6") && gcBp.includes("## Gate BP (stage 6"));
+  check("gate-check loads the BP satellite only when gate == BP", /If and only if gate == BP/.test(gk));
   check("gate-contracts has a BP contract row + Gate BP section", /\| \*\*BP\*\* \|/.test(gc) && /## Gate BP/.test(gc));
   check("refines-never-expands is a named BP rule", /refines?, never expands/i.test(gc));
   check("BP requires the level-2 cold-start test", /level-2 cold-start/i.test(gc) && /blueprint-coldstart-tester/.test(gc));
@@ -1263,7 +1270,12 @@ updated: 2026-08-10
   const tp2 = path.join(idea, "blueprint", "test-plan.md");
   fs.writeFileSync(tp2, fs.readFileSync(tp2, "utf8").replace("| AC-02-1 | xuất báo cáo + xoá theo yêu cầu | e2e | live-eval-threshold |", "| AC-02-1 | xuất báo cáo + xoá theo yêu cầu | e2e |  |"));
   r = runV(idea, ["--at-gate"]);
-  check("llm/async-backed case with blank determinism cell => no-determinism-strategy error", r.code === 1 && has(r, "no-determinism-strategy"));
+  check("blank determinism cell INHERITS the CAP declaration => 0 errors (v1.7.0 de-duplication)",
+    r.code === 0 && r.errors === 0, JSON.stringify((r.findings || []).filter((f) => f.level === "error")));
+  const ssDet = path.join(idea, "blueprint", "subsystem-specs", "ss-01-digest-llm.md");
+  fs.writeFileSync(ssDet, fs.readFileSync(ssDet, "utf8").replace("| yes | R1 đo 2026-07 | live-eval-threshold |", "| yes | R1 đo 2026-07 |  |"));
+  r = runV(idea, ["--at-gate"]);
+  check("neither CAP nor case declares determinism => no-determinism-strategy error", r.code === 1 && has(r, "no-determinism-strategy"));
 
   idea = fresh("touches");
   const fs1b = path.join(idea, "blueprint", "feature-specs", "fs-01-upload.md");
@@ -1291,6 +1303,41 @@ updated: 2026-08-10
   fs.writeFileSync(nfr, fs.readFileSync(nfr, "utf8").replace(/N\/A — founder[^\n]*\n/, "N/A\n"));
   r = runV(idea, ["--at-gate"]);
   check("compliance N/A without a recorded basis => error (no-regulation is a claim too)", r.code === 1 && has(r, "compliance-na-basis"));
+
+  // ---- v1.7.0 round-5 fixes
+  idea = fresh("delegation");
+  const fsDel = path.join(idea, "blueprint", "feature-specs", "fs-01-upload.md");
+  fs.writeFileSync(fsDel, fs.readFileSync(fsDel, "utf8").replace(
+    "| # | question | resolution order tried | founder's answer (date) |\n|---|---|---|---|",
+    "| # | question | resolution order tried | founder's answer (date) |\n|---|---|---|---|\n| 1 | thư viện PDF nào | charter | [DELEGATED — CH-7] (2026-07-31) |"));
+  r = runV(idea);
+  check("[DELEGATED — CH-n] without a DR row => delegation-no-dr error (the pack's charter copy froze at LOCK)",
+    r.code === 1 && has(r, "delegation-no-dr"));
+  fs.writeFileSync(fsDel, fs.readFileSync(fsDel, "utf8").replace("[DELEGATED — CH-7]", "[DELEGATED — DR-9]"));
+  r = runV(idea);
+  check("[DELEGATED — DR-n] not in the decision register => delegation-unregistered error",
+    r.code === 1 && has(r, "delegation-unregistered"));
+  fs.writeFileSync(fsDel, fs.readFileSync(fsDel, "utf8").replace("[DELEGATED — DR-9]", "[DELEGATED — DR-1]"));
+  r = runV(idea);
+  check("[DELEGATED — DR-1] resolving in the register => no delegation error", !has(r, "delegation-no-dr") && !has(r, "delegation-unregistered"));
+
+  idea = fresh("concurrency");
+  const fsConc = path.join(idea, "blueprint", "feature-specs", "fs-02-export.md");
+  fs.writeFileSync(fsConc, fs.readFileSync(fsConc, "utf8").replace(
+    "| concurrency (two sessions, same record) | theo interaction-map conflict domain report |",
+    "| concurrency (two sessions, same record) | last-write-wins, có cảnh báo |"));
+  r = runV(idea, ["--at-gate"]);
+  check("multi-writer FS restating the concurrency rule instead of citing the domain => error",
+    r.code === 1 && has(r, "concurrency-not-cited"));
+
+  idea = fresh("invdod");
+  const imInv = path.join(idea, "blueprint", "interaction-map.md");
+  fs.writeFileSync(imInv, fs.readFileSync(imInv, "utf8").replace(
+    "| INV-1 | report chỉ exported khi job thành công | ST-report-1 | test-plan |",
+    "| INV-1 | report chỉ exported khi job thành công | DOD-1 | test-plan |"));
+  r = runV(idea, ["--at-gate"]);
+  check("INV tracing only to a DOD id => inv-duplicates-dod error (one rule, one home)",
+    r.code === 1 && has(r, "inv-duplicates-dod"));
 
   idea = fresh("accessna");
   const uxa = path.join(idea, "blueprint", "ux-spec.md");
@@ -1327,7 +1374,7 @@ console.log("== SS_KIND_ANCHORS parity: gate-contracts table vs validate-bluepri
   const validatorKinds = {};
   for (const m of om[1].matchAll(/(\w+):\s*\[([^\]]*)\]/g))
     validatorKinds[m[1]] = m[2].split(",").map((s) => s.trim().replace(/^["']|["']$/g, "")).filter(Boolean).sort();
-  const gc = fs.readFileSync(path.join(ROOT, "skills", "method-rules-gate-contracts", "SKILL.md"), "utf8");
+  const gc = fs.readFileSync(path.join(ROOT, "skills", "method-rules-gate-contracts-bp", "SKILL.md"), "utf8");
   const tbl = gc.match(/\| kind \| required anchors beyond trace\/capabilities\/degradation \|([\s\S]*?)\n\n/);
   check("gate-contracts declares the per-kind anchor table", !!tbl);
   const skillKinds = {};

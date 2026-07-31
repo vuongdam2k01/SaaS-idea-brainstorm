@@ -8,7 +8,7 @@
  * template shape the stage-6 templates emit must be a shape the ONE validator
  * accepts, and the tests then break it one defect at a time.
  *
- * v1.6.0: exercises the interaction layer (touches, conflict domains, state
+ * v1.7.0: exercises the interaction layer (touches, conflict domains, state
  * machines, jobs, invariants) and the subsystem layer (llm-kind ss spec, CAP,
  * EV bindings, async states, determinism strategy).
  *
@@ -33,7 +33,7 @@ gate: BP
 status: ready
 evidence_grade: none
 rung: baseline-auto
-${extra ? extra + "\n" : ""}pipeline_version: 1.6.0
+${extra ? extra + "\n" : ""}pipeline_version: 1.7.0
 updated: 2026-07-31
 ---
 `;
@@ -41,7 +41,7 @@ updated: 2026-07-31
 function build(root) {
   const idea = path.join(root, "ideas", "bpfix");
   fs.mkdirSync(idea, { recursive: true });
-  w(idea, "state.json", JSON.stringify({ pipeline_version: "1.6.0", idea: "bpfix" }, null, 2));
+  w(idea, "state.json", JSON.stringify({ pipeline_version: "1.7.0", idea: "bpfix" }, null, 2));
 
   // ---- pack side (with 1.4.1+ join anchors/ids)
   w(idea, "mvp-pack/mvp-spec.md", `---
@@ -52,7 +52,7 @@ gate: LOCK
 status: locked
 evidence_grade: B
 rung: baseline-auto
-pipeline_version: 1.6.0
+pipeline_version: 1.7.0
 updated: 2026-07-31
 ---
 # MVP Spec — bpfix   HYPOTHESIS
@@ -81,7 +81,7 @@ gate: LOCK
 status: locked
 evidence_grade: none
 rung: baseline-auto
-pipeline_version: 1.6.0
+pipeline_version: 1.7.0
 updated: 2026-07-31
 ---
 # DoD
@@ -100,7 +100,7 @@ gate: LOCK
 status: locked
 evidence_grade: none
 rung: baseline-auto
-pipeline_version: 1.6.0
+pipeline_version: 1.7.0
 updated: 2026-07-31
 ---
 # Thiết kế kỹ thuật
@@ -120,6 +120,14 @@ Threshold đã ký tại R1: 85% trên bộ dữ liệu thật.
 
   // ---- blueprint side
   w(idea, "blueprint/blueprint-overview.md", pipeFm("blueprint-overview") + `# Blueprint — bpfix   HYPOTHESIS
+<!-- bp:profile -->
+| layer | applies? | why |
+|---|---|---|
+| subsystem specs | yes | ADR #1 nêu lõi LLM |
+| interaction map | yes | report có 2 writer + CAP async |
+| compliance rows | no | không thuộc domain quản chế |
+| per-side flows | no | single-sided |
+| surface | ui | khai ở ux-spec |
 <!-- bp:index -->
 | id | title | pack trace | status | open decisions |
 |---|---|---|---|---|
@@ -132,9 +140,14 @@ Threshold đã ký tại R1: 85% trên bộ dữ liệu thật.
 |---|---|---|---|
 | \`report_exported\` | aha (tracking plan) | user_id, report_id | fs-02 |
 | \`transcript_uploaded\` | tracking plan | user_id | fs-01 |
+<!-- bp:decisions -->
+| DR-n | scope delegated | founder's exact words | date | charter provenance |
+|---|---|---|---|---|
+| DR-1 | chọn thư viện render PDF | "cái đó anh không quan tâm, em chọn đi" | 2026-07-31 | — |
 <!-- bp:carry-forward -->
-| giả định mở | phụ thuộc | nếu sụp |
-|---|---|---|
+| giả định mở / đại lượng | value + source | phụ thuộc | nếu sụp |
+|---|---|---|---|
+| số lần xuất lại mỗi report | 1.4 lần (E3 quan sát concierge) | CAP-01-1 budget | chi phí biên tăng |
 `);
 
   w(idea, "blueprint/feature-specs/fs-01-upload.md", pipeFm("fs-01-upload") + `# fs-01 — upload
@@ -177,7 +190,7 @@ Threshold đã ký tại R1: 85% trên bộ dữ liệu thật.
 | permission boundary (incl. cross-tenant) | chỉ chủ sở hữu thấy |
 | dependency failure (LLM / webhook / export target) | retry 1 lần rồi báo lỗi |
 | retry / idempotency (user does it twice) | idempotency key theo report_id |
-| concurrency (two sessions, same record) | last-write-wins có cảnh báo |
+| concurrency (two sessions, same record) | theo interaction-map conflict domain report |
 | timezone / locale / currency | N/A vì không có ngày/tiền hiển thị |
 ## Instrumentation
 <!-- bp:instrumentation -->
@@ -234,7 +247,7 @@ Threshold đã ký tại R1: 85% trên bộ dữ liệu thật.
 | permission boundary (incl. cross-tenant) | chỉ chủ sở hữu xuất |
 | dependency failure (LLM / webhook / export target) | degrade theo ss-01 ladder |
 | retry / idempotency (user does it twice) | xem JOB-1: lần 2 nối vào job đang chạy |
-| concurrency (two sessions, same record) | xem conflict domain report |
+| concurrency (two sessions, same record) | theo interaction-map conflict domain report |
 | timezone / locale / currency | N/A vì PDF không in ngày giờ địa phương |
 ## Instrumentation
 <!-- bp:instrumentation -->
@@ -293,9 +306,9 @@ Threshold đã ký tại R1: 85% trên bộ dữ liệu thật.
 <!-- bp:trace -->
 - **Pack trace**: ADR #1 (managed LLM API), domain-model element: report
 <!-- bp:capabilities -->
-| CAP-id | what | inputs | output schema | p95 latency budget | cost/call budget | async? | source |
-|---|---|---|---|---|---|---|---|
-| CAP-01-1 | sinh digest từ transcript | transcript text | digest JSON schema v1 | 60s | $0.04/call | yes | R1 đo 2026-07 |
+| CAP-id | what | inputs | output schema | p95 latency budget | cost/call budget | async? | source | determinism |
+|---|---|---|---|---|---|---|---|---|
+| CAP-01-1 | sinh digest từ transcript | transcript text | digest JSON schema v1 | 60s | $0.04/call | yes | R1 đo 2026-07 | live-eval-threshold |
 <!-- bp:degradation -->
 ## Ladder: chậm >60s → hàng đợi + thông báo; provider sập → báo lỗi trung thực, không fallback bịa
 <!-- bp:context -->
@@ -401,7 +414,7 @@ cycle_id: C1
 mutation_policy: append-only
 publication_status: draft
 as_of: 2026-07-31
-pipeline_version: 1.6.0
+pipeline_version: 1.7.0
 updated: 2026-07-31
 ---
 # Deferred register

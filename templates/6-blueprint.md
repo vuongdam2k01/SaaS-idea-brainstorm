@@ -83,7 +83,8 @@ event first); feature specs reference it, never redefine it.
 - [ ] Schema field-level and consistent with tech-design entities both directions; FS ↔ schema ↔ API types agree
 - [ ] Event dictionary complete (aha first); first-run flow signup → aha designed
 - [ ] Every DoD item + MSP commitment + INV-n + EV-n maps to a test scenario; llm/async cases carry a determinism strategy; outward copy has publication dispositions
-- [ ] Every multi-writer entity has a conflict-domain row (writers = computed set); every async capability has JOB rows + the four async states; no orphan CAP
+- [ ] Every multi-writer entity has a conflict-domain row (writers = computed set); FS concurrency cells CITE it rather than restating; every async capability has JOB rows + the four async states; no orphan CAP
+- [ ] Blueprint profile declared (which optional layers apply); delegated decisions in the DR register; quantitative assumptions listed with E-id or [GUESS]
 - [ ] Zero unresolved markers of any kind — `[GUESS]`, `[OPEN]`, `[TBD]`, `[INFERRED]`, bare `___`, unsubstituted `<…>` (deferred register holds non-product items only)
 - [ ] `scripts/validate-blueprint.js` exits 0
 - [ ] **Level-2 cold-start test passes** on a clean copy of pack + blueprint, report persisted with the hashes of the exact set tested
