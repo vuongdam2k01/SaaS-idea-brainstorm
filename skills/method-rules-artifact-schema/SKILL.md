@@ -19,7 +19,7 @@ gate: F                             # F | C | V1 | V2 | V3 | R1 | R2 | P | LOCK 
 status: draft                       # draft | ready | locked
 evidence_grade: none                # highest grade backing this artifact: A | B | C | D | none
 rung: baseline-auto                 # enhanced-auto | baseline-auto | handoff  (exactly three — see below)
-pipeline_version: 1.8.0
+pipeline_version: 1.9.0
 updated: YYYY-MM-DD
 ---
 ```
@@ -177,7 +177,7 @@ gate: <the failed gate, e.g. V1>
 status: ready
 evidence_grade: <the failed gate's actual evidence grade, honestly>
 rung: baseline-auto
-pipeline_version: 1.8.0
+pipeline_version: 1.9.0
 updated: YYYY-MM-DD
 ---
 # Unvalidated build decision — <title>

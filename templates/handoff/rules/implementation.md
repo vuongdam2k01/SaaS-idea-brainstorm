@@ -6,7 +6,7 @@ paths:
 
 # What is already decided about the code you are touching
 
-Product behaviour in this repository is specified in `docs/product/`, not decided here. Nothing
+Product behaviour in this repository is specified in `{{SPEC_ROOT}}/`, not decided here. Nothing
 below prescribes how to build — only what is already settled and where it is written.
 
 ## Before writing behaviour, name what you are implementing
@@ -15,9 +15,9 @@ Every unit of product behaviour traces to a feature spec (`fs-NN`) and usually t
 acceptance criteria (`AC-NN-n`). If you cannot name the id your code serves, one of three things
 is true, and it is worth knowing which:
 
-- you have not looked it up yet — `/spec <id>`, or `docs/product/spec-index.json`
+- you have not looked it up yet — `/{{SKILL_SPEC}} <id>`, or `{{INDEX}}`
 - it is infrastructure with no product surface — fine, carry on
-- it is unspecified product behaviour — stop, `/spec-gap`
+- it is unspecified product behaviour — stop, `/{{SKILL_GAP}}`
 
 ## The line you must not cross alone
 
@@ -40,13 +40,13 @@ question wearing a disguise.
 Implementing one feature can violate a rule written somewhere else. Check these when your change
 touches shared data or async work:
 
-- `docs/product/blueprint/interaction-map.md` — conflict domains name every writer of an entity;
+- `{{SPEC_ROOT}}/blueprint/interaction-map.md` — conflict domains name every writer of an entity;
   invariants (`INV-n`) must hold across features, not per feature; `JOB-n` rows fix async
   semantics (queued/running/cancelled/partial, second submit, disconnect, result lifetime)
-- `docs/product/blueprint/data-schema.md` — `ST-<entity>-n` transitions: every transition has an
+- `{{SPEC_ROOT}}/blueprint/data-schema.md` — `ST-<entity>-n` transitions: every transition has an
   owner, and code that changes state outside a listed transition is a defect
-- `docs/product/blueprint/nfr-spec.md` — the authorization matrix and performance budgets
-- `docs/product/blueprint/blueprint-overview.md` — `bp:event-dictionary` is the only definition of
+- `{{SPEC_ROOT}}/blueprint/nfr-spec.md` — the authorization matrix and performance budgets
+- `{{SPEC_ROOT}}/blueprint/blueprint-overview.md` — `bp:event-dictionary` is the only definition of
   each tracking event and its payload; emit exactly that shape
 
 ## Traceability
@@ -57,5 +57,7 @@ countable.
 
 ## Do not build what was cut
 
-`docs/product/pack/mvp-spec.md` carries the cut list. Adjacent-and-easy is exactly how a locked
+`{{SPEC_ROOT}}/{{PACK}}/mvp-spec.md` carries the cut list. Adjacent-and-easy is exactly how a locked
 scope stops shipping. A behaviour with no feature spec is not in this build.
+
+{{PRECEDENCE}}

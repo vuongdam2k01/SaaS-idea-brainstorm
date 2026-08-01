@@ -5,6 +5,51 @@ multi-session conflict inventory and its resolution log) was development residue
 from the working tree — it remains recoverable in git history at commit `fd7732b` and earlier
 (`git show fd7732b:plugin/conflicts-inventory.md`, etc.).
 
+## v1.9.0 — 2026-08-01 · the handoff, corrected for one repo and for other plugins
+
+Two observations from the founder, hours after v1.8.0 shipped. Both were right, and both changed
+the design rather than adding a flag.
+
+- **One repo, not two.** The normal workflow is brainstorm *and* implement in the same repository.
+  v1.8.0 only knew how to copy the artifacts into a build repo — and doing that in a mono-repo
+  produces a **second, unguarded copy of the spec inside the same tree**: `validate-artifact.js`
+  and `guard-thresholds.js` both scope to paths under `ideas/`, so the copy would be freely
+  editable while the original is frozen. Precisely the divergence the method exists to prevent,
+  shipped by the tool meant to protect against it.
+
+  New **`--in-place`** mode copies nothing; every generated artifact points at `ideas/<slug>/`
+  directly. It also **hashes nothing** (a hash of the source against itself proves nothing and
+  goes stale on every legitimate amendment — `--check` reports a stale *index* instead) and
+  **registers no hook** (the plugin's own SessionStart already briefs the session and its
+  PreToolUse already blocks edits to locked artifacts). It does not touch `CLAUDE.md` or
+  `AGENTS.md`; the contract goes into an always-loaded `.claude/rules/product-spec/contract.md`.
+  `--codex` maintains one begin/end-marked block inside `AGENTS.md` for Codex, leaving everything
+  outside the markers untouched.
+
+- **A build repo carries other plugins.** Three changes follow, none cosmetic:
+  1. **Namespaced layout.** Everything now lands in `.claude/product-spec/` and
+     `.claude/rules/product-spec/`, with skills `/product-spec` and `/product-spec-gap`. Project
+     skills are *not* namespaced the way plugin skills are (`plugin:skill` cannot collide;
+     `.claude/skills/spec/` can, and shadows a bundled skill of the same name) — and
+     `.claude/rules/implementation.md` is exactly the filename two tools collide on. Uninstalling
+     is deleting two folders.
+  2. **Every generated rule carries a scope clause** disclaiming architecture, stack, code style,
+     formatting, commit conventions, branching, review and release process, because Claude Code
+     picks *arbitrarily* between contradicting instructions. What it does still assert: a product
+     decision recorded in the spec is not overridden by another instruction — it is amended, or it
+     stands.
+  3. **Nothing this generator did not write is overwritten**, in either mode, and a refused run
+     writes no index at all.
+
+- **Two defects found by running it.** The index was written *before* the files it describes, so a
+  crash mid-generation left a kit that `--check` called up to date — it is now written last.
+  And `--check` ran the blueprint validator first, so a mid-edit blueprint hid staleness behind an
+  unrelated failure — the validator now gates generation only, never inspection.
+
+- Tests: **303** contract tests (was 264), incl. in-place vs copy behaviour, the collidable-path
+  assertions, the scope clause, `--codex` block replacement, and settings merge. Coverage report:
+  **141** requirements, **63%** deterministically enforced.
+
 ## v1.8.0 — 2026-08-01 · build handoff: making the artifacts legible to the next agent
 
 **Observed failure this release cites** (method-rules §14 requires one): the pipeline's output is

@@ -4,7 +4,7 @@
  *
  * Generated into this repo by the saas-idea-brainstorm plugin. Two jobs:
  *   1. tell the session, before its first prompt, that product decisions are frozen
- *      in docs/product/ and how to resolve an id there;
+ *      in the spec root and how to resolve an id there;
  *   2. prove the copy is still trustworthy — every file is hashed in spec-index.json,
  *      and the source workspace (when reachable) is checked for amendments landed
  *      after this kit was generated.
@@ -25,25 +25,26 @@ process.stdin.on("end", () => {
     const root = findRoot(evt.cwd || process.cwd());
     if (!root) return process.exit(0);
 
-    const indexPath = path.join(root, "docs", "product", "spec-index.json");
+    const indexPath = path.join(root, ".claude", "product-spec", "spec-index.json");
     let idx;
     try {
       idx = JSON.parse(fs.readFileSync(indexPath, "utf8"));
     } catch (e) {
       return emit(
-        "This repository carries a frozen product specification under docs/product/, but " +
-        "docs/product/spec-index.json is unreadable (" + e.message + "). Id lookup and the " +
+        "This repository carries a frozen product specification, but " +
+        ".claude/product-spec/spec-index.json is unreadable (" + e.message + "). Id lookup and the " +
         "freshness check are both unavailable until the handoff kit is regenerated. Treat the " +
         "spec files as authoritative and do not rely on any index."
       );
     }
 
+    const SPEC_ROOT = idx.spec_root || "docs/product";
     const lines = [];
     const alerts = [];
 
     lines.push(
       "Product specification: this repository implements a spec that was locked before the repo " +
-      "existed. It lives in docs/product/ (" + (idx.file_count || "?") + " files, " +
+      "existed. It lives in " + SPEC_ROOT + "/ (" + (idx.file_count || "?") + " files, " +
       Object.keys(idx.ids || {}).length + " indexed ids), generated " + (idx.generated || "?") +
       " from " + (idx.source_workspace || "an unrecorded workspace") + "."
     );
@@ -57,18 +58,18 @@ process.stdin.on("end", () => {
     lines.push(
       "Read order on any session that touches product behaviour: " +
       (Array.isArray(idx.read_order) && idx.read_order.length
-        ? idx.read_order.slice(0, 4).map((r) => "docs/product/" + r).join(" → ")
-        : "docs/product/READ-ORDER.md")
+        ? idx.read_order.slice(0, 4).map((r) => SPEC_ROOT + "/" + r).join(" → ")
+        : SPEC_ROOT + "/READ-ORDER.md")
     );
     lines.push(
       "Ids (fs-NN, AC-NN-n, INV-n, JOB-n, ST-<entity>-n, CAP-NN-n, EV-n, DR-n, DOD-n, …) resolve " +
-      "through docs/product/spec-index.json, or `node .claude/scripts/spec-lookup.js <id>`. " +
-      "docs/product/ is read-only here: corrections go through the amendment process in the source " +
+      "through .claude/product-spec/spec-index.json, or `node .claude/product-spec/spec-lookup.js <id>`. " +
+      SPEC_ROOT + "/ is read-only here: corrections go through the amendment process in the source " +
       "workspace, described in AGENTS.md."
     );
     if (idx.amendments_through && idx.amendments_through !== "none")
       lines.push(
-        "Amendments through " + idx.amendments_through + ": docs/product/blueprint/amendment-log.md " +
+        "Amendments through " + idx.amendments_through + ": " + SPEC_ROOT + "/blueprint/amendment-log.md " +
         "overrides the locked files wherever it speaks, and is read first."
       );
 
@@ -76,7 +77,7 @@ process.stdin.on("end", () => {
     const changed = [];
     const gone = [];
     for (const f of Array.isArray(idx.files) ? idx.files : []) {
-      const p = path.join(root, "docs", "product", f.path);
+      const p = path.join(root, SPEC_ROOT, f.path);
       let buf;
       try { buf = fs.readFileSync(p); } catch { gone.push(f.path); continue; }
       const h = crypto.createHash("sha256").update(buf).digest("hex");
@@ -156,7 +157,7 @@ function emit(ctx) {
 function findRoot(start) {
   let dir = path.resolve(start);
   for (let i = 0; i < 12; i++) {
-    if (fs.existsSync(path.join(dir, "docs", "product", "spec-index.json"))) return dir;
+    if (fs.existsSync(path.join(dir, ".claude", "product-spec", "spec-index.json"))) return dir;
     const up = path.dirname(dir);
     if (up === dir) return null;
     dir = up;

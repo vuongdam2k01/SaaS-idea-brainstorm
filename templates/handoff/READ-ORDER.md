@@ -1,5 +1,5 @@
 <!-- saas-idea-brainstorm:handoff v{{PLUGIN_VERSION}} — GENERATED, do not hand-edit. -->
-# `docs/product/` — what each file is, and the order to read it
+# `{{SPEC_ROOT}}/` — what each file is, and the order to read it
 {{DRAFT_BANNER}}
 Generated {{GENERATED}} from `{{SOURCE}}` · pack class **{{PACK_CLASS}}** · amendments through
 **{{AMENDMENTS_THROUGH}}** · {{FILE_COUNT}} files · {{ID_COUNT}} indexed ids.
@@ -22,8 +22,8 @@ implementing, then whatever that spec's constraints point at.
 
 | your question | file |
 |---|---|
-| Is this in scope at all? What was cut? | `pack/mvp-spec.md` |
-| What does "done" mean for this product? | `pack/definition-of-done.md` |
+| Is this in scope at all? What was cut? | `{{PACK}}/mvp-spec.md` |
+| What does "done" mean for this product? | `{{PACK}}/definition-of-done.md` |
 | What exactly must this feature do, and when is it correct? | `blueprint/feature-specs/fs-NN-*.md` |
 | What is this field called, what type, what limit, what happens on invalid input? | `blueprint/data-schema.md` + the feature spec's `bp:fields` |
 | What states can this record be in, and who may move it between them? | `blueprint/data-schema.md` → `bp:state-machines` |
@@ -45,10 +45,10 @@ implementing, then whatever that spec's constraints point at.
 `spec-index.json` maps every id to its defining file and section:
 
 ```bash
-node .claude/scripts/spec-lookup.js AC-03-2
-node .claude/scripts/spec-lookup.js --list fs
-node .claude/scripts/spec-lookup.js --grep invite
+node {{LOOKUP}} AC-03-2
+node {{LOOKUP}} --list fs
+node {{LOOKUP}} --grep invite
 ```
 
-In a Claude Code session, `/spec <id>` does the same thing and reads the surrounding constraints
+In a Claude Code session, `/{{SKILL_SPEC}} <id>` does the same thing and reads the surrounding constraints
 for you.

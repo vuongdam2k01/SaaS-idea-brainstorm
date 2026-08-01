@@ -1,12 +1,12 @@
 ---
 paths:
-  - "docs/product/**"
+  - "{{SPEC_ROOT}}/**"
 ---
 <!-- saas-idea-brainstorm:handoff v{{PLUGIN_VERSION}} — GENERATED, do not hand-edit. -->
 
 # Reading the frozen product spec
 
-You have a file under `docs/product/` open. These files were produced by a validation pipeline
+You have a file under `{{SPEC_ROOT}}/` open. These files were produced by a validation pipeline
 and are written to be read by anchor and by id, not skimmed.
 
 ## Sections are delimited by anchor comments
@@ -36,7 +36,7 @@ Anchors you will meet most often:
 
 {{ID_TABLE}}
 
-`docs/product/spec-index.json` maps every one of these to `{file, anchor, label}`. Prefer it over
+`{{INDEX}}` maps every one of these to `{file, anchor, label}`. Prefer it over
 grep: it distinguishes the definition site from the many places an id is merely referenced.
 
 `E-nnn` is the exception: those are evidence-ledger entries recording *why* a decision was made.
@@ -49,7 +49,7 @@ These artifacts passed a validator that rejects unresolved markers, so you will 
 `[TBD]`, `[GUESS]`, `[OPEN]` or blanks standing in for decisions. Some cells are legitimately
 `N/A` **with a reason attached**, and some inherit a value declared elsewhere (a blank determinism
 cell inherits its capability's declaration). If a cell looks empty and you cannot find what it
-inherits from, treat it as a spec gap — `/spec-gap` — not as a free choice.
+inherits from, treat it as a spec gap — `/{{SKILL_GAP}}` — not as a free choice.
 
 ## These files are read-only
 
@@ -58,3 +58,5 @@ process in the source workspace, never through an edit here. See Rule 1 in `AGEN
 
 `amendment-log.md` overrides the locked files wherever it speaks. If you are reading a locked
 file and have not read the amendment log this session, read it now.
+
+{{PRECEDENCE}}

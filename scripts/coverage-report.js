@@ -115,7 +115,11 @@ const REQUIREMENTS = [
   { id: "handoff-never-clobbers-instructions", where: "handoff-to-build", tier: "code", by: "build-handoff.js MARKER check on AGENTS.md/CLAUDE.md; settings.json is merged, never replaced" },
   { id: "handoff-excludes-private-and-ledger", where: "handoff-to-build", tier: "code", by: "build-handoff.js SKIP_NAMES + sources limited to mvp-pack/ and blueprint/ (E-nnn stays unresolvable by design)" },
   { id: "handoff-id-definition-site", where: "handoff-to-build", tier: "code", by: "build-handoff.js ID_KINDS.home — a citation never displaces the defining file" },
-  { id: "handoff-drift-detectable", where: "handoff-to-build", tier: "code", by: "build-handoff.js --check (both directions) + the generated SessionStart freshness hook" },
+  { id: "handoff-drift-detectable", where: "handoff-to-build", tier: "code", by: "build-handoff.js --check (copy: both directions; in-place: stale index) + the generated SessionStart freshness hook" },
+  { id: "handoff-in-place-never-copies", where: "handoff-to-build", tier: "code", by: "build-handoff.js IN_PLACE branch — a copy inside the same tree would be an unguarded twin (hooks scope to ideas/**)" },
+  { id: "handoff-no-collidable-paths", where: "handoff-to-build", tier: "code", by: "build-handoff.js OUT namespaces + contract tests asserting nothing lands at .claude/rules/implementation.md or .claude/skills/spec/" },
+  { id: "handoff-rules-self-limiting", where: "handoff-to-build", tier: "code", by: "build-handoff.js PRECEDENCE clause in every generated rule + parity tests (Claude Code picks arbitrarily between contradicting instructions)" },
+  { id: "handoff-index-written-last", where: "handoff-to-build", tier: "code", by: "build-handoff.js write order + the 'refused run writes no index' test (a half-generated kit must not claim to be one)" },
   { id: "handoff-paraphrases-nothing", where: "handoff-to-build", tier: "prose", by: "INTENTIONAL: a design constraint on the templates — enforced by review, since 'this sentence restates a spec' is not mechanically decidable" },
   { id: "handoff-refreshed-after-amendment", where: "amend-blueprint step 6", tier: "prose", by: "the generated freshness hook reports staleness at the next build session, but nothing forces the regeneration" },
 

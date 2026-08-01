@@ -1444,145 +1444,211 @@ console.log("== artifact_kind parity: maintenance-rules §9 vs validate-artifact
 console.log("== v1.8.0 build handoff: scripts/build-handoff.js ==");
 {
   const HANDOFF = path.join(ROOT, "scripts", "build-handoff.js");
-  const run = (args, opts) => {
-    try {
-      return { ok: true, out: String(execFileSync("node", [HANDOFF, ...args], { stdio: "pipe", ...opts })) };
-    } catch (e) {
-      return { ok: false, out: String((e.stdout || "") + (e.stderr || "")) };
-    }
+  const run = (args) => {
+    try { return { ok: true, out: String(execFileSync("node", [HANDOFF, ...args], { stdio: "pipe" })) }; }
+    catch (e) { return { ok: false, out: String((e.stdout || "") + (e.stderr || "")) }; }
   };
   const root = tmpdir("handoff");
-  const idea = require("./blueprint-fixture.js").build(root);
-  const repo = path.join(root, "buildrepo");
+  const idea = require("./blueprint-fixture.js").build(root); // root/ideas/bpfix
+  const mono = root;                                          // the idea workspace IS the repo
+  const repo = path.join(root, "..", "buildrepo-" + path.basename(root));
   fs.mkdirSync(repo, { recursive: true });
+  const read = (base, p) => { try { return fs.readFileSync(path.join(base, p), "utf8"); } catch { return null; } };
+  const exists = (base, p) => fs.existsSync(path.join(base, p));
 
-  // 1. an unlocked blueprint must not yield a kit that claims to be a locked contract
+  // ---- gate + validator guards
   const unlocked = run([idea, "--to", repo]);
   check("refuses to generate before gate BP passes", !unlocked.ok && /gate BP has not passed/.test(unlocked.out), unlocked.out.slice(0, 160));
   check("names --draft as the explicit preview route", /--draft/.test(unlocked.out));
-
-  // 2. --draft generates, and stamps every consumer of the kit
   const draft = run([idea, "--to", repo, "--draft"]);
   check("--draft generates a kit", draft.ok, draft.out.slice(0, 200));
-  const readRepo = (p) => { try { return fs.readFileSync(path.join(repo, p), "utf8"); } catch { return null; } };
-  check("DRAFT is stamped in AGENTS.md", /DRAFT/.test(readRepo("AGENTS.md") || ""));
-  const draftIdx = JSON.parse(readRepo("docs/product/spec-index.json"));
-  check("spec-index records draft: true", draftIdx.draft === true);
+  check("DRAFT is stamped in AGENTS.md", /DRAFT/.test(read(repo, "AGENTS.md") || ""));
+  check("spec-index records draft: true", JSON.parse(read(repo, ".claude/product-spec/spec-index.json")).draft === true);
 
-  // 3. locked path
   const st = JSON.parse(fs.readFileSync(path.join(idea, "state.json"), "utf8"));
   st.blueprint = { cycle_id: "C1", status: "locked", gate: { status: "passed" }, updated: "2026-08-01", amendments: { last_id: "ba-002" } };
   fs.writeFileSync(path.join(idea, "state.json"), JSON.stringify(st, null, 2));
+
+  // ---- COPY mode (separate build repo)
   const gen = run([idea, "--to", repo, "--force"]);
-  check("generates from a locked blueprint", gen.ok, gen.out.slice(0, 200));
-
-  const idx = JSON.parse(readRepo("docs/product/spec-index.json"));
-  check("spec-index is no longer draft", idx.draft === false);
-  check("spec-index carries a sha256 per copied file", (idx.files || []).length > 0 && idx.files.every((f) => /^[0-9a-f]{64}$/.test(f.sha256)));
-  check("spec-index carries the amendment high-water mark", idx.amendments_through === "ba-002");
-
-  // 4. the id index points at DEFINITION sites, not citations
+  check("copy mode generates from a locked blueprint", gen.ok, gen.out.slice(0, 200));
+  const idx = JSON.parse(read(repo, ".claude/product-spec/spec-index.json"));
+  check("copy index declares mode + spec_root", idx.mode === "copy" && idx.spec_root === "docs/product", `${idx.mode}/${idx.spec_root}`);
+  check("copy index is no longer draft", idx.draft === false);
+  check("copy index carries a sha256 per file", idx.files.length > 0 && idx.files.every((f) => /^[0-9a-f]{64}$/.test(f.sha256)));
+  check("copy index carries the amendment high-water mark", idx.amendments_through === "ba-002");
   check("fs-01 resolves to its own feature spec, not the overview's index row",
-    idx.ids["fs-01"] && /^blueprint\/feature-specs\/fs-01-/.test(idx.ids["fs-01"].file),
-    idx.ids["fs-01"] && idx.ids["fs-01"].file);
-  check("AC-01-1 resolves inside the feature spec's acceptance section",
-    idx.ids["AC-01-1"] && idx.ids["AC-01-1"].anchor === "bp:acceptance",
-    idx.ids["AC-01-1"] && idx.ids["AC-01-1"].anchor);
+    /^blueprint\/feature-specs\/fs-01-/.test(idx.ids["fs-01"].file), idx.ids["fs-01"].file);
+  check("AC-01-1 resolves inside the feature spec's acceptance section", idx.ids["AC-01-1"].anchor === "bp:acceptance");
   check("E-nnn evidence ids are deliberately NOT indexed (the ledger stays in the workspace)",
     !Object.keys(idx.ids).some((k) => /^E-\d{3}$/.test(k)));
+  check("no private/ material is copied", !idx.files.some((f) => /(^|\/)private\//.test(f.path + " " + (f.source || ""))));
+  for (const f of ["AGENTS.md", "CLAUDE.md", ".claude/product-spec/spec-index.json",
+    ".claude/product-spec/spec-lookup.js", ".claude/product-spec/spec-freshness.js",
+    ".claude/product-spec/READ-ORDER.md", ".claude/rules/product-spec/spec-vocabulary.md",
+    ".claude/rules/product-spec/implementation.md", ".claude/rules/product-spec/spec-tests.md",
+    ".claude/skills/product-spec/SKILL.md", ".claude/skills/product-spec-gap/SKILL.md",
+    ".claude/settings.json", "docs/product/blueprint/nfr-spec.md"])
+    check(`copy kit contains ${f}`, exists(repo, f));
+  const renderedCopy = ["AGENTS.md", "CLAUDE.md", ".claude/product-spec/READ-ORDER.md",
+    ".claude/rules/product-spec/spec-vocabulary.md", ".claude/rules/product-spec/implementation.md",
+    ".claude/rules/product-spec/spec-tests.md", ".claude/skills/product-spec/SKILL.md",
+    ".claude/skills/product-spec-gap/SKILL.md"];
+  check("no template placeholder survives rendering (copy)",
+    renderedCopy.every((f) => !/\{\{[A-Z_]+\}\}/.test(read(repo, f) || "")),
+    renderedCopy.filter((f) => /\{\{[A-Z_]+\}\}/.test(read(repo, f) || "")).join(", "));
+  check("CLAUDE.md imports AGENTS.md with a bare @ reference", /^@AGENTS\.md\s*$/m.test(read(repo, "CLAUDE.md") || ""));
+  check("SessionStart freshness hook is registered in copy mode",
+    JSON.stringify(JSON.parse(read(repo, ".claude/settings.json")).hooks.SessionStart).includes("spec-freshness.js"));
 
-  // 5. every artifact the tools load unprompted is present, and nothing is left unsubstituted
-  for (const f of ["AGENTS.md", "CLAUDE.md", ".claude/rules/spec-vocabulary.md",
-    ".claude/rules/implementation.md", ".claude/rules/spec-tests.md",
-    ".claude/skills/spec/SKILL.md", ".claude/skills/spec-gap/SKILL.md",
-    ".claude/scripts/spec-lookup.js", ".claude/scripts/spec-freshness.js",
-    ".claude/settings.json", "docs/product/READ-ORDER.md"])
-    check(`kit contains ${f}`, readRepo(f) !== null);
-  const rendered = ["AGENTS.md", "CLAUDE.md", ".claude/rules/spec-vocabulary.md",
-    ".claude/rules/implementation.md", ".claude/rules/spec-tests.md",
-    ".claude/skills/spec/SKILL.md", ".claude/skills/spec-gap/SKILL.md", "docs/product/READ-ORDER.md"];
-  check("no template placeholder survives rendering", rendered.every((f) => !/\{\{[A-Z_]+\}\}/.test(readRepo(f) || "")),
-    rendered.filter((f) => /\{\{[A-Z_]+\}\}/.test(readRepo(f) || "")).join(", "));
-  // Claude Code reads CLAUDE.md and not AGENTS.md: the import is the documented bridge,
-  // and it must not be inside backticks or the import is skipped.
-  check("CLAUDE.md imports AGENTS.md with a bare @ reference", /^@AGENTS\.md\s*$/m.test(readRepo("CLAUDE.md") || ""));
-  check("path-scoped rules declare a paths frontmatter",
-    ["implementation", "spec-tests", "spec-vocabulary"].every((r) => /^---[\s\S]*?\npaths:\n/.test(readRepo(`.claude/rules/${r}.md`) || "")));
-  const settings = JSON.parse(readRepo(".claude/settings.json"));
-  check("SessionStart hook is registered", JSON.stringify(settings.hooks.SessionStart).includes("spec-freshness.js"));
+  // ---- conflict surface: nothing lands on a generic, collidable path
+  // Project skills can shadow bundled skills and collide with each other (plugin skills
+  // are namespaced and cannot). Generic rule filenames collide the same way.
+  for (const generic of [".claude/rules/implementation.md", ".claude/rules/spec-tests.md",
+    ".claude/rules/spec-vocabulary.md", ".claude/skills/spec/SKILL.md",
+    ".claude/skills/spec-gap/SKILL.md", ".claude/scripts/spec-lookup.js"])
+    check(`nothing is written to the collidable path ${generic}`, !exists(repo, generic));
+  for (const r of ["spec-vocabulary", "implementation", "spec-tests"]) {
+    const body = read(repo, `.claude/rules/product-spec/${r}.md`) || "";
+    check(`rule ${r} disclaims architecture/style/commit process`,
+      /Scope of this rule/.test(body) && /no claim about architecture/.test(body) &&
+      /commit conventions/.test(body) && /that instruction\s*\n?governs/.test(body));
+    check(`rule ${r} still asserts the one thing it does own`, /is not overridden by any other instruction/.test(body));
+  }
 
-  // 6. nothing private leaves the workspace
-  check("no private/ material is copied", !(idx.files || []).some((f) => /(^|\/)private\//.test(f.path) || /(^|\/)private\//.test(f.source)));
+  // ---- IN-PLACE mode (one repo holds both)
+  const ip = run([idea, "--in-place"]);
+  check("in-place generates without --to", ip.ok, ip.out.slice(0, 220));
+  const ipIdx = JSON.parse(read(mono, ".claude/product-spec/spec-index.json"));
+  check("in-place index declares mode + spec_root pointing at the idea dir",
+    ipIdx.mode === "in-place" && ipIdx.spec_root === "ideas/bpfix", `${ipIdx.mode}/${ipIdx.spec_root}`);
+  // The whole point: no second copy of the spec inside the same tree. The pipeline's hooks
+  // guard only ideas/**, so a copy would be an unguarded editable twin of a frozen file.
+  check("in-place copies NO artifacts into the repo", !exists(mono, "docs/product"));
+  check("in-place indexes paths as the pipeline owns them (mvp-pack/, not pack/)",
+    ipIdx.files.some((f) => f.path.startsWith("mvp-pack/")) && !ipIdx.files.some((f) => f.path.startsWith("pack/")));
+  check("in-place records no sha256 (a hash of the source against itself proves nothing)",
+    ipIdx.files.every((f) => !("sha256" in f)));
+  check("in-place writes an always-loaded contract rule", exists(mono, ".claude/rules/product-spec/contract.md"));
+  check("the contract rule has no paths frontmatter (it must load every session)",
+    !/^---[\s\S]*?\npaths:/.test(read(mono, ".claude/rules/product-spec/contract.md") || ""));
+  check("in-place registers NO hook (the plugin's own hooks already cover this repo)",
+    !exists(mono, ".claude/settings.json") && !exists(mono, ".claude/product-spec/spec-freshness.js"));
+  check("in-place does not touch CLAUDE.md or AGENTS.md by default",
+    !exists(mono, "CLAUDE.md") && !exists(mono, "AGENTS.md"));
+  check("in-place vocabulary rule is scoped to the idea directory",
+    /paths:\s*\n\s*-\s*"ideas\/bpfix\/\*\*"/.test(read(mono, ".claude/rules/product-spec/spec-vocabulary.md") || ""));
+  const renderedIp = ["contract.md", "spec-vocabulary.md", "implementation.md", "spec-tests.md"];
+  check("no template placeholder survives rendering (in-place)",
+    renderedIp.every((f) => !/\{\{[A-Z_]+\}\}/.test(read(mono, `.claude/rules/product-spec/${f}`) || "")));
+  check("in-place routes amendments through the plugin command, not a cross-repo path",
+    /saas-idea-brainstorm:amend-blueprint/.test(read(mono, ".claude/rules/product-spec/contract.md") || ""));
 
-  // 7. the lookup script resolves and refuses honestly
-  const lookup = (args) => {
-    try { return { ok: true, out: String(execFileSync("node", [path.join(repo, ".claude/scripts/spec-lookup.js"), ...args], { cwd: repo, stdio: "pipe" })) }; }
+  const lookupIn = (base, args) => {
+    try { return { ok: true, out: String(execFileSync("node", [path.join(base, ".claude/product-spec/spec-lookup.js"), ...args], { cwd: base, stdio: "pipe" })) }; }
     catch (e) { return { ok: false, out: String((e.stdout || "") + (e.stderr || "")) }; }
   };
-  const hit = lookup(["AC-01-1"]);
-  check("spec-lookup resolves a real id to its file and section", hit.ok && /bp:acceptance/.test(hit.out), hit.out.slice(0, 160));
-  const miss = lookup(["AC-99-9"]);
-  check("spec-lookup exits non-zero on an unindexed id", !miss.ok);
-  check("spec-lookup calls an unindexed id a finding, not a free choice", /NOT INDEXED/.test(miss.out) && /not a licence to decide/.test(miss.out));
+  const ipHit = lookupIn(mono, ["AC-01-1"]);
+  check("in-place lookup resolves through the real artifact path", ipHit.ok && /ideas\/bpfix\/blueprint\/feature-specs/.test(ipHit.out), ipHit.out.slice(0, 200));
+  const copyHit = lookupIn(repo, ["AC-01-1"]);
+  check("copy lookup resolves through docs/product", copyHit.ok && /docs\/product\/blueprint\/feature-specs/.test(copyHit.out));
+  const miss = lookupIn(mono, ["AC-99-9"]);
+  check("lookup exits non-zero on an unindexed id", !miss.ok);
+  check("lookup calls an unindexed id a finding, not a free choice",
+    /NOT INDEXED/.test(miss.out) && /not a licence to decide/.test(miss.out));
 
-  // 8. drift is detectable in BOTH directions — a stale kit is worse than none
-  check("--check is clean immediately after generation", run([idea, "--to", repo, "--check"]).ok);
+  // ---- staleness, both modes
+  check("--check is clean right after copy generation", run([idea, "--to", repo, "--check"]).ok);
+  check("--check is clean right after in-place generation", run([idea, "--in-place", "--check"]).ok);
   fs.appendFileSync(path.join(repo, "docs/product/blueprint/test-plan.md"), "\ntampered\n");
   const localDrift = run([idea, "--to", repo, "--check"]);
-  check("--check fails on a locally modified frozen file", !localDrift.ok && /locally modified/.test(localDrift.out));
-  fs.appendFileSync(path.join(idea, "blueprint", "nfr-spec.md"), "\nmoved on\n");
+  check("copy --check fails on a locally modified frozen file", !localDrift.ok && /locally modified/.test(localDrift.out));
+  // in place there is no copy to diverge; what goes stale is the index
+  const fsDir = path.join(idea, "blueprint", "feature-specs");
+  const newFs = path.join(fsDir, "fs-03-late.md");
+  fs.writeFileSync(newFs, fs.readFileSync(path.join(fsDir, "fs-01-upload.md"), "utf8")
+    .replace(/fs-01/g, "fs-03").replace(/AC-01-/g, "AC-03-"), "utf8");
+  const ipStale = run([idea, "--in-place", "--check"]);
+  check("in-place --check catches an id added after generation",
+    !ipStale.ok && /ids not in the index/.test(ipStale.out) && /fs-03|AC-03-1/.test(ipStale.out), ipStale.out.slice(0, 220));
+  fs.rmSync(newFs);
   const srcDrift = run([idea, "--to", repo, "--check"]);
-  check("--check fails when the source workspace moved ahead", !srcDrift.ok && /source has changed/.test(srcDrift.out));
+  check("copy --check fails when the source workspace moved ahead", !srcDrift.ok && /source has changed|locally modified/.test(srcDrift.out));
 
-  // the freshness hook must reach the same verdict inside a build session
-  let hookCtx = "";
+  let hookCtx = null;
   try {
-    hookCtx = String(execFileSync("node", [path.join(repo, ".claude/scripts/spec-freshness.js")],
-      { input: JSON.stringify({ cwd: repo }), stdio: "pipe" }));
+    hookCtx = JSON.parse(String(execFileSync("node", [path.join(repo, ".claude/product-spec/spec-freshness.js")],
+      { input: JSON.stringify({ cwd: repo }), stdio: "pipe" }))).hookSpecificOutput.additionalContext;
   } catch { /* fails open by design */ }
-  let parsed = null;
-  try { parsed = JSON.parse(hookCtx).hookSpecificOutput.additionalContext; } catch {}
-  check("freshness hook injects SessionStart context", typeof parsed === "string" && parsed.length > 0);
-  check("freshness hook reports both drift directions", /LOCALLY MODIFIED/.test(parsed || "") && /OUT OF DATE/.test(parsed || ""));
-  check("freshness hook never claims to have repaired anything", !/repair|fixed automatically/i.test(parsed || ""));
+  check("freshness hook injects SessionStart context", typeof hookCtx === "string" && hookCtx.length > 0);
+  check("freshness hook reports local tampering", /LOCALLY MODIFIED/.test(hookCtx || ""));
+  check("freshness hook never claims to have repaired anything", !/repair|fixed automatically/i.test(hookCtx || ""));
 
-  // 9. an AGENTS.md someone else wrote is never silently replaced
-  const repo2 = path.join(root, "buildrepo2");
+  // ---- never silently replace someone else's file
+  const repo2 = path.join(root, "..", "buildrepo2-" + path.basename(root));
   fs.mkdirSync(repo2, { recursive: true });
   fs.writeFileSync(path.join(repo2, "AGENTS.md"), "# our own instructions\n");
   const clobber = run([idea, "--to", repo2]);
-  check("refuses to overwrite an AGENTS.md it did not write", !clobber.ok && /already exists and was not written/.test(clobber.out));
-  check("the refusal offers the import route before --force", /import it|@my-notes\.md|--force/.test(clobber.out));
+  check("refuses to overwrite an AGENTS.md it did not write", !clobber.ok && /were not written by this generator/.test(clobber.out));
+  check("the refusal offers the import route before --force", /@my-notes\.md|import it/.test(clobber.out) && /--force/.test(clobber.out));
   check("the pre-existing AGENTS.md is untouched after the refusal",
     fs.readFileSync(path.join(repo2, "AGENTS.md"), "utf8") === "# our own instructions\n");
+  check("a refused run writes no index at all (nothing half-generated claims to be a kit)",
+    !exists(repo2, ".claude/product-spec/spec-index.json"));
+  const mono2 = path.join(root, "..", "mono2-" + path.basename(root));
+  fs.mkdirSync(path.join(mono2, ".claude", "rules", "product-spec"), { recursive: true });
+  fs.writeFileSync(path.join(mono2, ".claude", "rules", "product-spec", "contract.md"), "# someone else's rule\n");
+  fs.cpSync(idea, path.join(mono2, "ideas", "bpfix"), { recursive: true });
+  const clobber2 = run([path.join(mono2, "ideas", "bpfix"), "--in-place"]);
+  check("in-place refuses to overwrite a foreign rule of the same name", !clobber2.ok && /were not written by this generator/.test(clobber2.out));
 
-  // 10. an existing settings.json is merged, never replaced
-  const repo3 = path.join(root, "buildrepo3");
+  // ---- settings.json is merged, never replaced (copy mode)
+  const repo3 = path.join(root, "..", "buildrepo3-" + path.basename(root));
   fs.mkdirSync(path.join(repo3, ".claude"), { recursive: true });
   fs.writeFileSync(path.join(repo3, ".claude", "settings.json"),
     JSON.stringify({ permissions: { allow: ["Bash(npm test)"] }, hooks: { SessionStart: [{ hooks: [{ type: "command", command: "echo mine" }] }] } }, null, 2));
   const merged = run([idea, "--to", repo3]);
   check("generates into a repo that already has settings.json", merged.ok, merged.out.slice(0, 200));
-  const s3 = JSON.parse(fs.readFileSync(path.join(repo3, ".claude", "settings.json"), "utf8"));
-  check("pre-existing settings keys survive", s3.permissions && s3.permissions.allow[0] === "Bash(npm test)");
+  const s3 = JSON.parse(read(repo3, ".claude/settings.json"));
+  check("pre-existing settings keys survive", s3.permissions.allow[0] === "Bash(npm test)");
   check("pre-existing SessionStart hooks survive", JSON.stringify(s3.hooks.SessionStart).includes("echo mine"));
   check("the freshness hook is added alongside them", JSON.stringify(s3.hooks.SessionStart).includes("spec-freshness.js"));
-  const twice = run([idea, "--to", repo3, "--force"]);
-  const s3b = JSON.parse(fs.readFileSync(path.join(repo3, ".claude", "settings.json"), "utf8"));
-  check("regenerating does not duplicate the hook entry", twice.ok &&
-    (JSON.stringify(s3b.hooks.SessionStart).match(/spec-freshness\.js/g) || []).length === 1);
+  run([idea, "--to", repo3, "--force"]);
+  check("regenerating does not duplicate the hook entry",
+    (JSON.stringify(JSON.parse(read(repo3, ".claude/settings.json")).hooks.SessionStart).match(/spec-freshness\.js/g) || []).length === 1);
 
-  // 11. the skill and the generator agree on the surface
+  // ---- --codex: a marked block, and only that block
+  const mono3 = path.join(root, "..", "mono3-" + path.basename(root));
+  fs.mkdirSync(mono3, { recursive: true });
+  fs.cpSync(idea, path.join(mono3, "ideas", "bpfix"), { recursive: true });
+  fs.writeFileSync(path.join(mono3, "AGENTS.md"), "# my repo\n\nRun `make test`.\n");
+  const cdx = run([path.join(mono3, "ideas", "bpfix"), "--in-place", "--codex"]);
+  check("--codex appends to an existing AGENTS.md", cdx.ok, cdx.out.slice(0, 200));
+  const ag1 = read(mono3, "AGENTS.md");
+  check("the repo owner's AGENTS.md content survives", /# my repo/.test(ag1) && /make test/.test(ag1));
+  check("the generated part is delimited by begin/end markers",
+    /saas-idea-brainstorm:handoff:begin/.test(ag1) && /saas-idea-brainstorm:handoff:end/.test(ag1));
+  run([path.join(mono3, "ideas", "bpfix"), "--in-place", "--codex"]);
+  const ag2 = read(mono3, "AGENTS.md");
+  check("re-running replaces the block instead of appending a second one",
+    (ag2.match(/saas-idea-brainstorm:handoff:begin/g) || []).length === 1);
+  check("re-running still leaves the owner's content", /# my repo/.test(ag2) && /make test/.test(ag2));
+  check("without --codex, in-place leaves AGENTS.md alone", !exists(mono, "AGENTS.md"));
+
+  // ---- the skill and the generator agree on the surface
   const skill = fs.readFileSync(path.join(ROOT, "skills", "handoff-to-build", "SKILL.md"), "utf8");
   check("handoff-to-build names the generator script", /build-handoff\.js/.test(skill));
-  check("handoff-to-build states the awareness-only boundary",
-    /awareness only/i.test(skill) && /no architecture/i.test(skill));
+  check("handoff-to-build documents both modes", /--in-place/.test(skill) && /--to/.test(skill));
+  check("handoff-to-build states the awareness-only boundary", /awareness only/i.test(skill) && /no architecture/i.test(skill));
   check("handoff-to-build refuses to copy private/ and the ledger", /private\//.test(skill) && /evidence ledger/i.test(skill));
+  check("handoff-to-build warns that in-place must not duplicate the spec", /duplicate|second copy|copies nothing/i.test(skill));
   check("amend-blueprint routes back to a handoff refresh",
     /build-handoff\.js|handoff-to-build/.test(fs.readFileSync(path.join(ROOT, "skills", "amend-blueprint", "SKILL.md"), "utf8")));
   check("stage-6 offers the handoff after BP passes without gating on it",
     /handoff-to-build/.test(fs.readFileSync(path.join(ROOT, "skills", "stage-6-blueprint", "SKILL.md"), "utf8")));
 }
 
+
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);
+

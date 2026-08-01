@@ -73,7 +73,7 @@ A full run isn't one sitting. It's a series of sessions with real work in betwee
 | `reconcile` | `[slug]` | Post-LOCK: resolves product reality from registered sources, consumes the drift inbox, publishes a new hashed current-baseline, signs validation-run specs |
 | `run-validation` | `[slug] [run_id]` | Executes and adjudicates a signed validation run — the only path that moves a claim from `guess` to `supported` |
 | `amend-blueprint` | `[slug] [what was discovered]` | Post-BP: records a mid-build spec defect/gap against the locked blueprint — founder-answered scope test, immutable `ba-NNN` amendment + append-only log; locked files never change |
-| `handoff-to-build` | `[slug] [build-repo path]` | Post-BP: generates the build-repo handoff kit so coding agents *arrive knowing* the specs exist, are frozen, and how to resolve an id — `AGENTS.md`/`CLAUDE.md`, path-scoped rules, `/spec` + `/spec-gap`, a SessionStart briefing, and a hashed read-only copy with an id index. Awareness only: no architecture, no workflow, no paraphrase |
+| `handoff-to-build` | `[slug] [build-repo path or in-place]` | Post-BP: generates the build-repo handoff kit so coding agents *arrive knowing* the specs exist, are frozen, and how to resolve an id — `AGENTS.md`/`CLAUDE.md`, path-scoped rules, `/product-spec` + `/product-spec-gap`, and an id index. Two modes: a separate build repo (hashed read-only copy + SessionStart briefing) or `--in-place` when one repo holds both. Awareness only: no architecture, no workflow, no paraphrase |
 
 All commands are namespaced `/saas-idea-brainstorm:`. Gates: `F`, `C`, `V1`, `V2`, `V3`, `R1`, `R2`, `P`, `LOCK`, `BP` — omit it and it's inferred from state.
 
@@ -208,29 +208,28 @@ ideas/support-digest/
     └── …                         # transcripts, snapshots, payment identities
 ```
 
-### The build repo, after `handoff-to-build`
+### Where the code lives, after `handoff-to-build`
 
-The specs are read by a different agent in a different repository. Passing BP proves a fresh session *could* implement from the set; it does not make a session in another repo aware the set exists. `handoff-to-build` generates the awareness — using only the files those tools load on their own, so nobody has to remember to mention anything:
+Passing BP proves a fresh session *could* implement from the set; it does not make a session **aware the set exists**. `handoff-to-build` generates that awareness using only the files the coding tools load on their own, so nobody has to remember to mention anything. Both modes write these:
 
 ```
-<your build repo>/
-├── AGENTS.md                     # the open standard — Codex, Cursor, Copilot, Zed, …
-├── CLAUDE.md                     # @AGENTS.md + Claude specifics (Claude Code reads CLAUDE.md, not AGENTS.md)
-├── .claude/
-│   ├── rules/spec-vocabulary.md  # loads when a docs/product/ file is opened: anchors, id forms
-│   ├── rules/implementation.md   # loads on source paths: what the spec already decides vs what is yours
-│   ├── rules/spec-tests.md       # loads on test paths: acceptance criteria are the oracle
-│   ├── skills/spec/ · spec-gap/  # /spec <id> resolves it · /spec-gap routes a real gap back
-│   ├── scripts/spec-lookup.js    # deterministic id → file → section → text
-│   ├── scripts/spec-freshness.js # SessionStart: states the contract, verifies hashes, alarms on drift
-│   └── settings.json             # merged, never replaced
-└── docs/product/                 # read-only copy — the specification the code owes
-    ├── READ-ORDER.md · spec-index.json   # every id → its definition site; SHA-256 per file
-    ├── pack/                     # layer 1: what, why, and the cut list
-    └── blueprint/                # layer 2: exactly how — incl. amendment-log.md, read first
+.claude/
+├── rules/product-spec/           # one namespaced, deletable folder
+│   ├── spec-vocabulary.md        # loads when a spec file is opened: anchors, id forms
+│   ├── implementation.md         # loads on source paths: what the spec decides vs what is yours
+│   └── spec-tests.md             # loads on test paths: acceptance criteria are the oracle
+├── skills/product-spec/ · product-spec-gap/   # resolve an id · route a real gap back
+└── product-spec/
+    ├── spec-index.json           # every id → its DEFINING file and section
+    ├── spec-lookup.js            # deterministic id → file → section → text
+    └── READ-ORDER.md
 ```
 
-It injects **awareness only** — no architecture, no stack, no workflow beyond what the locked specs decide — and it **paraphrases nothing**, so it cannot drift from the artifacts. `--check` fails in both directions (source moved ahead, or a frozen file was edited in the build repo) and is cheap enough for that repo's CI; the SessionStart hook runs the same check every session and never repairs anything silently. Regenerate after every `amend-blueprint`.
+**`--to <build-repo>`** (separate repos) adds `AGENTS.md` (the open standard — Codex, Cursor, Copilot, Zed…), `CLAUDE.md` importing it (Claude Code reads `CLAUDE.md`, not `AGENTS.md`), a hashed read-only `docs/product/` copy, and a SessionStart hook that states the contract and alarms on drift.
+
+**`--in-place`** (one repo holds the idea workspace *and* the code — the common solo case) adds an always-loaded `.claude/rules/product-spec/contract.md` instead, and pointedly **does not copy anything**: a copy inside the same tree would be an editable twin of a frozen file, because the pipeline's hooks guard only `ideas/**`. It hashes nothing and registers no hook either — the plugin's own SessionStart already briefs the session and its PreToolUse already blocks edits to locked artifacts. `CLAUDE.md`/`AGENTS.md` are left alone unless you pass `--codex`, which maintains one begin/end-marked block and nothing outside it.
+
+The kit injects **awareness only** — no architecture, no stack, no workflow beyond what the locked specs decide — and **paraphrases nothing**, so it cannot drift from the artifacts. Because a build repo carries other plugins, everything lands under two deletable namespaces (project skills are *not* namespaced the way plugin skills are), every generated rule carries a scope clause disclaiming architecture, style, commit and release process, and nothing this generator did not write is ever overwritten. `--check` reports staleness — a moved source or an edited frozen file in copy mode, a stale index in place — and is cheap enough for CI. Regenerate after every `amend-blueprint`.
 
 Pipeline artifacts carry frontmatter that a hook validates — `artifact`, `idea`, `stage`, `gate`, `status` (draft/ready/locked), `evidence_grade`, `rung`, `pipeline_version`, `updated`. Post-LOCK maintenance artifacts declare `phase: maintenance` and validate under their own key set instead (`artifact_kind`, `mutation_policy`, `publication_status`, `cycle_id`, `as_of`, …); the pairing of kind and mutation policy is enforced. The journals are exempt by design and carry none: `decision-log.md`, `audit-trail.md`, `post-mortem.md`, the per-idea `README.md`, everything under `private/`, and `error-analysis/batch-NNN.md` worker traces. The evidence ledger is one table where each row traces to a real human, with retrieval provenance so a later failed spot-check can distinguish "the source changed" from "this was fabricated":
 

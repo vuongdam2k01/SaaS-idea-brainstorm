@@ -3,15 +3,15 @@
  * spec-lookup — resolve a frozen-spec id to its file, section and text.
  *
  * Generated into this repo by the saas-idea-brainstorm plugin's build handoff.
- * Reads docs/product/spec-index.json (produced from the locked pack + blueprint)
+ * Reads .claude/product-spec/spec-index.json (produced from the locked pack + blueprint)
  * so an agent never has to infer where a decision was written.
  *
  * Usage:
- *   node .claude/scripts/spec-lookup.js AC-03-2      resolve one id, print its section
- *   node .claude/scripts/spec-lookup.js fs-03 INV-1  resolve several
- *   node .claude/scripts/spec-lookup.js --list       every indexed id, grouped by kind
- *   node .claude/scripts/spec-lookup.js --list AC     every id of one kind
- *   node .claude/scripts/spec-lookup.js --grep invite ids whose label matches
+ *   node .claude/product-spec/spec-lookup.js AC-03-2      resolve one id, print its section
+ *   node .claude/product-spec/spec-lookup.js fs-03 INV-1  resolve several
+ *   node .claude/product-spec/spec-lookup.js --list       every indexed id, grouped by kind
+ *   node .claude/product-spec/spec-lookup.js --list AC     every id of one kind
+ *   node .claude/product-spec/spec-lookup.js --grep invite ids whose label matches
  *
  * Exit 0 = every id resolved. Exit 1 = at least one did not (an unresolved id is a
  * finding: either a typo, or a reference to something that was never specified).
@@ -21,9 +21,9 @@ const fs = require("fs");
 const path = require("path");
 
 const ROOT = findRoot(process.cwd());
-if (!ROOT) fail("docs/product/spec-index.json not found above " + process.cwd() +
+if (!ROOT) fail(".claude/product-spec/spec-index.json not found above " + process.cwd() +
   " — this repo has no build-handoff kit, or you are outside it.");
-const INDEX_PATH = path.join(ROOT, "docs", "product", "spec-index.json");
+const INDEX_PATH = path.join(ROOT, ".claude", "product-spec", "spec-index.json");
 let INDEX;
 try {
   INDEX = JSON.parse(fs.readFileSync(INDEX_PATH, "utf8"));
@@ -31,6 +31,7 @@ try {
   fail("spec-index.json is unreadable (" + e.message + ") — regenerate the handoff kit.");
 }
 const IDS = (INDEX && INDEX.ids) || {};
+const SPEC_ROOT = (INDEX && INDEX.spec_root) || "docs/product";
 const args = process.argv.slice(2);
 
 if (!args.length || args[0] === "--help" || args[0] === "-h") {
@@ -87,9 +88,9 @@ for (const raw of args) {
     continue;
   }
   const rec = IDS[id];
-  const abs = path.join(ROOT, "docs", "product", rec.file);
+  const abs = path.join(ROOT, SPEC_ROOT, rec.file);
   out("\n### " + id + " — " + (rec.label || "(no label)"));
-  out("file:   docs/product/" + rec.file + (rec.anchor ? "   section: <!-- " + rec.anchor + " -->" : ""));
+  out("file:   " + SPEC_ROOT + "/" + rec.file + (rec.anchor ? "   section: <!-- " + rec.anchor + " -->" : ""));
   const text = read(abs);
   if (text === null) {
     out("  (file missing on disk — the kit is damaged; regenerate it)");
@@ -111,7 +112,7 @@ for (const raw of args) {
 
 if (INDEX.amendments_through && INDEX.amendments_through !== "none")
   out("\nAmendments through " + INDEX.amendments_through +
-      " — docs/product/blueprint/amendment-log.md overrides the locked files wherever it speaks.");
+      " — " + SPEC_ROOT + "/blueprint/amendment-log.md overrides the locked files wherever it speaks.");
 process.exit(missing ? 1 : 0);
 
 // ------------------------------------------------------------------ helpers
@@ -154,7 +155,7 @@ function trimTo(text, maxLines) {
 function findRoot(start) {
   let dir = path.resolve(start);
   for (let i = 0; i < 12; i++) {
-    if (fs.existsSync(path.join(dir, "docs", "product", "spec-index.json"))) return dir;
+    if (fs.existsSync(path.join(dir, ".claude", "product-spec", "spec-index.json"))) return dir;
     const up = path.dirname(dir);
     if (up === dir) return null;
     dir = up;

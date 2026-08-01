@@ -1,7 +1,7 @@
 ---
-name: spec
-description: Resolve a frozen product-spec id (fs-NN, AC-NN-n, INV-n, JOB-n, ST-<entity>-n, CAP-NN-n, EV-n, DR-n, DOD-n, MSP-n, DF-n, E-nnn) to the exact file, section and text that defines it. Use whenever such an id appears in a spec, task, test name, comment or commit message, and before implementing any behaviour that references one — the specification in docs/product/ is frozen and authoritative, so the answer is looked up, never inferred.
-allowed-tools: Bash(node ${CLAUDE_PROJECT_DIR}/.claude/scripts/spec-lookup.js *) Read Grep
+name: {{SKILL_SPEC}}
+description: Resolve a frozen product-spec id (fs-NN, AC-NN-n, INV-n, JOB-n, ST-<entity>-n, CAP-NN-n, EV-n, DR-n, DOD-n, MSP-n, DF-n, E-nnn) to the exact file, section and text that defines it. Use whenever such an id appears in a spec, task, test name, comment or commit message, and before implementing any behaviour that references one — the specification in {{SPEC_ROOT}}/ is frozen and authoritative, so the answer is looked up, never inferred.
+allowed-tools: Bash(node ${CLAUDE_PROJECT_DIR}/{{LOOKUP}} *) Read Grep
 ---
 <!-- saas-idea-brainstorm:handoff v{{PLUGIN_VERSION}} — GENERATED, do not hand-edit. -->
 
@@ -12,7 +12,7 @@ Resolve: **$ARGUMENTS**
 ## 1. Look it up
 
 ```bash
-node ${CLAUDE_PROJECT_DIR}/.claude/scripts/spec-lookup.js $ARGUMENTS
+node ${CLAUDE_PROJECT_DIR}/{{LOOKUP}} $ARGUMENTS
 ```
 
 Useful variants when you do not have an exact id:
@@ -37,7 +37,7 @@ An id's own row rarely carries every constraint that applies to it. Before you a
   per feature can still break across two.
 - **`CAP-NN-n` / `EV-n`** → the subsystem's `bp:degradation` and `bp:budgets`; a capability's
   acceptance is bound to its eval and threshold, not to a hand-picked example.
-- **any id** → `docs/product/blueprint/amendment-log.md`, which overrides the locked files
+- **any id** → `{{SPEC_ROOT}}/blueprint/amendment-log.md`, which overrides the locked files
   wherever it speaks.
 
 ## 3. If the id does not resolve
@@ -47,7 +47,7 @@ Do not fill the gap with a reasonable guess. An unindexed id means one of:
 - a typo or a stale reference in the text you read it from — check `--grep`
 - the kit is out of date and the id was added by a later amendment — check whether the freshness
   hook reported drift, and regenerate the kit if so
-- it was never specified — a genuine spec gap: use `/spec-gap`
+- it was never specified — a genuine spec gap: use `/{{SKILL_GAP}}`
 
 Report which of the three it is rather than working around it.
 

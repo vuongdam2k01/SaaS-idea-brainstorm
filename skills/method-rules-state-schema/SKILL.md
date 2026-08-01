@@ -11,7 +11,7 @@ Location: `ideas/<slug>/state.json` in the **user's working repository** (never 
 ```json
 {
   "schema_version": "1.3.0",
-  "pipeline_version": "1.8.0",
+  "pipeline_version": "1.9.0",
   "idea": "<slug>",
   "title": "Short human title",
   "created": "YYYY-MM-DD",

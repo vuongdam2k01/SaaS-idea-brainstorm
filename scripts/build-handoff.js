@@ -11,16 +11,36 @@
  * one directory downstream.
  *
  * The kit makes the artifacts legible to that session through mechanisms the host tools
- * actually load on their own:
- *   AGENTS.md              the cross-tool standard (Codex, Cursor, Copilot, Zed, …)
- *   CLAUDE.md              imports AGENTS.md — Claude Code reads CLAUDE.md, not AGENTS.md
- *   .claude/rules/*.md     path-scoped: id vocabulary on docs/product/**, decision
- *                          boundary on source paths, AC-as-oracle on test paths
- *   .claude/skills/        /spec (resolve an id) and /spec-gap (route a real gap)
- *   .claude/scripts/       spec-lookup.js (deterministic id → file+section+text)
- *   .claude/settings.json  SessionStart hook: states the contract, verifies hashes,
- *                          and reports drift against the source workspace
- *   docs/product/          the read-only copy, plus spec-index.json
+ * actually load on their own. Two shapes:
+ *
+ *   COPY (--to <repo>) — the idea workspace and the code are separate repositories.
+ *     AGENTS.md                     the cross-tool standard (Codex, Cursor, Copilot, Zed, …)
+ *     CLAUDE.md                     imports it — Claude Code reads CLAUDE.md, not AGENTS.md
+ *     docs/product/                 a read-only, hashed copy of pack + blueprint
+ *     .claude/product-spec/         spec-index.json · spec-lookup.js · spec-freshness.js
+ *     .claude/settings.json         SessionStart hook: contract, hash check, drift alarm
+ *
+ *   IN-PLACE (--in-place) — one repo holds the idea workspace AND the code (the common
+ *     solo case). Copying here would create a SECOND, unprotected duplicate of the spec
+ *     in the same tree: the pipeline's own hooks only guard paths under ideas/, so the
+ *     copy would be freely editable while the original is frozen — the exact divergence
+ *     this plugin exists to prevent. So in-place copies nothing, hashes nothing (a hash
+ *     of the source against itself proves nothing and goes stale on every amendment),
+ *     and registers no hook (the plugin's own SessionStart already briefs the session and
+ *     its PreToolUse already blocks edits to locked artifacts).
+ *
+ *   BOTH:
+ *     .claude/rules/product-spec/   path-scoped: id vocabulary on the spec root, the
+ *                                   decision boundary on source paths, AC-as-oracle on
+ *                                   test paths (+ an always-loaded contract, in-place)
+ *     .claude/skills/product-spec{,-gap}/   resolve an id · route a real gap
+ *     .claude/product-spec/spec-index.json  every id → its DEFINING file and section
+ *
+ * Naming is a conflict decision, not cosmetics: this repo may carry other plugins, and
+ * `.claude/rules/implementation.md` or a bare `/spec` skill are exactly what two tools
+ * collide on. Everything lands under two deletable namespaces, and every generated rule
+ * carries a scope clause disclaiming architecture, style, commit and release process —
+ * because Claude Code picks arbitrarily between contradicting instructions.
  *
  * Design constraint, deliberately narrow: **the kit never paraphrases a spec.** It
  * copies, indexes and routes. Nothing it generates is a new product statement that
@@ -29,14 +49,17 @@
  *
  * Usage:
  *   node scripts/build-handoff.js <idea-dir> --to <build-repo> [options]
- *   node scripts/build-handoff.js <idea-dir> --to <build-repo> --check
+ *   node scripts/build-handoff.js <idea-dir> --in-place [options]
+ *   node scripts/build-handoff.js <idea-dir> (--to <repo>|--in-place) --check
  *
  * Options:
- *   --check          verify an existing kit against the source; write nothing.
- *                    Exit 1 on drift (suitable for CI in the build repo).
+ *   --check          verify an existing kit against the source; write nothing. Exit 1 on
+ *                    drift (copy: source moved / local file edited; in-place: index stale).
  *   --draft          allow generation before gate BP passes. Every generated file is
  *                    stamped DRAFT and spec-index.json carries "draft": true.
- *   --force          overwrite an AGENTS.md / CLAUDE.md this generator did not write.
+ *   --force          overwrite generated files this generator did not write.
+ *   --codex          in-place only: also maintain a marked block in AGENTS.md, since Codex
+ *                    reads AGENTS.md and not .claude/rules/. The rest of the file is left alone.
  *   --src <globs>    comma-separated path globs for the implementation rule
  *   --tests <globs>  comma-separated path globs for the test rule
  *   --json           machine-readable result
@@ -63,7 +86,18 @@ const opt = (name, dflt) => {
 };
 const positional = argv.filter((a, i) => !a.startsWith("--") && !(i > 0 && ["--to", "--src", "--tests"].includes(argv[i - 1])));
 const IDEA_DIR = positional[0] ? path.resolve(positional[0]) : null;
-const TARGET = opt("--to", null) ? path.resolve(opt("--to")) : null;
+// Two shapes, one generator. `copy` ships the artifacts to a separate build repo.
+// `in-place` is for the common solo case — brainstorm and build in ONE repo — where
+// copying would create a second, unprotected duplicate of the spec inside the same
+// tree: the pipeline's own hooks only guard paths under ideas/, so the copy would be
+// freely editable while the original is frozen. Exactly the divergence this plugin exists
+// to prevent. In-place therefore copies nothing and points every generated artifact at
+// ideas/<slug>/ directly.
+const IN_PLACE = flag("--in-place");
+const CODEX = flag("--codex");
+const TARGET = opt("--to", null)
+  ? path.resolve(opt("--to"))
+  : (IN_PLACE && IDEA_DIR ? workspaceRootOf(IDEA_DIR) : null);
 const CHECK = flag("--check");
 const DRAFT = flag("--draft");
 const FORCE = flag("--force");
@@ -75,10 +109,17 @@ const TEST_GLOBS = (opt("--tests", "tests/**,test/**,__tests__/**,spec/**,**/*.t
 
 if (!IDEA_DIR || !TARGET) {
   process.stderr.write(
-    "usage: build-handoff.js <idea-dir> --to <build-repo> [--check] [--draft] [--force]\n" +
-    "                        [--src <globs>] [--tests <globs>] [--json]\n"
+    "usage: build-handoff.js <idea-dir> --to <build-repo> [options]     # separate build repo\n" +
+    "       build-handoff.js <idea-dir> --in-place [options]            # same repo as the idea\n" +
+    "options: --check --draft --force --codex --src <globs> --tests <globs> --json\n"
   );
   process.exit(2);
+}
+function workspaceRootOf(ideaDir) {
+  // ideas/<slug> → the repo root that holds ideas/. Never guess past it.
+  const parent = path.dirname(ideaDir);
+  if (path.basename(parent).toLowerCase() === "ideas") return path.dirname(parent);
+  return null;
 }
 
 const problems = [];
@@ -108,8 +149,11 @@ if (!locked && !DRAFT)
   );
 if (!locked) notes.push("generated in DRAFT mode — blueprint is not locked");
 
-// validator must be clean, or the kit would freeze a spec set that cannot be implemented
-if (locked) {
+// The validator gates GENERATION, not inspection: a kit must never freeze a spec set that
+// cannot be implemented. But --check only answers "is this kit stale?", and a mid-edit
+// blueprint is exactly when that answer matters most — refusing there would hide staleness
+// behind an unrelated failure.
+if (locked && !CHECK) {
   try {
     require("child_process").execFileSync(
       process.execPath, [path.join(ROOT, "scripts", "validate-blueprint.js"), IDEA_DIR, "--at-gate"],
@@ -124,7 +168,8 @@ if (locked) {
 // ---------------------------------------------------------------- 2. collect files
 const SKIP_NAMES = new Set(["private", ".git", "node_modules"]);
 const sources = []; // { source (rel to idea dir), path (rel to docs/product) }
-for (const [srcRel, dstRel] of [["mvp-pack", "pack"], ["blueprint", "blueprint"]]) {
+const PACK = IN_PLACE ? "mvp-pack" : "pack";
+for (const [srcRel, dstRel] of [["mvp-pack", PACK], ["blueprint", "blueprint"]]) {
   walk(path.join(IDEA_DIR, srcRel), (abs) => {
     const rel = path.relative(path.join(IDEA_DIR, srcRel), abs).replace(/\\/g, "/");
     if (!/\.(md|json|ya?ml|txt|csv)$/i.test(rel)) return;
@@ -164,9 +209,9 @@ const ID_KINDS = [
   { kind: "decision", re: /^DR-\d+$/i, home: /blueprint-overview\.md$/, desc: "a decision the founder explicitly delegated to build time — **yours to make**, within the recorded constraint" },
   { kind: "deferred", re: /^DF-\d+$/i, home: /deferred-register\.md$/, desc: "a deferred non-product item, with an owner and a date" },
   { kind: "amendment", re: /^BA-\d{3}$/i, home: /^blueprint\/amendments\//, desc: "a blueprint amendment — overrides the locked files wherever it speaks" },
-  { kind: "dod", re: /^DOD-\d+$/i, home: /^pack\/definition-of-done\.md$/, desc: "a definition-of-done item for the product as a whole" },
-  { kind: "msp", re: /^MSP-\d+$/i, home: /^pack\/mvp-spec\.md$/, desc: "a minimum-service-promise commitment made to users" },
-  { kind: "core-loop-step", re: /^SC-\d+$/i, home: /^pack\/mvp-spec\.md$/, desc: "a step of the locked core loop" },
+  { kind: "dod", re: /^DOD-\d+$/i, home: /^(mvp-)?pack\/definition-of-done\.md$/, desc: "a definition-of-done item for the product as a whole" },
+  { kind: "msp", re: /^MSP-\d+$/i, home: /^(mvp-)?pack\/mvp-spec\.md$/, desc: "a minimum-service-promise commitment made to users" },
+  { kind: "core-loop-step", re: /^SC-\d+$/i, home: /^(mvp-)?pack\/mvp-spec\.md$/, desc: "a step of the locked core loop" },
   { kind: "regulation", re: /^REG-\d+$/i, home: null, desc: "a compliance obligation flagged for a regulated domain" },
 ];
 const ids = {};
@@ -203,51 +248,92 @@ for (const f of files) {
 }
 for (const rec of Object.values(ids)) delete rec.at_home; // bookkeeping, not output
 
+// ---------------------------------------------------------------- 3b. layout
+// Everything generated lives in exactly two namespaced places — `.claude/product-spec/`
+// and `.claude/rules/product-spec/` — plus two prefixed skills. That is a conflict
+// decision, not a cosmetic one: this repo may carry other plugins, and generic names
+// like `.claude/rules/implementation.md` or a bare `/spec` skill are precisely what two
+// tools collide on. Project skills cannot collide with PLUGIN skills (those are
+// namespaced `plugin:skill`), but they can collide with each other and can shadow a
+// bundled skill of the same name. Deleting the two folders uninstalls the kit cleanly.
+const SPEC_ROOT = IN_PLACE ? posix(path.relative(TARGET, IDEA_DIR)) : "docs/product";
+const OUT = {
+  index: ".claude/product-spec/spec-index.json",
+  lookup: ".claude/product-spec/spec-lookup.js",
+  freshness: ".claude/product-spec/spec-freshness.js",
+  readOrder: ".claude/product-spec/READ-ORDER.md",
+  rules: ".claude/rules/product-spec",
+  skillSpec: "product-spec",
+  skillGap: "product-spec-gap",
+};
+// The vocabulary rule scopes to `<spec root>/**` rather than to the two spec folders:
+// in place that also covers the evidence ledger and decision log, and an agent that opens
+// one of those should hear the same thing — pipeline material, read-only, ids resolve here.
+
 // ---------------------------------------------------------------- 4. check mode
-const indexRel = path.join("docs", "product", "spec-index.json");
 if (CHECK) {
-  const existing = readJson(path.join(TARGET, indexRel));
-  if (!existing) die("no handoff kit at " + TARGET + " (missing " + indexRel.replace(/\\/g, "/") + ").");
-  const byPath = new Map(files.map((f) => [f.path, f]));
+  const existing = readJson(path.join(TARGET, OUT.index));
+  if (!existing) die("no handoff kit at " + posix(TARGET) + " (missing " + OUT.index + ").");
   const drift = [];
+  const byPath = new Map(files.map((f) => [f.path, f]));
   for (const rec of existing.files || []) {
     const now = byPath.get(rec.path);
     if (!now) { drift.push(rec.path + ": no longer present in the source workspace"); continue; }
-    if (now.sha256 !== rec.sha256) drift.push(rec.path + ": source has changed since the kit was generated");
+    if (rec.sha256 && now.sha256 !== rec.sha256) drift.push(rec.path + ": source has changed since the kit was generated");
     byPath.delete(rec.path);
   }
   for (const p of byPath.keys()) drift.push(p + ": new in the source workspace, absent from the kit");
-  for (const f of existing.files || []) {
-    const local = path.join(TARGET, "docs", "product", f.path);
-    let buf; try { buf = fs.readFileSync(local); } catch { drift.push(f.path + ": missing from the local copy"); continue; }
-    if (crypto.createHash("sha256").update(buf).digest("hex") !== f.sha256)
-      drift.push(f.path + ": locally modified — frozen files must be byte-identical");
+  if (existing.mode === "copy") {
+    // the copy must still be byte-identical to what was locked
+    for (const f of existing.files || []) {
+      const local = path.join(TARGET, "docs", "product", f.path);
+      let buf; try { buf = fs.readFileSync(local); } catch { drift.push(f.path + ": missing from the local copy"); continue; }
+      if (f.sha256 && crypto.createHash("sha256").update(buf).digest("hex") !== f.sha256)
+        drift.push(f.path + ": locally modified — frozen files must be byte-identical");
+    }
+  } else {
+    // in place there is only one copy, so nothing can diverge — what CAN go stale is the
+    // index: a feature spec or amendment added after generation resolves to nothing.
+    const known = new Set(Object.keys(existing.ids || {}));
+    const fresh = Object.keys(ids).filter((k) => !known.has(k));
+    const gone = [...known].filter((k) => !(k in ids));
+    if (fresh.length) drift.push("ids not in the index: " + fresh.slice(0, 12).join(", ") + (fresh.length > 12 ? ` (+${fresh.length - 12})` : ""));
+    if (gone.length) drift.push("indexed ids that no longer exist: " + gone.slice(0, 12).join(", ") + (gone.length > 12 ? ` (+${gone.length - 12})` : ""));
   }
-  if (JSON_OUT) process.stdout.write(JSON.stringify({ ok: !drift.length, drift }, null, 2) + "\n");
+  if (JSON_OUT) process.stdout.write(JSON.stringify({ ok: !drift.length, mode: existing.mode, drift }, null, 2) + "\n");
   else {
     process.stdout.write(drift.length
       ? "handoff kit is OUT OF DATE (" + drift.length + "):\n- " + drift.join("\n- ") +
-        "\n\nRegenerate: node scripts/build-handoff.js " + IDEA_DIR + " --to " + TARGET + "\n"
-      : "handoff kit is up to date with " + IDEA_DIR + " (" + files.length + " files verified).\n");
+        "\n\nRegenerate: node scripts/build-handoff.js " + posix(IDEA_DIR) + (existing.mode === "copy" ? " --to " + posix(TARGET) : " --in-place") + "\n"
+      : "handoff kit is up to date with " + posix(IDEA_DIR) + " (" + files.length + " files verified, " + Object.keys(ids).length + " ids).\n");
   }
   process.exit(drift.length ? 1 : 0);
 }
 
 // ---------------------------------------------------------------- 5. write guards
-if (!isDir(TARGET)) die("target repository not found: " + TARGET + " (create it first — this generator never creates the repo).");
-for (const name of ["AGENTS.md", "CLAUDE.md"]) {
-  const p = path.join(TARGET, name);
-  if (fs.existsSync(p) && !FORCE) {
-    const head = fs.readFileSync(p, "utf8").slice(0, 400);
-    if (!head.includes(MARKER))
-      die(
-        TARGET + "/" + name + " already exists and was not written by this generator.\n" +
-        "Overwriting it would silently drop instructions someone wrote for this repo.\n" +
-        "Either move your content into a file of your own and import it (`@my-notes.md`), then rerun,\n" +
-        "or rerun with --force to replace it."
-      );
-  }
-}
+if (!isDir(TARGET)) die("target repository not found: " + posix(TARGET) + " (create it first — this generator never creates the repo).");
+// Never silently replace a file this generator did not write. In a repo that carries
+// other plugins that is not a courtesy, it is the difference between adding a rule and
+// deleting someone else's.
+const OWNED = [OUT.index, OUT.lookup, OUT.readOrder,
+  `${OUT.rules}/spec-vocabulary.md`, `${OUT.rules}/implementation.md`, `${OUT.rules}/spec-tests.md`,
+  `.claude/skills/${OUT.skillSpec}/SKILL.md`, `.claude/skills/${OUT.skillGap}/SKILL.md`];
+if (IN_PLACE) OWNED.push(`${OUT.rules}/contract.md`);
+else OWNED.push("AGENTS.md", "CLAUDE.md", OUT.freshness);
+const foreign = OWNED.filter((rel) => {
+  const p = path.join(TARGET, rel);
+  if (!fs.existsSync(p)) return false;
+  try { return !fs.readFileSync(p, "utf8").slice(0, 600).includes(MARKER); } catch { return true; }
+});
+if (foreign.length && !FORCE)
+  die(
+    "these files already exist and were not written by this generator:\n  " + foreign.join("\n  ") +
+    "\nOverwriting them would silently drop instructions someone — or another plugin — wrote for this repo.\n" +
+    (foreign.some((f) => /^(AGENTS|CLAUDE)\.md$/.test(f))
+      ? "For AGENTS.md/CLAUDE.md: move your content into a file of your own and import it (`@my-notes.md`), then rerun.\n"
+      : "") +
+    "Or rerun with --force to replace them."
+  );
 
 // ---------------------------------------------------------------- 6. write
 const productName = (state && state.idea) || path.basename(IDEA_DIR);
@@ -256,26 +342,41 @@ const packClass = packClassOf();
 const draftBanner = locked
   ? ""
   : "\n> **DRAFT — the blueprint has not passed gate BP.** These specs are still changing. Do not\n" +
-    "> treat them as a locked contract, and regenerate this kit once stage 6 closes.\n";
+    "> treat them as a locked contract, and regenerate once stage 6 closes.\n";
 const regenCmd =
-  "node " + posix(path.join(ROOT, "scripts", "build-handoff.js")) + " " + posix(IDEA_DIR) + " --to " + posix(TARGET);
-const amendCmd =
-  "# in " + posix(IDEA_DIR) + "\n  /saas-idea-brainstorm:amend-blueprint\n" +
-  "  # then, back here:  " + regenCmd;
+  "node " + posix(path.join(ROOT, "scripts", "build-handoff.js")) + " " + posix(IDEA_DIR) +
+  (IN_PLACE ? " --in-place" : " --to " + posix(TARGET));
+const amendCmd = IN_PLACE
+  ? "/saas-idea-brainstorm:amend-blueprint " + path.basename(IDEA_DIR) + "\n  # then:  " + regenCmd
+  : "# in " + posix(IDEA_DIR) + "\n  /saas-idea-brainstorm:amend-blueprint\n  # then, back here:  " + regenCmd;
+// The clause that keeps this kit from fighting other plugins' instructions. Claude Code
+// picks arbitrarily between contradicting rules, so every rule states its own limits.
+const precedence =
+  "---\n\n**Scope of this rule.** It speaks only about product decisions already recorded in\n" +
+  "`" + SPEC_ROOT + "/`: where to find them, and which questions are not yours to answer. It makes\n" +
+  "no claim about architecture, stack, code style, formatting, commit conventions, branching, review\n" +
+  "or release process. Where another instruction in this repository covers those, that instruction\n" +
+  "governs and there is no conflict to resolve. The one thing it does insist on: a product decision\n" +
+  "recorded in `" + SPEC_ROOT + "/` is not overridden by any other instruction — it is amended, or it\n" +
+  "stands.";
 
 const written = [];
-const productDir = path.join(TARGET, "docs", "product");
-// The copy is regenerated wholesale: a file removed upstream must not linger here.
-if (isDir(productDir)) rmrf(productDir);
-for (const f of files) writeOut(path.join(productDir, f.path), f.buf);
+if (!IN_PLACE) {
+  // regenerated wholesale: a file removed upstream must not linger in the copy
+  const productDir = path.join(TARGET, "docs", "product");
+  if (isDir(productDir)) rmrf(productDir);
+  for (const f of files) writeOut(path.join(productDir, f.path), f.buf);
+}
 
 const specIndex = {
   kind: "saas-idea-brainstorm/spec-index",
-  spec_version: 1,
+  spec_version: 2,
+  mode: IN_PLACE ? "in-place" : "copy",
   generator_version: PLUGIN_VERSION,
   product: productName,
   generated,
   draft: !locked,
+  spec_root: SPEC_ROOT,
   source_workspace: posix(IDEA_DIR),
   pack_class: packClass,
   pipeline_gates_passed: state && state.gates ? Object.keys(state.gates).filter((g) => state.gates[g] && state.gates[g].status === "passed") : [],
@@ -283,68 +384,105 @@ const specIndex = {
   amendment_files: amendmentFiles,
   file_count: files.length,
   read_order: readOrder().map((r) => r.path),
-  files: files.map((f) => ({ path: f.path, source: f.source, sha256: f.sha256, bytes: f.bytes })),
+  // In place the artifacts ARE the source, so a hash would only record "this file is
+  // itself" and would go stale on every legitimate amendment. Hashes are a copy-integrity
+  // device; they belong to copy mode only.
+  files: files.map((f) => IN_PLACE
+    ? { path: f.path, bytes: f.bytes }
+    : { path: f.path, source: f.source, sha256: f.sha256, bytes: f.bytes }),
   ids,
 };
-writeOut(path.join(productDir, "spec-index.json"), JSON.stringify(specIndex, null, 2) + "\n");
+// The index is written LAST (below), not here. Observed while building this: a crash
+// midway through generation left an index describing a kit that had not been written, and
+// --check then reported it up to date. The index is the kit's claim about itself, so it is
+// the last thing that becomes true.
 
 const subs = {
   PLUGIN_VERSION, PRODUCT: productName, GENERATED: generated, SOURCE: posix(IDEA_DIR),
-  PACK_CLASS: packClass, AMENDMENTS_THROUGH: amendmentsThrough, DRAFT_BANNER: draftBanner,
+  PACK_CLASS: packClass, PACK, AMENDMENTS_THROUGH: amendmentsThrough, DRAFT_BANNER: draftBanner,
   ID_COUNT: String(Object.keys(ids).length), FILE_COUNT: String(files.length),
-  REGEN_CMD: regenCmd, AMEND_CMD: amendCmd,
+  REGEN_CMD: regenCmd, AMEND_CMD: amendCmd, PRECEDENCE: precedence,
   ID_TABLE: idTable(), READ_ORDER_TABLE: readOrderTable(), FILE_TABLE: fileTable(),
+  SPEC_ROOT, INDEX: OUT.index, LOOKUP: OUT.lookup, READ_ORDER: OUT.readOrder,
+  SKILL_SPEC: OUT.skillSpec, SKILL_GAP: OUT.skillGap,
   SRC_PATHS: SRC_GLOBS.map((g) => "  - " + JSON.stringify(g)).join("\n"),
   TEST_PATHS: TEST_GLOBS.map((g) => "  - " + JSON.stringify(g)).join("\n"),
 };
 const RENDER = [
-  ["AGENTS.md", "AGENTS.md"],
-  ["CLAUDE.md", "CLAUDE.md"],
-  ["READ-ORDER.md", "docs/product/READ-ORDER.md"],
-  ["rules/spec-vocabulary.md", ".claude/rules/spec-vocabulary.md"],
-  ["rules/implementation.md", ".claude/rules/implementation.md"],
-  ["rules/spec-tests.md", ".claude/rules/spec-tests.md"],
-  ["skills/spec/SKILL.md", ".claude/skills/spec/SKILL.md"],
-  ["skills/spec-gap/SKILL.md", ".claude/skills/spec-gap/SKILL.md"],
+  ["READ-ORDER.md", OUT.readOrder],
+  ["rules/spec-vocabulary.md", `${OUT.rules}/spec-vocabulary.md`],
+  ["rules/implementation.md", `${OUT.rules}/implementation.md`],
+  ["rules/spec-tests.md", `${OUT.rules}/spec-tests.md`],
+  ["skills/spec/SKILL.md", `.claude/skills/${OUT.skillSpec}/SKILL.md`],
+  ["skills/spec-gap/SKILL.md", `.claude/skills/${OUT.skillGap}/SKILL.md`],
 ];
-for (const [from, to] of RENDER) {
-  const tpl = fs.readFileSync(path.join(TPL, from), "utf8");
-  writeOut(path.join(TARGET, to), render(tpl, subs));
-}
-for (const name of ["spec-lookup.js", "spec-freshness.js"])
-  writeOut(path.join(TARGET, ".claude", "scripts", name), fs.readFileSync(path.join(TPL, "hooks", name)));
+if (IN_PLACE) RENDER.push(["contract.md", `${OUT.rules}/contract.md`]);
+else RENDER.push(["AGENTS.md", "AGENTS.md"], ["CLAUDE.md", "CLAUDE.md"]);
+for (const [from, to] of RENDER)
+  writeOut(path.join(TARGET, to), render(fs.readFileSync(path.join(TPL, from), "utf8"), subs));
+writeOut(path.join(TARGET, OUT.lookup), fs.readFileSync(path.join(TPL, "hooks", "spec-lookup.js")));
 
-// settings.json: merge, never replace — this file is the user's, not ours
-const settingsPath = path.join(TARGET, ".claude", "settings.json");
-const settings = readJson(settingsPath) || {};
-const hookCmd = 'node "$CLAUDE_PROJECT_DIR/.claude/scripts/spec-freshness.js"';
-settings.hooks = settings.hooks && typeof settings.hooks === "object" ? settings.hooks : {};
-const ss = Array.isArray(settings.hooks.SessionStart) ? settings.hooks.SessionStart : [];
-const already = JSON.stringify(ss).includes("spec-freshness.js");
-if (!already) ss.push({ hooks: [{ type: "command", command: hookCmd }] });
-settings.hooks.SessionStart = ss;
-writeOut(settingsPath, JSON.stringify(settings, null, 2) + "\n");
-if (already) notes.push(".claude/settings.json already registered the freshness hook — left as it was");
+if (!IN_PLACE) {
+  writeOut(path.join(TARGET, OUT.freshness), fs.readFileSync(path.join(TPL, "hooks", "spec-freshness.js")));
+  // settings.json belongs to the repo owner, not to us: merge one hook, touch nothing else.
+  const settingsPath = path.join(TARGET, ".claude", "settings.json");
+  const settings = readJson(settingsPath) || {};
+  settings.hooks = settings.hooks && typeof settings.hooks === "object" ? settings.hooks : {};
+  const ss = Array.isArray(settings.hooks.SessionStart) ? settings.hooks.SessionStart : [];
+  const already = JSON.stringify(ss).includes("spec-freshness.js");
+  if (!already) ss.push({ hooks: [{ type: "command", command: 'node "$CLAUDE_PROJECT_DIR/' + OUT.freshness + '"' }] });
+  settings.hooks.SessionStart = ss;
+  writeOut(settingsPath, JSON.stringify(settings, null, 2) + "\n");
+  if (already) notes.push(".claude/settings.json already registered the freshness hook — left as it was");
+} else {
+  // In place, the plugin's OWN SessionStart hook already briefs the session on pipeline
+  // state, and its PreToolUse hook already blocks edits to locked artifacts. Adding a
+  // second hook would duplicate one and conflict with nothing useful, so we add none —
+  // which also removes this kit's entire hook-collision surface with other plugins.
+  notes.push("no hook registered: the plugin's own SessionStart and PreToolUse hooks already cover this repo");
+  if (CODEX) {
+    // Codex reads AGENTS.md and not .claude/rules/, so in-place Codex support means
+    // touching a file the repo owner may own. Only on request, and only as a replaceable
+    // marked block appended to whatever is already there.
+    const agentsPath = path.join(TARGET, "AGENTS.md");
+    const begin = `<!-- ${MARKER}:begin -->`;
+    const end = `<!-- ${MARKER}:end -->`;
+    const block = begin + "\n" + render(fs.readFileSync(path.join(TPL, "contract.md"), "utf8"), subs).trim() + "\n" + end + "\n";
+    let cur = "";
+    try { cur = fs.readFileSync(agentsPath, "utf8"); } catch {}
+    const bi = cur.indexOf(begin), ei = cur.indexOf(end);
+    const next = bi !== -1 && ei > bi
+      ? cur.slice(0, bi) + block + cur.slice(ei + end.length).replace(/^\n/, "")
+      : (cur ? cur.replace(/\s*$/, "") + "\n\n" : "") + block;
+    writeOut(agentsPath, next);
+    notes.push("AGENTS.md: " + (bi !== -1 ? "replaced" : "appended") + " the marked block for Codex (the rest of the file is untouched)");
+  }
+}
+
+// Last: the index is the kit's claim about itself, so it only becomes true once everything
+// it describes is on disk. A crash before this point leaves no false "up to date".
+writeOut(path.join(TARGET, OUT.index), JSON.stringify(specIndex, null, 2) + "\n");
 
 // ---------------------------------------------------------------- 7. report
 const summary = {
-  ok: true, target: posix(TARGET), source: posix(IDEA_DIR), draft: !locked,
-  files_copied: files.length, ids_indexed: Object.keys(ids).length,
-  id_kinds: countBy(Object.values(ids).map((v) => v.kind)),
+  ok: true, mode: IN_PLACE ? "in-place" : "copy", target: posix(TARGET), source: posix(IDEA_DIR),
+  spec_root: SPEC_ROOT, draft: !locked, files_indexed: files.length,
+  ids_indexed: Object.keys(ids).length, id_kinds: countBy(Object.values(ids).map((v) => v.kind)),
   amendments_through: amendmentsThrough, generated_files: written.map(posixRel), notes,
 };
 if (JSON_OUT) { process.stdout.write(JSON.stringify(summary, null, 2) + "\n"); process.exit(0); }
 process.stdout.write(
-  "handoff kit written to " + posix(TARGET) + (locked ? "" : "  [DRAFT — blueprint not locked]") + "\n" +
-  "  source            " + posix(IDEA_DIR) + " (pack class " + packClass + ", amendments through " + amendmentsThrough + ")\n" +
-  "  docs/product/     " + files.length + " files copied read-only, hashed in spec-index.json\n" +
-  "  spec-index.json   " + Object.keys(ids).length + " ids indexed — " +
+  "handoff kit (" + summary.mode + ") written to " + posix(TARGET) + (locked ? "" : "  [DRAFT — blueprint not locked]") + "\n" +
+  "  spec root         " + SPEC_ROOT + (IN_PLACE ? "   (no copy — the artifacts stay where the pipeline owns them)" : "   (read-only copy, hashed)") + "\n" +
+  "  indexed           " + files.length + " files, " + Object.keys(ids).length + " ids — " +
     Object.entries(summary.id_kinds).map(([k, n]) => k + ":" + n).join(", ") + "\n" +
+  "  pack class        " + packClass + ", amendments through " + amendmentsThrough + "\n" +
   "  generated         " + written.map(posixRel).filter((p) => !p.startsWith("docs/product/")).join(", ") + "\n" +
   (notes.length ? "  notes             " + notes.join("; ") + "\n" : "") +
-  "\nIn the build repo: AGENTS.md is read by Codex and other agents, CLAUDE.md imports it for\n" +
-  "Claude Code, /spec resolves an id, /spec-gap routes a real gap back here. Re-run this command\n" +
-  "after every amendment; `--check` tells you whether it is stale.\n"
+  "\n/" + OUT.skillSpec + " resolves an id · /" + OUT.skillGap + " routes a real gap." +
+  (IN_PLACE ? "" : " AGENTS.md is read by Codex, CLAUDE.md imports it for Claude Code.") + "\n" +
+  "Re-run after every amendment; `--check` says whether it is stale. To uninstall: delete\n" +
+  ".claude/product-spec/ and .claude/rules/product-spec/" + (IN_PLACE ? ".\n" : ", docs/product/, AGENTS.md, CLAUDE.md.\n")
 );
 process.exit(0);
 
@@ -405,7 +543,7 @@ function countBy(arr) {
 }
 function packClassOf() {
   for (const f of files) {
-    if (!/pack\/(mvp-spec|evidence-quality-report)\.md$/i.test(f.path)) continue;
+    if (!/(^|\/)(mvp-)?pack\/(mvp-spec|evidence-quality-report)\.md$/i.test(f.path)) continue;
     const m = f.buf.toString("utf8").match(/\b(Validated|Hypothesis|Pre-feasibility)\b/);
     if (m) return m[1];
   }
@@ -450,14 +588,14 @@ function purposeOf(p) {
   if (/^blueprint\/feature-specs\//.test(p)) return "Feature spec: flow, acceptance criteria, fields, states, edge cases, instrumentation.";
   if (/^blueprint\/subsystem-specs\//.test(p)) return "Subsystem spec: capabilities, budgets, degradation ladder, eval bindings, output contract.";
   if (/^blueprint\/amendments\//.test(p)) return "An immutable amendment record — a spec defect found during build and how it was answered.";
-  if (/^pack\/eval\//.test(p)) return "Eval harness material referenced by the pack's acceptance thresholds.";
+  if (/^(mvp-)?pack\/eval\//.test(p)) return "Eval harness material referenced by the pack's acceptance thresholds.";
   return "Part of the locked specification.";
 }
 function readOrder() {
   const has = (p) => files.some((f) => f.path === p);
   const order = [];
   if (has("blueprint/amendment-log.md")) order.push({ path: "blueprint/amendment-log.md" });
-  for (const p of ["pack/mvp-spec.md", "blueprint/blueprint-overview.md", "pack/definition-of-done.md"])
+  for (const p of [PACK + "/mvp-spec.md", "blueprint/blueprint-overview.md", PACK + "/definition-of-done.md"])
     if (has(p)) order.push({ path: p });
   const firstFs = files.map((f) => f.path).filter((p) => /^blueprint\/feature-specs\//.test(p)).sort()[0];
   if (firstFs) order.push({ path: "blueprint/feature-specs/", note: "the spec for the feature you are implementing" });
@@ -472,7 +610,7 @@ function readOrderTable() {
   return "| # | file | why |\n|---|---|---|\n" + rows.join("\n");
 }
 function fileTable() {
-  const groups = [["pack/", "Pack — layer 1: what and why, and the scope boundary"],
+  const groups = [[PACK + "/", "Pack — layer 1: what and why, and the scope boundary"],
                   ["blueprint/", "Blueprint — layer 2: exactly how, at the product level"]];
   const out = [];
   for (const [prefix, title] of groups) {
@@ -485,3 +623,4 @@ function fileTable() {
   }
   return out.join("\n");
 }
+

@@ -8,17 +8,17 @@
 
 ## Claude Code specifics
 
-The product specification in `docs/product/` is frozen. Three helpers in this repo exist so you
+The product specification in `{{SPEC_ROOT}}/` is frozen. Three helpers in this repo exist so you
 never have to guess at it:
 
-- **`/spec <id>`** — resolve any spec id (`fs-03`, `AC-03-2`, `INV-1`, `ST-order-2`, `CAP-01-1`,
+- **`/{{SKILL_SPEC}} <id>`** — resolve any spec id (`fs-03`, `AC-03-2`, `INV-1`, `ST-order-2`, `CAP-01-1`,
   `EV-2`, `DOD-4`, `DR-1`…) to its file, section and text. Use it the moment an id appears in a
   spec, a test name, a comment or a task description.
-- **`/spec-gap`** — use when the spec does not answer an in-scope question. It triages
+- **`/{{SKILL_GAP}}`** — use when the spec does not answer an in-scope question. It triages
   product-vs-technical, checks the places gaps usually hide, and drafts the amendment request for
   the source workspace. Reach for it *before* deciding something yourself.
 - **`.claude/rules/`** — the id vocabulary loads automatically when you open a file under
-  `docs/product/`, and the test-authority rule when you open a test file. You do not need to read
+  `{{SPEC_ROOT}}/`, and the test-authority rule when you open a test file. You do not need to read
   the rules directory yourself.
 
 Two things worth doing without being asked:
@@ -28,5 +28,5 @@ Two things worth doing without being asked:
   rather than resolving it silently — even if the technically obvious choice seems safe.
 
 Use plan mode for work that spans more than one feature spec: the interaction map
-(`docs/product/blueprint/interaction-map.md`, when present) constrains how features that write
+(`{{SPEC_ROOT}}/blueprint/interaction-map.md`, when present) constrains how features that write
 the same data may combine, and those constraints are easy to violate one file at a time.
