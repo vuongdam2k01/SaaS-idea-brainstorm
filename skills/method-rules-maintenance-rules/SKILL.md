@@ -270,7 +270,7 @@ publication_status: draft            # draft | locked — locked is set only in 
                                      # FINAL render (reconcile publish; run-validation for run specs/
                                      # reports; the LOCK disposition ceremony for health-criteria-v1)
 as_of: YYYY-MM-DD
-pipeline_version: 1.7.0
+pipeline_version: 1.8.0
 updated: YYYY-MM-DD
 ---
 ```

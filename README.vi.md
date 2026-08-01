@@ -73,6 +73,7 @@ Chạy trọn vẹn không gói trong một buổi. Đó là chuỗi phiên, xen
 | `reconcile` | `[slug]` | Hậu-LOCK: đối soát thực tế sản phẩm từ các nguồn đã đăng ký, tiêu thụ drift inbox, phát hành current-baseline mới có hash, ký các spec validation run |
 | `run-validation` | `[slug] [run_id]` | Thực thi và phân xử một validation run đã ký — con đường duy nhất đưa một khẳng định từ `guess` lên `supported` |
 | `amend-blueprint` | `[slug] [điều phát hiện]` | Hậu-BP: ghi nhận lỗi/thiếu sót spec phát hiện giữa lúc build vào blueprint đã khóa — scope test do founder trả lời, bản amendment `ba-NNN` bất biến + log chỉ-thêm; file đã khóa không bao giờ đổi |
+| `handoff-to-build` | `[slug] [đường dẫn repo build]` | Hậu-BP: sinh bộ handoff sang repo build để agent code *vào là đã biết* bộ tài liệu tồn tại, đã bị khóa, và cách tra một id — `AGENTS.md`/`CLAUDE.md`, rules theo đường dẫn, `/spec` + `/spec-gap`, một bản tóm tắt lúc mở phiên, và bản sao chỉ-đọc có băm kèm chỉ mục id. Chỉ tiêm nhận thức: không áp kiến trúc, không áp quy trình, không diễn giải lại spec |
 
 Mọi lệnh nằm trong namespace `/saas-idea-brainstorm:`. Các cửa: `F`, `C`, `V1`, `V2`, `V3`, `R1`, `R2`, `P`, `LOCK`, `BP` — bỏ trống thì nó suy ra từ state.
 
@@ -207,6 +208,30 @@ ideas/support-digest/
     └── …                         # transcript, snapshot, danh tính thanh toán
 ```
 
+### Repo build, sau khi chạy `handoff-to-build`
+
+Bộ tài liệu được đọc bởi một agent khác, trong một repo khác. Qua cửa BP chứng minh rằng một phiên mới *có thể* implement từ bộ này; nó không làm cho một phiên ở repo khác **biết** là bộ này tồn tại. `handoff-to-build` sinh ra sự nhận thức đó — chỉ dùng những file mà chính các công cụ tự nạp, nên không ai phải nhớ nhắc gì cả:
+
+```
+<repo build của bạn>/
+├── AGENTS.md                     # chuẩn mở — Codex, Cursor, Copilot, Zed, …
+├── CLAUDE.md                     # @AGENTS.md + phần riêng cho Claude (Claude Code đọc CLAUDE.md, không đọc AGENTS.md)
+├── .claude/
+│   ├── rules/spec-vocabulary.md  # nạp khi mở một file docs/product/: anchor, các dạng id
+│   ├── rules/implementation.md   # nạp trên đường dẫn mã nguồn: spec đã chốt gì, phần nào là của bạn
+│   ├── rules/spec-tests.md       # nạp trên đường dẫn test: acceptance criteria là chuẩn đối chiếu
+│   ├── skills/spec/ · spec-gap/  # /spec <id> tra ra · /spec-gap định tuyến một gap thật quay về
+│   ├── scripts/spec-lookup.js    # id → file → mục → nội dung, tất định
+│   ├── scripts/spec-freshness.js # SessionStart: nêu hợp đồng, kiểm hash, báo động khi lệch
+│   └── settings.json             # được trộn vào, không bao giờ ghi đè
+└── docs/product/                 # bản sao chỉ-đọc — đặc tả mà code phải trả
+    ├── READ-ORDER.md · spec-index.json   # mọi id → nơi định nghĩa nó; SHA-256 cho từng file
+    ├── pack/                     # lớp 1: cái gì, vì sao, và danh sách đã cắt
+    └── blueprint/                # lớp 2: chính xác là như thế nào — gồm amendment-log.md, đọc trước tiên
+```
+
+Nó **chỉ tiêm nhận thức** — không áp kiến trúc, không áp stack, không áp quy trình ngoài những gì chính spec đã chốt — và **không diễn giải lại** bất cứ điều gì, nên nó không thể lệch khỏi artifact. `--check` báo lỗi theo cả hai chiều (nguồn đã đi trước, hoặc có người sửa file đã khóa trong repo build) và đủ rẻ để chạy trong CI của repo đó; hook SessionStart chạy đúng phép kiểm ấy mỗi phiên và không bao giờ tự sửa gì trong im lặng. Sinh lại sau mỗi lần `amend-blueprint`.
+
 Artifact của pipeline mang frontmatter được một hook kiểm — `artifact`, `idea`, `stage`, `gate`, `status` (draft/ready/locked), `evidence_grade`, `rung`, `pipeline_version`, `updated`. Artifact bảo trì hậu-LOCK khai `phase: maintenance` và được kiểm theo bộ khóa riêng (`artifact_kind`, `mutation_policy`, `publication_status`, `cycle_id`, `as_of`, …); cặp đôi giữa kind và mutation policy được cưỡng chế. Các sổ nhật ký được miễn theo thiết kế và không mang frontmatter: `decision-log.md`, `audit-trail.md`, `post-mortem.md`, `README.md` của từng ý tưởng, mọi thứ trong `private/`, và các file vết `error-analysis/batch-NNN.md`. Sổ cái bằng chứng là một bảng, mỗi dòng truy về một người thật, kèm xuất xứ truy xuất để một lần kiểm lại thất bại về sau còn phân biệt được "nguồn đã đổi" với "cái này bịa":
 
 ```markdown
@@ -259,7 +284,7 @@ Phương pháp cũng tồn tại dưới dạng tài liệu thuần. Tạo `idea
 |---|---|
 | `.claude-plugin/` · `.codex-plugin/` | Manifest plugin, mỗi nền tảng một bản |
 | `skills/` | Các skill — lệnh (gồm `reconcile`, `declare-drift`, `run-validation` cho hậu-LOCK), 7 giai đoạn kèm các skill template, và `method-rules` với các skill `method-rules-{state-schema, artifact-schema, gate-contracts, maintenance-rules}`. **Nguồn chuẩn**: tài liệu nào lệch với skill thì skill thắng |
-| `agents/` · `.codex/agents/` · `hooks/` · `scripts/` | Năm subagent, một bản markdown Claude Code và một bản TOML Codex (`sync-codex-agents.js --check` giữ chúng y hệt); `hooks.json` (dùng chung cho cả hai nền tảng) cùng ba script hook; các validator (`validate-evidence-ledger`, `validate-beachhead`, `verify-threshold-snapshot`, `validate-run-contract`, `pack-verdict`, `artifact-manifest`), trình ghi state nguyên tử, `coverage-report.js`, và `preflight.js` |
+| `agents/` · `.codex/agents/` · `hooks/` · `scripts/` | Năm subagent, một bản markdown Claude Code và một bản TOML Codex (`sync-codex-agents.js --check` giữ chúng y hệt); `hooks.json` (dùng chung cho cả hai nền tảng) cùng ba script hook; các validator (`validate-evidence-ledger`, `validate-beachhead`, `verify-threshold-snapshot`, `validate-run-contract`, `pack-verdict`, `artifact-manifest`), trình ghi state nguyên tử, `build-handoff.js` (trình sinh bộ handoff sang repo build), `coverage-report.js`, và `preflight.js`. `templates/handoff/` chứa template của bộ handoff — bộ template duy nhất viết cho một repo *hạ nguồn* thay vì cho một artifact |
 | `tests/` | `hook-tests.js` + `pipeline-contract-tests.js` — hai bộ test hồi quy (test đầu tiên: `node --check` mọi file `.js`) |
 | `evals/` | **Chỉ dành cho dev.** Fixture gieo lỗi + grader đo tỉ lệ bắt của gatekeeper ở tầng diễn giải (`run-gatekeeper-eval.js`). Generator ghi vào thư mục temp của HĐH, không bao giờ ghi trong repo |
 | `process/` | Phương pháp (tiếng Việt): pipeline, foundations, build-and-launch, research-verification. Mang tính giải thích — lệch thì skill thắng |

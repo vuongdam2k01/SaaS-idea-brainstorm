@@ -5,6 +5,47 @@ multi-session conflict inventory and its resolution log) was development residue
 from the working tree — it remains recoverable in git history at commit `fd7732b` and earlier
 (`git show fd7732b:plugin/conflicts-inventory.md`, etc.).
 
+## v1.8.0 — 2026-08-01 · build handoff: making the artifacts legible to the next agent
+
+**Observed failure this release cites** (method-rules §14 requires one): the pipeline's output is
+consumed by a *different* agent in a *different* repository — the coding session that implements the
+product. That session arrives with no knowledge that the artifacts exist, that they are frozen, that
+`AC-03-2` is an id rather than prose, or that a spec defect has a process. It does what any agent
+does in an unfamiliar tree: infers a structure and fills the rest with plausible invention. **That is
+the exact failure stage 6 was built to prevent, reintroduced one directory downstream.** The level-2
+cold-start bar proves a fresh session *could* implement the set; it does not make a session in
+another repo aware the set is there.
+
+- **New skill `handoff-to-build`** and **`scripts/build-handoff.js`** — generate, into the build
+  repository, the files the coding tools load *unprompted*: `AGENTS.md` (the open standard read by
+  Codex, Cursor, Copilot, Zed and ~20 others), `CLAUDE.md` importing it (Claude Code reads
+  `CLAUDE.md`, not `AGENTS.md`), three **path-scoped `.claude/rules/`** (id vocabulary and anchors on
+  `docs/product/**`; the product-vs-technical decision boundary on source paths; acceptance criteria
+  as test oracle on test paths), the **`/spec`** and **`/spec-gap`** skills, a **SessionStart hook**
+  that states the contract before the first prompt, and a read-only `docs/product/` copy.
+- **`spec-index.json`** — every id (`fs-NN`, `AC-NN-n`, `ST-*`, `INV-n`, `JOB-n`, `CAP-NN-n`, `EV-n`,
+  `DR-n`, `DOD-n`, `MSP-n`, `SC-n`, `DF-n`, `BA-nnn`) mapped to its **definition site**, not to
+  whichever file cites it first, plus a SHA-256 per copied file. `spec-lookup.js` resolves an id to
+  file + anchor + text deterministically, and calls an unresolvable id **a finding, not a licence to
+  decide**.
+- **Staleness is louder than absence.** `--check` fails in both directions — the source workspace
+  moved ahead, or someone edited a frozen file in the build repo — and the SessionStart hook makes
+  the same check every build session. Nothing is ever repaired silently. `amend-blueprint` gained a
+  step 6: refresh the kit, because an amendment a build session cannot see has not landed.
+- **Boundaries the generator will not cross.** It copies no `private/` material and does not export
+  the evidence ledger (`E-nnn` stays deliberately unresolvable from the build repo — provenance, not
+  a build input). It refuses to overwrite an `AGENTS.md`/`CLAUDE.md` it did not write, and it
+  *merges* `.claude/settings.json` rather than replacing it. It refuses to run before gate BP passes
+  unless `--draft` is given, and re-runs `validate-blueprint.js --at-gate` first.
+- **It paraphrases nothing.** Every generated file routes, indexes and explains process; not one
+  restates a product fact. That is what makes the kit incapable of drifting from the artifacts — and
+  it is why the kit adds **zero founder judgements**, which is how a release lands under the §14
+  moratorium: it consumes what is already locked.
+- **Awareness only.** No architecture, no stack, no methodology, no workflow beyond what the locked
+  specs themselves decide. Every engineering choice the spec does not fix stays with whoever builds.
+- Tests: **264** contract tests (was 214) incl. 51 covering the handoff; 198 hook tests. Coverage
+  report: **137** requirements, **62%** deterministically enforced.
+
 ## v1.7.0 — 2026-07-31 · depth review: subtraction, not addition (round 5)
 
 Round 5 inverted the question — not "what is missing" but "is this too heavy, where is the

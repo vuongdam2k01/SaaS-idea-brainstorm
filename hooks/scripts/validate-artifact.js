@@ -36,10 +36,10 @@ const ENUMS = {
   rung: ["enhanced-auto", "baseline-auto", "handoff"],
 };
 const LEGACY_RUNGS = ["handoff-only", "simulate"];
-const PIPELINE_VERSIONS = ["1.0.0", "1.1.0", "1.2.0", "1.3.0", "1.4.0", "1.4.1", "1.5.0", "1.6.0", "1.7.0"];
+const PIPELINE_VERSIONS = ["1.0.0", "1.1.0", "1.2.0", "1.3.0", "1.4.0", "1.4.1", "1.5.0", "1.6.0", "1.7.0", "1.8.0"];
 // Maintenance frontmatter shape is unchanged since its introduction in 1.2.0;
 // artifacts stamped by later template versions carry the later literal.
-const MAINT_VERSIONS = ["1.2.0", "1.3.0", "1.4.0", "1.4.1", "1.5.0", "1.6.0", "1.7.0"];
+const MAINT_VERSIONS = ["1.2.0", "1.3.0", "1.4.0", "1.4.1", "1.5.0", "1.6.0", "1.7.0", "1.8.0"];
 const MAINT_REQUIRED = [
   "artifact",
   "artifact_kind",

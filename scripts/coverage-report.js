@@ -109,6 +109,16 @@ const REQUIREMENTS = [
   { id: "bp-quantitative-assumptions-listed", where: "gate-contracts-bp", tier: "agent", by: "level-2 coldstart + gatekeeper (a number nobody observed is how green checks and a wrong product coexist)" },
   { id: "requirement-moratorium", where: "method-rules §14", tier: "prose", by: "INTENTIONAL: a process rule for the humans and models extending this plugin — no mechanism can enforce 'cite an observed failure'" },
 
+  // ---- v1.8.0 build handoff (awareness injection for the DOWNSTREAM repo; adds no founder judgement)
+  { id: "handoff-requires-locked-bp", where: "handoff-to-build", tier: "code", by: "build-handoff.js state.blueprint locked+passed guard (--draft stamps every file instead)" },
+  { id: "handoff-requires-clean-validator", where: "handoff-to-build", tier: "code", by: "build-handoff.js re-runs validate-blueprint.js --at-gate and refuses on error" },
+  { id: "handoff-never-clobbers-instructions", where: "handoff-to-build", tier: "code", by: "build-handoff.js MARKER check on AGENTS.md/CLAUDE.md; settings.json is merged, never replaced" },
+  { id: "handoff-excludes-private-and-ledger", where: "handoff-to-build", tier: "code", by: "build-handoff.js SKIP_NAMES + sources limited to mvp-pack/ and blueprint/ (E-nnn stays unresolvable by design)" },
+  { id: "handoff-id-definition-site", where: "handoff-to-build", tier: "code", by: "build-handoff.js ID_KINDS.home — a citation never displaces the defining file" },
+  { id: "handoff-drift-detectable", where: "handoff-to-build", tier: "code", by: "build-handoff.js --check (both directions) + the generated SessionStart freshness hook" },
+  { id: "handoff-paraphrases-nothing", where: "handoff-to-build", tier: "prose", by: "INTENTIONAL: a design constraint on the templates — enforced by review, since 'this sentence restates a spec' is not mechanically decidable" },
+  { id: "handoff-refreshed-after-amendment", where: "amend-blueprint step 6", tier: "prose", by: "the generated freshness hook reports staleness at the next build session, but nothing forces the regeneration" },
+
   // ---- evidence integrity
   { id: "ledger-required-columns", where: "method-rules-artifact-schema", tier: "code", by: "validate-evidence-ledger.js" },
   { id: "grade-d-never-in-ledger", where: "method-rules §2", tier: "code", by: "validate-evidence-ledger.js" },

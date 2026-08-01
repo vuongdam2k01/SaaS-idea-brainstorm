@@ -176,6 +176,13 @@ existing requirement of at least equal weight. A design argument alone, however 
 sufficient. When neither holds, the honest next action is not another design round: it is to run the
 thing and let the next defect cost a real run to find.
 
+Observed failure admitted under (a), v1.8.0: the pipeline's output is consumed by a **different agent
+in a different repository** — the coding session that implements the product — and that session
+arrives knowing none of it. Left alone it does what any agent does in an unfamiliar tree: infers a
+structure and invents the rest, which is the stage-6 failure reintroduced one directory downstream.
+The `handoff-to-build` kit answers it while adding **zero founder judgements**: every input is
+already locked, and the kit paraphrases nothing.
+
 Corollary for reviews: "this could go wrong" is a finding only when paired with an observation or a
 subtraction. The plugin is now more thoroughly specified than any part of it that has ever executed
 end-to-end successfully, and **that ratio — designed vs exercised — is the live risk**.

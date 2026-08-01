@@ -73,6 +73,7 @@ A full run isn't one sitting. It's a series of sessions with real work in betwee
 | `reconcile` | `[slug]` | Post-LOCK: resolves product reality from registered sources, consumes the drift inbox, publishes a new hashed current-baseline, signs validation-run specs |
 | `run-validation` | `[slug] [run_id]` | Executes and adjudicates a signed validation run — the only path that moves a claim from `guess` to `supported` |
 | `amend-blueprint` | `[slug] [what was discovered]` | Post-BP: records a mid-build spec defect/gap against the locked blueprint — founder-answered scope test, immutable `ba-NNN` amendment + append-only log; locked files never change |
+| `handoff-to-build` | `[slug] [build-repo path]` | Post-BP: generates the build-repo handoff kit so coding agents *arrive knowing* the specs exist, are frozen, and how to resolve an id — `AGENTS.md`/`CLAUDE.md`, path-scoped rules, `/spec` + `/spec-gap`, a SessionStart briefing, and a hashed read-only copy with an id index. Awareness only: no architecture, no workflow, no paraphrase |
 
 All commands are namespaced `/saas-idea-brainstorm:`. Gates: `F`, `C`, `V1`, `V2`, `V3`, `R1`, `R2`, `P`, `LOCK`, `BP` — omit it and it's inferred from state.
 
@@ -207,6 +208,30 @@ ideas/support-digest/
     └── …                         # transcripts, snapshots, payment identities
 ```
 
+### The build repo, after `handoff-to-build`
+
+The specs are read by a different agent in a different repository. Passing BP proves a fresh session *could* implement from the set; it does not make a session in another repo aware the set exists. `handoff-to-build` generates the awareness — using only the files those tools load on their own, so nobody has to remember to mention anything:
+
+```
+<your build repo>/
+├── AGENTS.md                     # the open standard — Codex, Cursor, Copilot, Zed, …
+├── CLAUDE.md                     # @AGENTS.md + Claude specifics (Claude Code reads CLAUDE.md, not AGENTS.md)
+├── .claude/
+│   ├── rules/spec-vocabulary.md  # loads when a docs/product/ file is opened: anchors, id forms
+│   ├── rules/implementation.md   # loads on source paths: what the spec already decides vs what is yours
+│   ├── rules/spec-tests.md       # loads on test paths: acceptance criteria are the oracle
+│   ├── skills/spec/ · spec-gap/  # /spec <id> resolves it · /spec-gap routes a real gap back
+│   ├── scripts/spec-lookup.js    # deterministic id → file → section → text
+│   ├── scripts/spec-freshness.js # SessionStart: states the contract, verifies hashes, alarms on drift
+│   └── settings.json             # merged, never replaced
+└── docs/product/                 # read-only copy — the specification the code owes
+    ├── READ-ORDER.md · spec-index.json   # every id → its definition site; SHA-256 per file
+    ├── pack/                     # layer 1: what, why, and the cut list
+    └── blueprint/                # layer 2: exactly how — incl. amendment-log.md, read first
+```
+
+It injects **awareness only** — no architecture, no stack, no workflow beyond what the locked specs decide — and it **paraphrases nothing**, so it cannot drift from the artifacts. `--check` fails in both directions (source moved ahead, or a frozen file was edited in the build repo) and is cheap enough for that repo's CI; the SessionStart hook runs the same check every session and never repairs anything silently. Regenerate after every `amend-blueprint`.
+
 Pipeline artifacts carry frontmatter that a hook validates — `artifact`, `idea`, `stage`, `gate`, `status` (draft/ready/locked), `evidence_grade`, `rung`, `pipeline_version`, `updated`. Post-LOCK maintenance artifacts declare `phase: maintenance` and validate under their own key set instead (`artifact_kind`, `mutation_policy`, `publication_status`, `cycle_id`, `as_of`, …); the pairing of kind and mutation policy is enforced. The journals are exempt by design and carry none: `decision-log.md`, `audit-trail.md`, `post-mortem.md`, the per-idea `README.md`, everything under `private/`, and `error-analysis/batch-NNN.md` worker traces. The evidence ledger is one table where each row traces to a real human, with retrieval provenance so a later failed spot-check can distinguish "the source changed" from "this was fabricated":
 
 ```markdown
@@ -259,7 +284,7 @@ The methodology also exists as plain documents. Create `ideas/<your-idea>/`, cop
 |---|---|
 | `.claude-plugin/` · `.codex-plugin/` | Plugin manifest, one per platform |
 | `skills/` | The skills — commands (incl. post-LOCK `reconcile`, `declare-drift`, `run-validation`), 7 stages plus their template skills, and `method-rules` with the `method-rules-{state-schema, artifact-schema, gate-contracts, maintenance-rules}` skills. **Normative source**: if any other doc disagrees with a skill, the skill wins |
-| `agents/` · `.codex/agents/` · `hooks/` · `scripts/` | The five subagents, once as Claude Code markdown and once as Codex TOML (`sync-codex-agents.js --check` keeps them identical); `hooks.json` (same file, both platforms) plus three hook scripts; the validators (`validate-evidence-ledger`, `validate-beachhead`, `verify-threshold-snapshot`, `validate-run-contract`, `pack-verdict`, `artifact-manifest`), the atomic state writer, `coverage-report.js`, and `preflight.js` |
+| `agents/` · `.codex/agents/` · `hooks/` · `scripts/` | The five subagents, once as Claude Code markdown and once as Codex TOML (`sync-codex-agents.js --check` keeps them identical); `hooks.json` (same file, both platforms) plus three hook scripts; the validators (`validate-evidence-ledger`, `validate-beachhead`, `verify-threshold-snapshot`, `validate-run-contract`, `pack-verdict`, `artifact-manifest`), the atomic state writer, `build-handoff.js` (the build-repo handoff generator), `coverage-report.js`, and `preflight.js`. `templates/handoff/` holds the handoff kit templates — the only templates written for a *downstream* repo rather than for an artifact |
 | `tests/` | `hook-tests.js` + `pipeline-contract-tests.js` — the regression suites (first case: `node --check` on every shipped `.js`) |
 | `evals/` | **Dev-only.** Seeded-defect fixtures + graders measuring the gatekeeper's catch rate on interpretation-layer failures (`run-gatekeeper-eval.js`). Fixture generator writes to the OS temp dir, never into a repo |
 | `process/` | The methodology (Vietnamese): pipeline, foundations, build-and-launch, research-verification. Explanatory — skills win on conflict |
