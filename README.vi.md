@@ -12,7 +12,7 @@ Ba nguyên tắc làm nên nó:
 - **Ngưỡng được ký trước khi chạy phép thử.** Sau nghi thức ký tại cửa F, sửa một ngưỡng đòi hỏi bạn phê duyệt tường minh và một bản revision được ghi lại.
 - **Cửa trượt thì quay lui.** Không bao giờ tiến tới trên một giả định đã gãy. Trượt mà rõ hướng là kết quả tốt.
 
-Repository: <https://github.com/vuongdam2k01/SaaS-idea-brainstorm> · MIT · version hiện tại: xem [plugin.json](.claude-plugin/plugin.json) + [CHANGELOG.md](CHANGELOG.md)
+Repository: <https://github.com/vuongdam2k01/SaaS-idea-brainstorm> · MIT
 
 ---
 
@@ -77,7 +77,7 @@ Chạy trọn vẹn không gói trong một buổi. Đó là chuỗi phiên, xen
 
 Mọi lệnh nằm trong namespace `/saas-idea-brainstorm:`. Các cửa: `F`, `C`, `V1`, `V2`, `V3`, `R1`, `R2`, `P`, `LOCK`, `BP` — bỏ trống thì nó suy ra từ state.
 
-Bảy skill giai đoạn (`stage-0-framing` … `stage-6-blueprint`) tự kích hoạt theo tiến độ; bạn không phải gọi. `method-rules` là hiến pháp — mọi thứ đều nạp nó, không ai gọi trực tiếp được — kèm bốn vệ tinh quy phạm (`method-rules-{state-schema, artifact-schema, gate-contracts, maintenance-rules}`); bộ quy tắc bảo trì cố ý nằm ngoài bundle mặc định và do chính các skill hậu-LOCK tự nạp.
+Bảy skill giai đoạn (`stage-0-framing` … `stage-6-blueprint`) tự kích hoạt theo tiến độ; bạn không phải gọi. `method-rules` là hiến pháp — mọi thứ đều nạp nó, không ai gọi trực tiếp được — kèm năm vệ tinh quy phạm (`method-rules-{state-schema, artifact-schema, gate-contracts, gate-contracts-bp, maintenance-rules}`). Hai trong số đó nằm ngoài bundle mặc định và chỉ được nạp bởi skill thực sự cần: bộ quy tắc bảo trì do các skill hậu-LOCK tự nạp, còn hợp đồng cửa BP do công việc giai đoạn 6, `amend-blueprint`, và lượt kiểm cửa BP nạp. Context chính là nền cưỡng chế, nên không skill nào phải mang một hợp đồng nó sẽ chẳng bao giờ đọc.
 
 ---
 
@@ -199,7 +199,11 @@ ideas/support-digest/
 ├── blueprint/                    # giai đoạn 6 (cửa BP): lớp triển khai — pack luôn chỉ-đọc
 │   ├── blueprint-overview.md · feature-specs/fs-NN-*.md
 │   ├── data-schema.md · ux-spec.md · api-contract.md · integration-specs.md
-│   └── nfr-spec.md · test-plan.md · build-plan.md
+│   ├── nfr-spec.md · test-plan.md · build-plan.md
+│   ├── interaction-map.md · subsystem-specs/ss-NN-*.md   # chỉ khi sản phẩm cần
+│   ├── coldstart-l2-<date>-NN.md                         # lưu lại lượt cold-start cấp 2, có kiểm hash
+│   ├── amendment-log.md · amendments/ba-NNN-*.md         # sự thật lúc build: blueprint đã khóa + amendment
+│   └── deferred-register.md                              # chỉ-thêm, chỉ chứa hạng mục phi-sản-phẩm
 ├── drift-inbox.md · health-criteria-vN.md · current-baseline-vN.md    # hậu-LOCK: inbox chỉ-thêm + các projection có phiên bản
 ├── reconcile/<r-id>/ · validation-runs/                               # giao dịch đối soát có hash · spec + report của run đã ký
 ├── cycles/C2/                    # cycle mới sao chép đúng bố cục này với state.json và các cửa của riêng nó
@@ -273,7 +277,7 @@ Charter đi kèm trong MVP pack, đóng vai trò thẩm quyền diễn giải ch
 
 Phương pháp cũng tồn tại dưới dạng tài liệu thuần. Tạo `ideas/<ten-y-tuong>/`, copy toàn bộ `templates/` vào đó, rồi đi theo [process/pipeline.md](process/pipeline.md) bắt đầu từ `0-framing.md`; trạng thái cửa ghi ngay trong từng file template. Vẫn hai quy ước đó: ngưỡng trước phép thử, bằng chứng truy về người thật.
 
-`process/` và `plugin/` viết bằng tiếng Việt; bản thân plugin (`skills/`, `agents/`, `hooks/`) toàn bộ tiếng Anh, và nó trả lời theo ngôn ngữ bạn dùng.
+`process/` viết bằng tiếng Việt; bản thân plugin (`skills/`, `agents/`, `hooks/`) toàn bộ tiếng Anh, và nó trả lời theo ngôn ngữ bạn dùng.
 
 ---
 
@@ -281,20 +285,20 @@ Phương pháp cũng tồn tại dưới dạng tài liệu thuần. Tạo `idea
 
 | Đường dẫn | Nội dung |
 |---|---|
-| `.claude-plugin/` · `.codex-plugin/` | Manifest plugin, mỗi nền tảng một bản |
-| `skills/` | Các skill — lệnh (gồm `reconcile`, `declare-drift`, `run-validation` cho hậu-LOCK), 7 giai đoạn kèm các skill template, và `method-rules` với các skill `method-rules-{state-schema, artifact-schema, gate-contracts, maintenance-rules}`. **Nguồn chuẩn**: tài liệu nào lệch với skill thì skill thắng |
-| `agents/` · `.codex/agents/` · `hooks/` · `scripts/` | Năm subagent, một bản markdown Claude Code và một bản TOML Codex (`sync-codex-agents.js --check` giữ chúng y hệt); `hooks.json` (dùng chung cho cả hai nền tảng) cùng ba script hook; các validator (`validate-evidence-ledger`, `validate-beachhead`, `verify-threshold-snapshot`, `validate-run-contract`, `pack-verdict`, `artifact-manifest`), trình ghi state nguyên tử, `build-handoff.js` (trình sinh bộ handoff sang repo build), `coverage-report.js`, và `preflight.js`. `templates/handoff/` chứa template của bộ handoff — bộ template duy nhất viết cho một repo *hạ nguồn* thay vì cho một artifact |
+| `.claude-plugin/` · `.codex-plugin/` · `.agents/` | Manifest plugin, mỗi nền tảng một bản, kèm các mô tả marketplace mà hai CLI cài từ đó |
+| `skills/` | Các skill — lệnh (`new-idea`, `status`, `gate-check`, `setup-audit`, `switch-mode`; hậu-LOCK `declare-drift`, `reconcile`, `run-validation`; hậu-BP `amend-blueprint`, `handoff-to-build`), 7 giai đoạn kèm các skill template, và `method-rules` cùng năm vệ tinh quy phạm. **Nguồn chuẩn**: tài liệu nào lệch với skill thì skill thắng |
+| `agents/` · `.codex/agents/` · `hooks/` · `scripts/` | Năm subagent, một bản markdown Claude Code và một bản TOML Codex (`sync-codex-agents.js --check` giữ chúng y hệt); `hooks.json` (dùng chung cho cả hai nền tảng) cùng ba script hook; các validator (`validate-evidence-ledger`, `validate-beachhead`, `verify-threshold-snapshot`, `validate-run-contract`, `pack-verdict`, `artifact-manifest`), trình ghi state nguyên tử, `build-handoff.js` (trình sinh bộ handoff), `coverage-report.js`, và `preflight.js` |
 | `tests/` | `hook-tests.js` + `pipeline-contract-tests.js` — hai bộ test hồi quy (test đầu tiên: `node --check` mọi file `.js`) |
 | `evals/` | **Chỉ dành cho dev.** Fixture gieo lỗi + grader đo tỉ lệ bắt của gatekeeper ở tầng diễn giải (`run-gatekeeper-eval.js`). Generator ghi vào thư mục temp của HĐH, không bao giờ ghi trong repo |
 | `process/` | Phương pháp (tiếng Việt): pipeline, foundations, build-and-launch, research-verification. Mang tính giải thích — lệch thì skill thắng |
-| `CHANGELOG.md` | Thay đổi theo từng bản phát hành; toàn bộ hồ sơ thiết kế/review nằm trong lịch sử git |
+| `CHANGELOG.md` | Hồ sơ phát hành |
 | `templates/` · `ideas/` | Template dùng tay (bản render của các skill template); các workspace ý tưởng |
 
 ```bash
 node scripts/preflight.js
 ```
 
-Một lệnh, bốn kiểm: quét cú pháp mọi file `.js`, cả hai bộ test, và parity agent Codex. Chạy sau mọi đợt sửa hàng loạt và trước mọi commit. Hai bộ test phủ mọi phát hiện từ vòng review đối kháng, gồm cả một lỗ hổng sửa-một-phần để lách ngưỡng đã được chứng minh và giữ làm test hồi quy vĩnh viễn.
+Một lệnh, bốn kiểm: quét cú pháp mọi file `.js`, cả hai bộ test, và parity agent Codex. Chạy sau mọi đợt sửa hàng loạt và trước mọi commit. Hai bộ test phủ đúng những cơ chế mà các cửa dựa vào — kiểm frontmatter và state, chốt chặn ngưỡng trước cả sửa-một-phần lẫn sửa-ngữ-nghĩa, validator sổ cái bằng chứng và validator blueprint, trình sinh handoff, và tính khớp giữa mỗi bộ từ vựng giữ tay với bản khai thứ hai của nó.
 
 ---
 
@@ -322,6 +326,6 @@ Một lệnh, bốn kiểm: quét cú pháp mọi file `.js`, cả hai bộ test
 
 Được lắp ráp và kiểm chứng dựa trên tài liệu gốc chứ không dựa vào bản tóm tắt: Customer Development của Steve Blank (earlyvangelist là thang năm tầng — chỉ tầng 4–5 mới đạt), khung giả định desirability/feasibility/viability của Strategyzer, *The Mom Test*, Running Lean của Ash Maurya (10–15 cuộc phỏng vấn), thứ tự thành phần định vị của April Dunford cùng lưu ý của bà rằng định vị pre-product là một luận điểm, dự kiến sẽ sai một phần, JOLT Effect về các thương vụ mất vào "không quyết định", và thực hành đánh giá LLM của Hamel Husain và Shreya Shankar (error-analysis trước, khoảng 100 trace kèm quy tắc dừng — không phải "100 golden case").
 
-Dấu vết kiểm toán nằm ngay trong repo. `process/research-verification.md` ghi các nhánh nghiên cứu và các chỉnh sửa đã áp, gồm cả hai con số thống kê bịa bị phát hiện và loại bỏ. Các vòng review đối kháng và báo cáo dogfood nằm trong lịch sử git (tóm tắt: `CHANGELOG.md`) — mọi lỗ hổng được chứng minh đều thành test hồi quy vĩnh viễn, và lượt chạy thật đầu tiên kết thúc bằng việc gatekeeper đánh trượt một cửa hoàn toàn chính xác.
+`process/research-verification.md` ghi lại từng khẳng định một: con số nào đã kiểm chứng được với nguồn gốc, con số nào bị loại vì không có nguồn. Plugin tự áp lên mình đúng cái chuẩn nó áp lên bạn: một con số không ai truy được thì không có chỗ ngồi trong phương pháp.
 
 MIT — xem [LICENSE](LICENSE).

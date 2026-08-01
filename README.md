@@ -12,7 +12,7 @@ Three rules make it work:
 - **Thresholds are signed before tests run.** After the signing ceremony at gate F, changing one takes your explicit approval and a recorded revision.
 - **A failed gate goes backwards.** Never forward on a broken assumption. Failing with a clear direction is a good outcome.
 
-Repository: <https://github.com/vuongdam2k01/SaaS-idea-brainstorm> · MIT · current version: see [plugin.json](.claude-plugin/plugin.json) + [CHANGELOG.md](CHANGELOG.md)
+Repository: <https://github.com/vuongdam2k01/SaaS-idea-brainstorm> · MIT
 
 ---
 
@@ -77,7 +77,7 @@ A full run isn't one sitting. It's a series of sessions with real work in betwee
 
 All commands are namespaced `/saas-idea-brainstorm:`. Gates: `F`, `C`, `V1`, `V2`, `V3`, `R1`, `R2`, `P`, `LOCK`, `BP` — omit it and it's inferred from state.
 
-Seven stage skills (`stage-0-framing` … `stage-6-blueprint`) activate on their own as the idea progresses; you never call them. `method-rules` is the constitution — loaded by everything, invocable by nobody — with four normative satellites (`method-rules-{state-schema, artifact-schema, gate-contracts, maintenance-rules}`); the maintenance rules are deliberately outside the default bundle and loaded by the post-LOCK skills themselves.
+Seven stage skills (`stage-0-framing` … `stage-6-blueprint`) activate on their own as the idea progresses; you never call them. `method-rules` is the constitution — loaded by everything, invocable by nobody — with five normative satellites (`method-rules-{state-schema, artifact-schema, gate-contracts, gate-contracts-bp, maintenance-rules}`). Two of them stay outside the default bundle and are loaded only by the skills that need them: the maintenance rules by the post-LOCK skills, and gate BP's contract by stage-6 work, `amend-blueprint`, and a BP gate check. Context is the enforcement substrate, so no skill carries a contract it will never read.
 
 ---
 
@@ -199,7 +199,11 @@ ideas/support-digest/
 ├── blueprint/                    # stage 6 (gate BP): the implementation layer — the pack stays read-only
 │   ├── blueprint-overview.md · feature-specs/fs-NN-*.md
 │   ├── data-schema.md · ux-spec.md · api-contract.md · integration-specs.md
-│   └── nfr-spec.md · test-plan.md · build-plan.md
+│   ├── nfr-spec.md · test-plan.md · build-plan.md
+│   ├── interaction-map.md · subsystem-specs/ss-NN-*.md   # only when the product needs them
+│   ├── coldstart-l2-<date>-NN.md                         # persisted level-2 runs, hash-verified
+│   ├── amendment-log.md · amendments/ba-NNN-*.md         # build-time truth: locked blueprint + amendments
+│   └── deferred-register.md                              # append-only, non-product items only
 ├── drift-inbox.md · health-criteria-vN.md · current-baseline-vN.md    # post-LOCK: append-only inbox + versioned projections
 ├── reconcile/<r-id>/ · validation-runs/                               # hashed reconcile transactions · signed run specs + reports
 ├── cycles/C2/                    # a new cycle mirrors this layout with its own state.json and gates
@@ -273,7 +277,7 @@ The charter ships inside the MVP pack as the interpretive authority for everythi
 
 The methodology also exists as plain documents. Create `ideas/<your-idea>/`, copy everything from `templates/` into it, and work through [process/pipeline.md](process/pipeline.md) starting from `0-framing.md`; gate states are tracked inside the template files. Same two conventions: thresholds before tests, evidence traces to real humans.
 
-`process/` and `plugin/` are written in Vietnamese; the plugin itself (`skills/`, `agents/`, `hooks/`) is English throughout, and it replies in whatever language you use.
+`process/` is written in Vietnamese; the plugin itself (`skills/`, `agents/`, `hooks/`) is English throughout, and it replies in whatever language you use.
 
 ---
 
@@ -281,20 +285,20 @@ The methodology also exists as plain documents. Create `ideas/<your-idea>/`, cop
 
 | Path | Contents |
 |---|---|
-| `.claude-plugin/` · `.codex-plugin/` | Plugin manifest, one per platform |
-| `skills/` | The skills — commands (incl. post-LOCK `reconcile`, `declare-drift`, `run-validation`), 7 stages plus their template skills, and `method-rules` with the `method-rules-{state-schema, artifact-schema, gate-contracts, maintenance-rules}` skills. **Normative source**: if any other doc disagrees with a skill, the skill wins |
-| `agents/` · `.codex/agents/` · `hooks/` · `scripts/` | The five subagents, once as Claude Code markdown and once as Codex TOML (`sync-codex-agents.js --check` keeps them identical); `hooks.json` (same file, both platforms) plus three hook scripts; the validators (`validate-evidence-ledger`, `validate-beachhead`, `verify-threshold-snapshot`, `validate-run-contract`, `pack-verdict`, `artifact-manifest`), the atomic state writer, `build-handoff.js` (the build-repo handoff generator), `coverage-report.js`, and `preflight.js`. `templates/handoff/` holds the handoff kit templates — the only templates written for a *downstream* repo rather than for an artifact |
+| `.claude-plugin/` · `.codex-plugin/` · `.agents/` | Plugin manifest, one per platform, plus the marketplace descriptors both CLIs install from |
+| `skills/` | The skills — commands (`new-idea`, `status`, `gate-check`, `setup-audit`, `switch-mode`; post-LOCK `declare-drift`, `reconcile`, `run-validation`; post-BP `amend-blueprint`, `handoff-to-build`), 7 stages plus their template skills, and `method-rules` with its five normative satellites. **Normative source**: if any other doc disagrees with a skill, the skill wins |
+| `agents/` · `.codex/agents/` · `hooks/` · `scripts/` | The five subagents, once as Claude Code markdown and once as Codex TOML (`sync-codex-agents.js --check` keeps them identical); `hooks.json` (same file, both platforms) plus three hook scripts; the validators (`validate-evidence-ledger`, `validate-beachhead`, `verify-threshold-snapshot`, `validate-run-contract`, `pack-verdict`, `artifact-manifest`), the atomic state writer, `build-handoff.js` (the handoff generator), `coverage-report.js`, and `preflight.js` |
 | `tests/` | `hook-tests.js` + `pipeline-contract-tests.js` — the regression suites (first case: `node --check` on every shipped `.js`) |
 | `evals/` | **Dev-only.** Seeded-defect fixtures + graders measuring the gatekeeper's catch rate on interpretation-layer failures (`run-gatekeeper-eval.js`). Fixture generator writes to the OS temp dir, never into a repo |
 | `process/` | The methodology (Vietnamese): pipeline, foundations, build-and-launch, research-verification. Explanatory — skills win on conflict |
-| `CHANGELOG.md` | What changed in each release; the full design/review record lives in git history |
-| `templates/` · `ideas/` | Manual-use templates (rendering of the template skills); idea workspaces |
+| `CHANGELOG.md` | The release record |
+| `templates/` · `ideas/` | Manual-use templates (rendering of the template skills), plus `templates/handoff/` — the only templates written for the repo the code lives in rather than for a pipeline artifact; idea workspaces |
 
 ```bash
 node scripts/preflight.js
 ```
 
-One command, four checks: syntax-sweep every shipped `.js`, both test suites, and Codex agent parity. Run it after any bulk edit and before any commit. The suites cover every adversarial-review finding, including a proven partial-edit threshold bypass kept as a permanent regression test.
+One command, four checks: syntax-sweep every shipped `.js`, both test suites, and Codex agent parity. Run it after any bulk edit and before any commit. The suites cover the mechanisms the gates lean on — frontmatter and state validation, the threshold guard against partial and semantic edits, the evidence-ledger and blueprint validators, the handoff generator, and the parity between each hand-kept vocabulary and its second declaration.
 
 ---
 
@@ -322,6 +326,6 @@ One command, four checks: syntax-sweep every shipped `.js`, both test suites, an
 
 Assembled and source-verified against primary sources rather than summaries: Steve Blank's Customer Development (earlyvangelist as a five-level hierarchy — only levels 4–5 qualify), Strategyzer's desirability/feasibility/viability assumption mapping, *The Mom Test*, Ash Maurya's Running Lean (10–15 interviews), April Dunford's positioning component order and her caveat that pre-product positioning is a thesis expected to be partly wrong, the JOLT Effect on "no decision" losses, and the LLM evaluation practice of Hamel Husain and Shreya Shankar (error-analysis first, ~100 traces with a stop rule — not "100 golden cases").
 
-The audit trail survives. `process/research-verification.md` records the research branches and the corrections applied, including two fabricated statistics that were found and removed. The adversarial review rounds and dogfood run reports live in git history (see `CHANGELOG.md` for the summary) — every proven bypass became a permanent regression test, and the first real run ended with the gatekeeper correctly failing a gate.
+`process/research-verification.md` records, claim by claim, which numbers were verified against a primary source and which were removed for lacking one. The plugin holds itself to the standard it holds you to: a figure nobody can trace does not get to sit in the method.
 
 MIT — see [LICENSE](LICENSE).
