@@ -46,8 +46,9 @@ generation boundary).
 
 Screen inventory · flows (happy + every error path) · **first-run flow signup → aha event**
 (required — screens alone don't compose into it) · per-screen states · navigation map ·
-accessibility floor (never cuttable) · **outward copy inventory with `publication_disposition`
-per claim** (copy from positioning + V1 verbatims; product copy ships to paying users).
+accessibility floor (never cuttable — substituted, not N/A, on a headless surface) · **outward claim
+inventory**: pack-class claims only (outcome/benefit/quantity/guarantee/security/price/pitch), each
+with a `publication_disposition`. Labels, hints and error copy are not claims — they live in their FS.
 
 ## 6.5. API contract & integration specs
 

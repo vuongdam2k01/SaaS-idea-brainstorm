@@ -1364,6 +1364,36 @@ console.log("== validate-beachhead --file confinement (two-sided lists) ==");
 }
 
 // ---------------------------------------------------------------------------
+console.log("== stage-6 narrative does not contradict its own templates/validator ==");
+{
+  // Observed failure (v1.7.0 ship audit): the round-5 reductions landed in the
+  // templates and the validator, and the stage-6 skill kept telling the founder
+  // the OLD rule for three of them — a disposition per UI string, a determinism
+  // cell per case, and no mention of two sections the validator now requires.
+  // The skill is the narrative a session follows; the templates are what it
+  // produces. When they disagree, the session does the work twice.
+  const s6 = fs.readFileSync(path.join(ROOT, "skills", "stage-6-blueprint", "SKILL.md"), "utf8");
+  const t6 = fs.readFileSync(path.join(ROOT, "skills", "stage-6-blueprint-templates", "SKILL.md"), "utf8");
+  const vb = fs.readFileSync(path.join(ROOT, "scripts", "validate-blueprint.js"), "utf8");
+  const anchorsRequired = (vb.match(/"blueprint-overview\.md":\s*\[([^\]]*)\]/) || [, ""])[1];
+  for (const a of ["profile", "decisions"]) {
+    check(`validator requires the bp:${a} anchor`, anchorsRequired.includes(`"${a}"`));
+    check(`stage-6 templates emit bp:${a}`, t6.includes(`<!-- bp:${a} -->`));
+  }
+  check("stage-6 skill tells the founder to write the blueprint profile", /blueprint profile/i.test(s6));
+  check("stage-6 skill tells the founder to write the decision register", /decision register/i.test(s6));
+  // Contract prose wraps at ~100 cols, so every assertion here tolerates a line
+  // break inside the phrase — a test that only matches unwrapped text would fail
+  // on reflow and teach people to distrust it.
+  check("stage-6 skill no longer demands a disposition per UI string",
+    !/every\s+user-visible\s+claim/i.test(s6) && /pack-class\s+claims/i.test(s6));
+  check("stage-6 skill describes determinism as declared once per CAP and inherited",
+    /once\s+on\s+the\s+capability/i.test(s6) && /inherited/i.test(s6));
+  check("manual template mirrors the narrowed claim inventory",
+    /pack-class\s+claims\s+only/i.test(fs.readFileSync(path.join(ROOT, "templates", "6-blueprint.md"), "utf8")));
+}
+
+// ---------------------------------------------------------------------------
 console.log("== SS_KIND_ANCHORS parity: gate-contracts table vs validate-blueprint.js ==");
 {
   // Third instance of the one-vocabulary-two-declarations pattern

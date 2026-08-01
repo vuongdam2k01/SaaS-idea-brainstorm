@@ -73,10 +73,13 @@ the stage's scope of work. **Traceability seed**: each planned FS names its pack
 step #, `DOD-n`, `MSP-n`) before a word of spec is written. A planned FS with no trace is a scope
 addition: drop it or route the founder to `declare-drift` (the pack is never edited — see the
 refines-never-expands rule in the BP contract). Write `blueprint-overview.md` now, `status: draft` —
-it carries the **resume ledger** (one index row per artifact and per FS, plus the "next open
-decision batch" line, updated every session) and the **event dictionary** (single source for event
-payloads, seeded from the pack's tracking plan with the aha event first; feature specs reference it
-and never redefine payloads).
+it carries four things: the **blueprint profile** (which optional layers apply and why — a simple
+CRUD product declares here that it needs the nine core files and skips subsystems and the
+interaction map, so "required" stops reading as universal); the **resume ledger** (one index row per
+artifact and per FS, plus the "next open decision batch" line, updated every session); the **event
+dictionary** (single source for event payloads, seeded from the pack's tracking plan with the aha
+event first; feature specs reference it and never redefine payloads); and the **decision register**
+(`DR-n` rows — every delegated decision with the founder's exact words, date and delegated scope).
 
 ## 6.2 Feature specs → `feature-specs/fs-NN-<slug>.md` (the heart of the stage)
 
@@ -134,9 +137,12 @@ the aha event's trigger point marked and its time bound restated from the pack, 
 empty states do not compose into a first-run sequence and "% reaching aha" is what the soft launch
 measures; per-screen states (loading/empty/error/success) referencing the FS copy; navigation map;
 accessibility floor (MSP rule: "minimum" never means minimum safety — keyboard/contrast/labels are
-not cuttable); and the **outward copy inventory**: every user-visible claim with its source
-(positioning pitch, V1 verbatims, or proposition) and a `publication_disposition` per claim — the
-outward-claim preflight applies at gate BP because product copy ships to paying users.
+not cuttable — for a headless surface it is substituted, never N/A: stable machine-readable error
+codes, documented limits, a deprecation policy); and the **outward claim inventory** — **pack-class
+claims only** (outcome, benefit, quantity, guarantee, security/compliance property, price/terms, or a
+restatement of the pitch), each with its source and a `publication_disposition`. Labels, field hints,
+empty-state prompts and error copy are **not** claims and stay in their FS: a disposition per UI
+string was bureaucracy, and the real risk is marketing-grade assertions, which ship to paying users.
 
 ## 6.5 Interface contracts → `api-contract.md` + `integration-specs.md`
 
@@ -179,9 +185,11 @@ an NFR is the same defect as in the pack.
 Every DoD item, MSP commitment, invariant (`INV-n`) and eval binding (`EV-n`) maps to at least one
 executable scenario; every FS acceptance criterion becomes a case (reference by AC id — do not
 restate and drift); cross-tenant isolation and payment-failure paths get explicit scenarios (they
-are DoD invariants); every llm/async-backed case carries a **determinism strategy**
-(recorded-fixtures / seeded / live-eval-threshold / manual — a stochastic core with no determinism
-strategy makes CI flaky by construction); for AI-core the pack's `eval/` harness is wired as CI from
+are DoD invariants); every llm/async-backed case has a **determinism strategy** — declared **once on
+the capability** (`CAP-n`) and inherited by every case that uses it, overridden per case only where
+it genuinely differs (recorded-fixtures / seeded / live-eval-threshold / manual; a stochastic core
+with no determinism strategy makes CI flaky by construction, but forty cases repeating one strategy
+is just transcription); for AI-core the pack's `eval/` harness is wired as CI from
 build day one with its threshold restated; UAT and the soft-launch adoption run stay in
 build-and-launch — reference, don't duplicate.
 

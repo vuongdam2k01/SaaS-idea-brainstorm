@@ -41,8 +41,18 @@ reductions, three small additions, one blocker fixed.**
   honest next action is a run, not another design round — and the review's sharpest point stands:
   **all three dogfood runs died at or before gate F, while stage 6 is only reachable after nine
   gates succeed.** The designed-to-exercised ratio is now the live risk.
-- Suites: 198 hook + 205 contract tests green (6 new: delegation resolution ×3, concurrency
-  citation, INV-vs-DoD, determinism inheritance ×2). Coverage: 129 requirements, 61% deterministic.
+- **Ship audit (same release, observed failure).** The reductions landed in the templates and the
+  validator while `stage-6-blueprint/SKILL.md` — the narrative a session actually follows — still
+  taught the OLD rule in three places: a disposition per UI string, a determinism cell per case, and
+  no mention of the two overview sections the validator now requires. Fixed, and **pinned**: a new
+  contract-test block asserts the stage-6 narrative, its templates and the validator cannot drift
+  apart again (the anchors the validator requires must be emitted by the templates and named by the
+  skill; the narrowed claim rule and the inherited determinism rule must be stated the same way in
+  all three). Assertions tolerate line wrapping — a test that fails on reflow teaches people to
+  distrust it.
+- Suites: 198 hook + 214 contract tests green (15 new: delegation resolution ×3, concurrency
+  citation, INV-vs-DoD, determinism inheritance ×2, BP-split wiring ×2, narrative-consistency ×9).
+  Coverage: 129 requirements, 61% deterministic.
 
 ## v1.6.0 — 2026-07-31 · idea-diversity layers (round-4 review)
 
