@@ -230,12 +230,14 @@ Stage 6 owns this closing sequence, in order:
    `${CLAUDE_SKILL_DIR}/../../process/build-and-launch.md` with **pack + blueprint as the two-layer
    contract** — the pack bounds scope, the blueprint binds implementation. On FAIL, fix the named
    documents and return to step 1 (a changed blueprint invalidates the cold-start run and manifest).
-4. **Offer the build handoff** (`handoff-to-build` skill) as the next action, once a build repo
-   exists. The level-2 bar proves a fresh session *can* implement from this set; it does not make a
-   session in another repository aware the set exists. The kit generates that awareness through the
-   files those tools load on their own — `AGENTS.md`, `CLAUDE.md`, path-scoped rules, a SessionStart
-   briefing, and an id index — and it authors no product content, so it costs the founder nothing
-   but the command. Never block the gate on it: BP is about the specs, not about their delivery.
+4. **Say where the code will be written.** The level-2 bar proves a fresh session *can* implement
+   from this set; it does not make that session aware the set exists. Two shapes, and the answer
+   differs: **same repository** — nothing to do, the plugin already carries the build contract at
+   SessionStart, injects the id vocabulary the first time a session opens a spec file, and answers
+   an id through `/saas-idea-brainstorm:spec`; **separate build repository** — offer the
+   `handoff-to-build` skill, which ships a hashed read-only copy plus `AGENTS.md`/`CLAUDE.md`,
+   path-scoped rules and an id index for a repo that may not have this plugin at all. Never block
+   the gate on either: BP is about the specs, not about their delivery.
 
 During build, two different discoveries route two different ways: a **spec defect or gap** (still in
 MVP scope — an edge case only code exposes, a provider behaving differently than documented, a logic

@@ -5,6 +5,52 @@ multi-session conflict inventory and its resolution log) was development residue
 from the working tree — it remains recoverable in git history at commit `fd7732b` and earlier
 (`git show fd7732b:plugin/conflicts-inventory.md`, etc.).
 
+## v1.10.0 — 2026-08-01 · spec awareness becomes native; the generator shrinks to the case that needs it
+
+The founder's scenario: install the plugin once, globally; use it in whatever project; run the
+pipeline there; then implement in that same project. Against that, `--in-place` was the wrong
+shape and is **removed**.
+
+The reasoning that produced it stopped one question short. A plugin genuinely cannot ship
+`.claude/rules/` — plugin components are skills, agents, hooks, MCP and LSP servers, and rules are
+project or user scope. That much was checked. What was not checked: whether a **hook** could do
+the same job. It can — `PostToolUse` carries `hookSpecificOutput.additionalContext`, and its `if`
+field takes permission-rule syntax, so a hook can fire only when a session reads a path under
+`ideas/**`. Everything the generated kit installed into a mono-repo, the plugin can therefore do
+itself, with nothing written into the project.
+
+- **`spec-awareness.js`** (new PostToolUse hook, path-scoped to `ideas/**`) — the first time a
+  session opens a spec file, it injects what a path-scoped rule would have: the anchor mechanism,
+  the id vocabulary, "these files are read-only", and where a defect routes. **Once per session per
+  workspace** — repeating it on every read spends context to say what the session already knows.
+- **`session-start.js`** now carries the standing build contract whenever a blueprint is locked:
+  the two layers, amendment-log-first, and the line between product decisions (already made) and
+  technical ones (the implementer's). It re-fires on `compact`, so it survives a context reset.
+- **`/saas-idea-brainstorm:spec`** and **`/saas-idea-brainstorm:spec-gap`** are now plugin skills.
+  Plugin skills are namespaced, so they cannot collide with anything else the repo installs.
+- **`scripts/spec-lookup.js`** resolves an id to its **defining** file, section and text, building
+  the index from the artifacts on every call. No cached JSON, so **staleness stops existing**: an
+  amendment written a minute ago is already live. `--list`, `--grep`, `--files`, and `--idea` when
+  a workspace holds more than one spec.
+- **`scripts/lib/spec-index.js`** — the id vocabulary, the definition-site rules and the artifact
+  purposes now live in one module that both `spec-lookup.js` and `build-handoff.js` read. A test
+  asserts neither consumer keeps its own copy.
+
+**What that deletes**, which is the point: the generated rules, the generated skills, the cached
+index, the regeneration after every amendment, the `--check` staleness machinery for the same-repo
+case, the namespace-collision management, `--force`, and `--codex`. None of it was ever a real
+problem — all of it was a consequence of choosing files over hooks.
+
+**`build-handoff.js` survives, narrowed to the case that genuinely needs files:** a build
+repository *separate* from the idea workspace, which may not have this plugin installed at all.
+Targeting the workspace repo is now refused outright, with the native path named in the refusal.
+Everything else about the copy-mode kit is unchanged — hashed read-only copy, `AGENTS.md` /
+`CLAUDE.md`, path-scoped rules under a deletable namespace, self-limiting scope clauses, drift
+detection in both directions.
+
+Tests: **313** contract tests, 198 hook tests, 0 failures. Coverage report: **146** requirements,
+**64%** deterministically enforced.
+
 ## v1.9.0 — 2026-08-01 · the handoff, corrected for one repo and for other plugins
 
 Two observations from the founder, hours after v1.8.0 shipped. Both were right, and both changed

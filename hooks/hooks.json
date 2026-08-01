@@ -30,6 +30,16 @@
             "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/scripts/validate-artifact.js\""
           }
         ]
+      },
+      {
+        "matcher": "Read",
+        "hooks": [
+          {
+            "type": "command",
+            "if": "Read(ideas/**)",
+            "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/scripts/spec-awareness.js\""
+          }
+        ]
       }
     ]
   }

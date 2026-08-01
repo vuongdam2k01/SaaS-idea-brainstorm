@@ -68,11 +68,12 @@ unavailable — the checkpoint may not degrade):
    amendments are post-gate work, exactly as validation runs are post-LOCK).
 5. Run `node "${CLAUDE_SKILL_DIR}/../../scripts/validate-blueprint.js" <idea-dir> --with-amendments`
    — a dangling target, id collision, or contradiction fails on the spot; fix before closing.
-6. **Refresh the build handoff** if the founder has one (`handoff-to-build`, or directly
-   `node "${CLAUDE_SKILL_DIR}/../../scripts/build-handoff.js" <idea-dir> --to <build-repo>`). An
-   amendment that a build session cannot see has not landed where it matters: the log is first in
-   the build read order, and the kit is where that session reads it. Its freshness hook will flag
-   the staleness anyway — better to close it here than to have the next session discover it.
+6. **Only if the code lives in a SEPARATE repository**, refresh its handoff kit
+   (`handoff-to-build`, or `node "${CLAUDE_SKILL_DIR}/../../scripts/build-handoff.js" <idea-dir>
+   --to <build-repo>`): that repo holds a copy, and an amendment a build session cannot see has not
+   landed where it matters. When the code is in this repo there is nothing to refresh — `spec` and
+   the spec-awareness hook read the artifacts directly, so the amendment is live the moment it is
+   written.
 
 ## Standing rules
 

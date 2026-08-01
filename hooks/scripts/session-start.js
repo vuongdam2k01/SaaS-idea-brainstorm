@@ -36,6 +36,7 @@ process.stdin.on("end", () => {
     ).padStart(2, "0")}`; // local date
 
     const lines = [];
+    const lockedSpecs = [];
     for (const entry of fs.readdirSync(ideasDir, { withFileTypes: true })) {
       if (!entry.isDirectory()) continue;
       try {
@@ -112,6 +113,7 @@ process.stdin.on("end", () => {
             .map((d) => `${d.duty_id || "?"}/${d.participant_id || "?"} by ${d.delete_by} (${d.manifest_ref || "private/participant-data-manifest.md"})`)
             .join("; ")} — confirm disposal with the founder over the exact files; never delete unprompted`;
         const bp = st.blueprint && typeof st.blueprint === "object" ? st.blueprint : null;
+        if (bp && bp.status === "locked") lockedSpecs.push(entry.name);
         if (bp) {
           line += `; blueprint(${bp.cycle_id || "?"}): ${bp.status || "?"}, gate BP ${
             (bp.gate && bp.gate.status) || "?"
@@ -132,7 +134,7 @@ process.stdin.on("end", () => {
       }
     }
     if (!lines.length) return process.exit(0);
-    const ctx =
+    let ctx =
       "SaaS validation pipeline state (saas-idea-brainstorm plugin):\n" +
       lines.join("\n") +
       "\nCore rules: (1) evidence must trace to real humans or real data — the model is never an evidence source; " +
@@ -140,6 +142,24 @@ process.stdin.on("end", () => {
       "(3) a failed gate returns to the previous gate. " +
       "Overdue kill criteria must be surfaced to the user before other pipeline work. " +
       "Do not act on this summary alone: read the idea's state.json first.";
+    // Standing build contract. A workspace with a locked blueprint is usually also the
+    // repo the product gets written in, and the coding session arrives knowing none of
+    // this. Re-fires on `compact`, so it survives a context reset.
+    if (lockedSpecs.length)
+      ctx +=
+        "\n\nBuild contract for " + lockedSpecs.map((s) => `ideas/${s}/`).join(", ") + ": the product decisions " +
+        "for this work are already made and frozen — mvp-pack/ holds what and why plus the cut list, blueprint/ " +
+        "holds exactly how (feature specs, field-level schema, UX, API, integrations, NFRs, test plan), and " +
+        "blueprint/amendment-log.md, where it exists, is read first because current truth = locked blueprint + " +
+        "amendments. Technical choices — language, libraries, layering, algorithms, how a stated budget is met — " +
+        "are the implementer's. Product choices are not: what a feature does and when it is done, field names, " +
+        "types, limits, defaults, validation, user-visible copy, empty/error/loading states, state transitions, " +
+        "retry and cancellation semantics, retention duties, permission boundaries and performance targets are " +
+        "written down already. Resolve an id with /saas-idea-brainstorm:spec <id> instead of inferring it. When " +
+        "the spec is silent, wrong or self-contradicting on something in scope, that is " +
+        "/saas-idea-brainstorm:spec-gap and then amend-blueprint — deciding it quietly and building on it is the " +
+        "failure this whole method exists to prevent. Nothing here constrains architecture, stack, code style, " +
+        "commit conventions or release process.";
     process.stdout.write(
       JSON.stringify({
         hookSpecificOutput: { hookEventName: "SessionStart", additionalContext: ctx },

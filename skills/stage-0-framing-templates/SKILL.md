@@ -19,7 +19,7 @@ gate: F
 status: draft
 evidence_grade: none
 rung: baseline-auto
-pipeline_version: 1.9.0
+pipeline_version: 1.10.0
 updated: YYYY-MM-DD
 ---
 # Idea brief — <title>
@@ -71,7 +71,7 @@ gate: F
 status: draft            # locked at LOCK (with the pack); evolution continues via changelog
 evidence_grade: none
 rung: baseline-auto
-pipeline_version: 1.9.0
+pipeline_version: 1.10.0
 updated: YYYY-MM-DD
 ---
 # Founder charter — how <founder> decides
@@ -116,7 +116,7 @@ gate: F
 status: draft
 evidence_grade: none
 rung: baseline-auto
-pipeline_version: 1.9.0
+pipeline_version: 1.10.0
 updated: YYYY-MM-DD
 ---
 # Problem hypothesis
