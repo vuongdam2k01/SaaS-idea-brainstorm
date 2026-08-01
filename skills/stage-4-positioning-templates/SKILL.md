@@ -16,7 +16,7 @@ gate: P
 status: draft            # locked at gate P pass
 evidence_grade: B
 rung: <rung>
-pipeline_version: 1.10.0
+pipeline_version: 1.10.1
 updated: YYYY-MM-DD
 ---
 # Positioning THESIS (pre-product: expect revision once real customers arrive; do not tighten early)

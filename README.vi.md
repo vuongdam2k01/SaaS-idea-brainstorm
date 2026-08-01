@@ -171,7 +171,7 @@ Mọi thứ rời khỏi máy bạn hoặc tiêu tiền — deploy, gửi đi, p
 
 Mỗi việc chạy ở bậc tốt nhất hiện có — đúng ba bậc: **enhanced-auto** (một tích hợp đã xác minh làm việc đó) → **baseline-auto** (công cụ gốc) → **handoff** (bạn nhận một bộ kit đầy đủ, thực thi bên ngoài, mang kết quả về). Thiếu tích hợp thì đổi bậc và đổi hạng đạt được — không bao giờ chặn quy trình. Bậc đã dùng được ghi trên từng artifact. Cố tình KHÔNG có bậc "simulate": nội dung mô phỏng là hạng D / `[GUESS]`, vốn không bao giờ tính cho gate — nên khi không lấy được bằng chứng, lối ra trung thực là handoff hoặc gate accepted-open, không phải một lần "hoàn thành" bằng mô phỏng.
 
-`setup-audit` thăm dò MCP scraping, key LLM phụ, CLI hosting, analytics, Stripe, và gửi email. Một năng lực chỉ được tính là có khi một lệnh gọi có xác thực thực sự thành công — "đã cài CLI" hay "tôi có tài khoản" chỉ được ghi là `unavailable`/`unknown` với rung `handoff`. Đúng bằng kỷ luật bằng chứng áp cho chính ý tưởng.
+`setup-audit` thăm dò MCP scraping, một LLM phụ (một API key, hoặc một Codex CLI đã đăng nhập — có một là đủ), CLI hosting, analytics, Stripe, và gửi email. Một năng lực chỉ được tính là có khi một lệnh gọi có xác thực thực sự thành công — "đã cài CLI" hay "tôi có tài khoản" chỉ được ghi là `unavailable`/`unknown` với rung `handoff`. Đúng bằng kỷ luật bằng chứng áp cho chính ý tưởng.
 
 Plugin có một thiết lập: `ads_budget_cap_usd` (mặc định `0`, tức tắt traffic trả phí) là trần khi lập kế hoạch, được thực thi bởi lượt kiểm ngân sách của chính quy trình chứ không phải bởi nền tảng quảng cáo. Giá trị này được sao vào `state.budget.cap_usd` tại `new-idea` và mỗi lần audit.
 

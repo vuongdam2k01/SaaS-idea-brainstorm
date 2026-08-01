@@ -171,7 +171,7 @@ Anything that leaves your machine or spends money — deploying, sending, publis
 
 Each task runs at the best available rung — there are exactly three: **enhanced-auto** (a verified integration does it) → **baseline-auto** (native tools) → **handoff** (you get a complete kit, execute it outside, bring results back). Missing integrations change the rung and the achievable grade — they never block the pipeline. The rung used is recorded on every artifact. There is deliberately no "simulate" rung: simulated material is grade D / `[GUESS]`, which never counts toward a gate, so when evidence cannot be obtained the honest outcome is a handoff or an accepted-open gate — never a simulated completion.
 
-`setup-audit` probes for scraping MCP servers, a secondary LLM key, hosting CLIs, analytics, Stripe, and email sending. A capability counts as available only after an authenticated call actually succeeds — "the CLI is installed" or "I have an account" is recorded as `unavailable`/`unknown` with rung `handoff`. Same evidence discipline as the idea itself.
+`setup-audit` probes for scraping MCP servers, a secondary LLM (an API key, or a logged-in Codex CLI — one is enough), hosting CLIs, analytics, Stripe, and email sending. A capability counts as available only after an authenticated call actually succeeds — "the CLI is installed" or "I have an account" is recorded as `unavailable`/`unknown` with rung `handoff`. Same evidence discipline as the idea itself.
 
 One plugin setting: `ads_budget_cap_usd` (default `0`, disabling paid traffic) is a planning cap enforced by the pipeline's own budget preflight, not by ad platforms. It's copied into `state.budget.cap_usd` at `new-idea` and each audit.
 

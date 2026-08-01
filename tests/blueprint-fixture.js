@@ -33,7 +33,7 @@ gate: BP
 status: ready
 evidence_grade: none
 rung: baseline-auto
-${extra ? extra + "\n" : ""}pipeline_version: 1.10.0
+${extra ? extra + "\n" : ""}pipeline_version: 1.10.1
 updated: 2026-07-31
 ---
 `;
@@ -41,7 +41,7 @@ updated: 2026-07-31
 function build(root) {
   const idea = path.join(root, "ideas", "bpfix");
   fs.mkdirSync(idea, { recursive: true });
-  w(idea, "state.json", JSON.stringify({ pipeline_version: "1.10.0", idea: "bpfix" }, null, 2));
+  w(idea, "state.json", JSON.stringify({ pipeline_version: "1.10.1", idea: "bpfix" }, null, 2));
 
   // ---- pack side (with 1.4.1+ join anchors/ids)
   w(idea, "mvp-pack/mvp-spec.md", `---
@@ -52,7 +52,7 @@ gate: LOCK
 status: locked
 evidence_grade: B
 rung: baseline-auto
-pipeline_version: 1.10.0
+pipeline_version: 1.10.1
 updated: 2026-07-31
 ---
 # MVP Spec — bpfix   HYPOTHESIS
@@ -81,7 +81,7 @@ gate: LOCK
 status: locked
 evidence_grade: none
 rung: baseline-auto
-pipeline_version: 1.10.0
+pipeline_version: 1.10.1
 updated: 2026-07-31
 ---
 # DoD
@@ -100,7 +100,7 @@ gate: LOCK
 status: locked
 evidence_grade: none
 rung: baseline-auto
-pipeline_version: 1.10.0
+pipeline_version: 1.10.1
 updated: 2026-07-31
 ---
 # Thiết kế kỹ thuật
@@ -414,7 +414,7 @@ cycle_id: C1
 mutation_policy: append-only
 publication_status: draft
 as_of: 2026-07-31
-pipeline_version: 1.10.0
+pipeline_version: 1.10.1
 updated: 2026-07-31
 ---
 # Deferred register

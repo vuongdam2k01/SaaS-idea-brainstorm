@@ -5,6 +5,30 @@ multi-session conflict inventory and its resolution log) was development residue
 from the working tree — it remains recoverable in git history at commit `fd7732b` and earlier
 (`git show fd7732b:plugin/conflicts-inventory.md`, etc.).
 
+## v1.10.1 — 2026-08-01 · the secondary-LLM probe recognises a provider that was already there
+
+`setup-audit` probe 2 looked for `OPENAI_API_KEY` / `GEMINI_API_KEY` and nothing else. A founder on a
+ChatGPT plan owns no API key, so `multi_llm` stayed `unknown` forever — and with it the one line that
+consumes it, `stage-3-verify` §3 ("autonomously, measure cross-model agreement and grade accordingly"),
+was unreachable in practice. A logged-in **Codex CLI** is that second provider, already installed on
+the machine.
+
+- Probe 2 now takes either path: env keys, or `codex --version` + `codex login status`. Provider is
+  recorded as `codex-cli/<model>`.
+- **Neither check is the probe.** Installed-and-logged-in is `status: unknown`, rung `handoff` — the
+  same treatment an unauthenticated `vercel` gets. Only a real `codex exec` (asked for first, since it
+  spends the founder's own quota) makes it `available`.
+- **Host collision is refused.** Running on Codex, `codex exec` is the model asking itself; the
+  agreement measured would carry zero information while looking like agreement. Recorded
+  `unavailable` with a note.
+
+Deliberately *not* included: Codex as a research-stage tool. The six existing integrations all raise a
+rung because they touch the real world — a page, a payment, a human. A model touches nothing, and its
+output is `[GUESS]`/grade D however well it authenticates. Nor does this unlock an R1 PASS on
+subjective quality: without human-labeled anchors that stays grade D and diagnostic-only, per
+`stage-3-verify` §2. `pipeline_version` moves to 1.10.1 with the manifests — the contract test holds
+them equal, and a patch is not an exception to it.
+
 ## v1.10.0 — 2026-08-01 · spec awareness becomes native; the generator shrinks to the case that needs it
 
 The founder's scenario: install the plugin once, globally; use it in whatever project; run the
