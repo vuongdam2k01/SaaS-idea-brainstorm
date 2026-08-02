@@ -17,7 +17,7 @@ gate: C
 status: draft          # stays draft until calibrated by customer words in stage 2
 evidence_grade: B
 rung: <enhanced-auto|baseline-auto|handoff>
-pipeline_version: 1.10.1
+pipeline_version: 1.13.0
 updated: YYYY-MM-DD
 ---
 # Competitive map (DRAFT — calibrate against customer words in stage 2; do not position against phantom competitors)
@@ -64,7 +64,7 @@ gate: C
 status: draft
 evidence_grade: B
 rung: <rung>
-pipeline_version: 1.10.1
+pipeline_version: 1.13.0
 updated: YYYY-MM-DD
 ---
 # Negative-review mining (1–3★, verbatim only)
@@ -74,3 +74,22 @@ updated: YYYY-MM-DD
 | Site | URL | What we need from it |
 |---|---|---|
 ```
+
+## source-registry.md (v1.4.0 — idea root, not stage-scoped; created on the first research fetch)
+
+No frontmatter (a living index, like `decision-log.md`'s table shape, but rows are **updated in
+place** on a rescan rather than appended — see `method-rules-artifact-schema`). One row per
+**canonical URL** (`scripts/lib/url-canon.js`) ever fetched by `competitor-scanner` or
+`community-review-miner`. Consult before fetching: a URL already here with `claims_extracted`
+non-empty is a candidate to skip.
+
+```markdown
+# Source registry — <idea title>
+| canonical_url | content_hash | first_seen_run | claims_extracted | rescan_count | last_rescan_justification |
+|---|---|---|---|---|---|
+```
+
+- `content_hash`: sha256 of the fetched content at `first_seen_run` (or the latest rescan).
+- `claims_extracted`: evidence-ledger `E-` ids this source backs.
+- `rescan_count`: `0` is normal; incrementing it **requires** a non-empty `last_rescan_justification`
+  (checked by `scripts/validate-source-registry.js`, advisory at gate-check Layer 1 for now).

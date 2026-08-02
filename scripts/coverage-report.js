@@ -180,6 +180,53 @@ const REQUIREMENTS = [
   { id: "confidence-language-matches-grades", where: "artifact-schema EQR", tier: "agent", by: "gatekeeper" },
   { id: "no-cross-domain-recertification", where: "method-rules §12", tier: "agent", by: "gatekeeper check 14" },
 
+  // ---- v1.11.0 gatekeeper round cap, finding dedup, URL cache, research budget,
+  // founder-decision authority, pass_with_deviation schema (founder-observed pain:
+  // review rounds that never converge over wording, and research agents re-scanning
+  // identical URLs / opening unbounded rounds)
+  { id: "gate-status-pass-with-deviation", where: "method-rules-state-schema", tier: "code", by: "state-write.js GATE_STATUSES" },
+  { id: "pass-with-deviation-needs-deviations", where: "method-rules-state-schema", tier: "code", by: "state-write.js validateDeviations (finding_fingerprint shape, category enum, attempt_count >= 2)" },
+  { id: "research-budget-shape", where: "method-rules-state-schema", tier: "code", by: "state-write.js validateResearchBudget" },
+  { id: "finding-fingerprint-stable-identity", where: "method-rules-artifact-schema audit-trail.md", tier: "code", by: "finding-fingerprint.js fingerprint()" },
+  { id: "reopen-fingerprint-needs-cited-regression", where: "agents/gatekeeper.md item 23", tier: "agent", by: "gatekeeper item 23 reads finding-fingerprint.js --check-regression output; the script computes the diff, whether it JUSTIFIES reopening is a reading" },
+  { id: "material-blocker-six-fields-or-demoted", where: "agents/gatekeeper.md severity taxonomy", tier: "agent", by: "gatekeeper self-enforced demotion rule (no script can tell a complete finding from an incomplete one)" },
+  { id: "review-scope-freeze-round2", where: "gate-check Layer 2", tier: "agent", by: "gatekeeper reads the round-1 audit-trail section handed to it; whether a round-2 finding is really a NEW category is a reading" },
+  { id: "url-canonicalization", where: "method-rules-artifact-schema source-registry.md", tier: "code", by: "lib/url-canon.js canonicalize()" },
+  { id: "source-registry-rescan-needs-justification", where: "method-rules-artifact-schema source-registry.md", tier: "code", by: "validate-source-registry.js rescan-without-justification" },
+  { id: "source-registry-covers-ledger-urls", where: "method-rules-artifact-schema source-registry.md", tier: "code", by: "validate-source-registry.js url-not-registered (advisory at gate-check Layer 1 for now — method-rules §14 discipline)" },
+  { id: "research-budget-stop-conditions", where: "agents/competitor-scanner.md + community-review-miner.md", tier: "agent", by: "the agents self-report rounds/new-sources/stop-reason; nothing external enforces the ceiling yet (DEBT, same class as budget-preflight)" },
+  { id: "founder-decision-journal-type", where: "method-rules-artifact-schema decision-log.md", tier: "prose", by: "DEBT — a closed detail-key set could be hook-checked like retention_duties; not yet built" },
+  { id: "multi-llm-stays-diagnostic", where: "method-rules §1 + §12 (folded into gatekeeper item 24)", tier: "agent", by: "gatekeeper item 24 — restates no new rule, applies the existing 'model is never an evidence source' + 'no cross-domain recertification' rules to a second model's output" },
+
+  // ---- v1.12.0 V1 deferred/hypothesis track, post-launch validation register,
+  // capability phase-relevance (founder-observed pain: V1 had no accepted-open or
+  // deferred path, forcing either endless pre-build research rounds or a silently
+  // mislabeled pack when the founder's actual decision was to defer human
+  // validation to a controlled MVP release, not skip it)
+  { id: "v1-deferred-status-shape", where: "method-rules-state-schema gates.V1.status", tier: "code", by: "state-write.js — 'deferred' is legal ONLY on gates.V1 (rejected on any other gate) and requires {deferred_reopen_on, deferred_date, register_ref}" },
+  { id: "v1-defer-ceremony-nonskippable", where: "gate-check V1 ceremony (Layer 0)", tier: "prose", by: "INTENTIONAL — same class as F-signing/LOCK-charter: no script can verify a ceremony genuinely ran with informed founder consent versus a model hand-writing the resulting state, only that the resulting shape is well-formed (state-write.js)" },
+  { id: "pack-verdict-founder-authorized-track", where: "gate-contracts pack-verdict predicate (4th tier)", tier: "code", by: "pack-verdict.js — gates.V1.status === 'deferred' forces FOUNDER-AUTHORIZED HYPOTHESIS TRACK regardless of V2/V3/R1/R2, never folded into resolved()" },
+  { id: "v1-deferred-never-will-override", where: "gate-contracts will-override boundary", tier: "code", by: "pack-verdict.js's deferred branch and gate-check's override sub-ceremony are separate code paths; distinct decision-log types (founder-decision vs will-override) and artifacts (post-launch-validation-register.md vs unvalidated-build-decision.md)" },
+  { id: "phase-relevance-gating", where: "method-rules-state-schema capabilities.<cap>.required_now", tier: "code", by: "lib/phase-relevance.js requiredCapabilities()/isRequiredNow() — setup-audit computes required_now from this map, never guesses" },
+  { id: "capability-gap-not-a-review-finding", where: "agents/gatekeeper.md item 25", tier: "agent", by: "gatekeeper item 25 — faulting an idea for a required_now:false capability gap is a finding against the review, not the idea (a script cannot judge whether a finding's framing is fair)" },
+  { id: "post-launch-validation-reactivated-surfaced", where: "hooks/scripts/session-start.js", tier: "hook", by: "session-start.js post_launch_validation block (structurally identical to the overdue kill-criteria block), surfaced first" },
+  { id: "post-launch-validation-register-created-by-ceremony", where: "method-rules-artifact-schema post-launch-validation-register.md", tier: "prose", by: "DEBT — same class as unvalidated-build-decision.md: nothing mechanically confirms the register row was written by the ceremony rather than hand-authored" },
+
+  // ---- v1.13.0 kill-criterion staleness, pre-LOCK reconciliation, four-metric
+  // status, auto-continue execution policy (founder-observed pain: waiting_on/
+  // gate-state going stale or inconsistent with reality — kill criteria staying
+  // "triggered" after they were clearly resolved, status reports not matching
+  // what artifacts actually show — and status output conflating "work done",
+  // "gates formally passed", "evidence strength", and "ready to build" into one
+  // misleading number)
+  { id: "stale-triggered-criteria-detection", where: "skills/status/SKILL.md + gate-check Layer 0", tier: "code", by: "detect-stale-criteria.js — a decision-log row that plainly resolves a still-\"triggered\" criterion is a finding with a proposed patch; findings are surfaced, never auto-applied (state-write.js on explicit confirmation only)" },
+  { id: "pre-lock-reconcile-divergence-detection", where: "skills/status/SKILL.md + gate-check Layer 0", tier: "code", by: "reconcile-pre-lock.js — DISTINCT id/mechanism from any post-LOCK reconcile coverage entry (none currently inventoried) so the two are never conflated in this report: waiting_on entries that look satisfiable and post_launch_validation leakage into waiting_on pre-MVP are code-checkable; a real pending founder decision with no waiting_on entry is a heuristic signal, always surfaced as a question, never a proposed patch" },
+  { id: "status-work-completion-pct", where: "skills/status/SKILL.md four-metric Gates reporting", tier: "code", by: "status-metrics.js computeWorkCompletion() — artifact status counts (draft/ready/locked) for the active stage(s), deterministic arithmetic over frontmatter on disk" },
+  { id: "status-gate-compliance-counts", where: "skills/status/SKILL.md four-metric Gates reporting", tier: "code", by: "status-metrics.js computeGateCompliance() — counts of gates.*.status against the closed enum, plus blueprint.gate.status reported separately" },
+  { id: "status-evidence-confidence-synthesis", where: "skills/status/SKILL.md four-metric Gates reporting", tier: "prose", by: "DEBT-adjacent, intentional — validate-evidence-ledger.js --summary computes the grade histogram (code), but reading it alongside V3.evidence_grade_observed as one honest confidence picture, without collapsing it to a single misleading number, is a synthesis judgement this skill performs each time, not a script" },
+  { id: "status-build-readiness-synthesis", where: "skills/status/SKILL.md four-metric Gates reporting", tier: "prose", by: "intentional — LOCK/BP/blueprint status fields are each read mechanically, but stating what they mean together (\"stage 6 not started\", \"resume at row N\") is the same synthesis class as the Blueprint phase bullet it folds in, already prose" },
+  { id: "auto-continue-execution-policy", where: "method-rules §15", tier: "prose", by: "intentional — same class as §13/§14: which stop condition applies to a given moment (a named ceremony vs. an unrecoverable tool failure vs. routine progress) is a judgement call no hook can fully enforce mechanically; the hook layer only enforces the ONE concrete instance that is checkable (guard-thresholds.js ask())" },
+
   // ---- rules nothing checks at all
   // Dispositioned in v1.3.0. Five are INTENTIONAL prose — the
   // `by` field says why code cannot or should not hold them. Three are DEBT,

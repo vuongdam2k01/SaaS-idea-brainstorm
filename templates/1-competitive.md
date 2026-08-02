@@ -36,6 +36,19 @@
 |---|---|---|---|
 | | | | |
 
+## 1.3b. Source registry (`source-registry.md`, idea root — v1.4.0)
+
+Every URL fetched during research gets one row, keyed on its **canonical** form
+(`scripts/lib/url-canon.js`), so the same page under two query strings is not mined twice:
+
+| canonical_url | content_hash | first_seen_run | claims_extracted | rescan_count | last_rescan_justification |
+|---|---|---|---|---|---|
+| | | | | 0 | — |
+
+Consult it before fetching anything — a URL already here with claims extracted is a candidate to
+skip, not a mandatory re-fetch. A `rescan_count` above 0 needs a real justification
+(`scripts/validate-source-registry.js`, advisory for now).
+
 ## 1.4. Market verdict
 
 - **Is this market proven to have money?**

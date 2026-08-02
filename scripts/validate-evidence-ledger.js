@@ -14,8 +14,16 @@
  * gatekeeper (human/agent) judgement, and pretending otherwise would be the
  * cargo-cult version of this tool.
  *
+ * `--summary` (v1.13.0) adds a grade histogram (A/B/C/D counts, over ALL rows
+ * and over LIVE rows only) to the output — the deterministic half of the
+ * `status` skill's "evidence confidence" metric. It never replaces the
+ * structural findings above; it is additive. D should always read 0 in a
+ * ledger this validator accepts (grade D is a hard error here — method-rules
+ * rule 2), so a non-zero D count in the histogram is a live symptom of the
+ * error findings, not a second, softer way to report the same violation.
+ *
  * Usage:
- *   node scripts/validate-evidence-ledger.js <path-to-evidence-ledger.md> [--json]
+ *   node scripts/validate-evidence-ledger.js <path-to-evidence-ledger.md> [--json] [--summary]
  * Exit codes: 0 = no errors (warnings allowed), 1 = errors, 2 = unusable input.
  */
 "use strict";
@@ -28,9 +36,10 @@ const LEGACY_BEARINGS = { confirms: "supports", refutes: "contradicts", unclear:
 function main(argv) {
   const args = argv.slice(2);
   const jsonOut = args.includes("--json");
+  const summaryOut = args.includes("--summary");
   const file = args.find((a) => !a.startsWith("--"));
   if (!file) {
-    process.stderr.write("usage: validate-evidence-ledger.js <ledger.md> [--json]\n");
+    process.stderr.write("usage: validate-evidence-ledger.js <ledger.md> [--json] [--summary]\n");
     return 2;
   }
   let text;
@@ -47,7 +56,7 @@ function main(argv) {
   const parsed = parseLedger(text);
   if (!parsed.header) {
     add("error", "no-ledger-table", file, "no evidence table found (need a header row containing `id` and `grade`)");
-    return report(findings, jsonOut, null);
+    return report(findings, jsonOut, null, summaryOut ? emptyHistogram() : null);
   }
 
   const cols = parsed.header;
@@ -72,6 +81,7 @@ function main(argv) {
   const rootCounts = new Map();
   const supersededBy = new Map();
   const rowRoots = new Map();
+  const idGrade = new Map();
 
   for (const row of parsed.rows) {
     const at = `row ${row.line}`;
@@ -89,8 +99,15 @@ function main(argv) {
     else if (/[+-]$/.test(grade))
       add("error", "grade-modifier", at, `${id}: grade modifiers are forbidden ("${grade}") — strictly A/B/C/D`);
     else if (!GRADES.includes(grade)) add("error", "grade-value", at, `${id}: invalid grade "${grade}"`);
-    else if (grade === "D")
-      add("error", "grade-d-in-ledger", at, `${id}: grade D never enters the ledger (method-rules rule 2)`);
+    else {
+      if (grade === "D")
+        add("error", "grade-d-in-ledger", at, `${id}: grade D never enters the ledger (method-rules rule 2)`);
+      // Recorded regardless of the grade-D error above: --summary's histogram
+      // reports what IS in the file, including a D that should not be there —
+      // the count is a symptom pointing back at the finding, not a second,
+      // softer way of saying the same thing.
+      idGrade.set(id, grade);
+    }
 
     const bearing = cell(row, cols, "bearing");
     if (bearing) {
@@ -251,14 +268,39 @@ function main(argv) {
     max_independent_count: liveRoots.size,
     collapsed_groups: collapsed.length,
   };
-  return report(findings, jsonOut, summary);
+  const histogram = summaryOut ? gradeHistogram(ids, live, idGrade) : null;
+  return report(findings, jsonOut, summary, histogram);
 }
 
-function report(findings, jsonOut, summary) {
+/** A/B/C/D counts over all recorded ids and over live (non-superseded) ids only. */
+function gradeHistogram(ids, live, idGrade) {
+  const all = emptyGradeCounts();
+  const liveHist = emptyGradeCounts();
+  const liveSet = new Set(live);
+  for (const id of ids.keys()) {
+    const g = idGrade.get(id);
+    if (!g || !(g in all)) continue;
+    all[g]++;
+    if (liveSet.has(id)) liveHist[g]++;
+  }
+  return { all, live: liveHist };
+}
+
+function emptyGradeCounts() {
+  return { A: 0, B: 0, C: 0, D: 0 };
+}
+
+function emptyHistogram() {
+  return { all: emptyGradeCounts(), live: emptyGradeCounts() };
+}
+
+function report(findings, jsonOut, summary, histogram) {
   const errors = findings.filter((f) => f.level === "error").length;
   const warnings = findings.length - errors;
   if (jsonOut) {
-    process.stdout.write(JSON.stringify({ errors, warnings, findings, summary }, null, 2) + "\n");
+    const out = { errors, warnings, findings, summary };
+    if (histogram) out.grade_histogram = histogram;
+    process.stdout.write(JSON.stringify(out, null, 2) + "\n");
   } else {
     for (const f of findings) process.stdout.write(`${f.level.toUpperCase()} ${f.code} [${f.where}] ${f.message}\n`);
     if (summary) {
@@ -267,6 +309,10 @@ function report(findings, jsonOut, summary) {
           `live ${summary.live_rows} · distinct root sources ${summary.distinct_root_sources}\n` +
           `A denominator over these rows may not exceed ${summary.max_independent_count} independent sources.\n`
       );
+    }
+    if (histogram) {
+      const fmt = (h) => `A ${h.A} · B ${h.B} · C ${h.C} · D ${h.D}`;
+      process.stdout.write(`\ngrade histogram — all: ${fmt(histogram.all)}\n` + `grade histogram — live only: ${fmt(histogram.live)}\n`);
     }
     process.stdout.write(`${errors} error(s), ${warnings} warning(s)\n`);
   }
@@ -346,4 +392,4 @@ function cell(row, cols, name) {
 }
 
 if (require.main === module) process.exit(main(process.argv));
-module.exports = { main, parseLedger };
+module.exports = { main, parseLedger, gradeHistogram };

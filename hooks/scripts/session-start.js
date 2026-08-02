@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * SessionStart hook (saas-idea-brainstorm plugin) — v2.
+ * SessionStart hook (saas-idea-brainstorm plugin) — v3.
  * Injects a summary of validation-pipeline state for ideas in this workspace.
  * Fixes from adversarial review:
  * - Walks upward from cwd to the workspace/git root to find ideas/ (a session
@@ -10,6 +10,24 @@
  *   suppress healthy ideas' summaries).
  * - Sentinel: only reports state.json files containing pipeline_version.
  * Fails open. Skills must not depend on this summary (hooks can be disabled).
+ *
+ * THIS HOOK NEVER BLOCKS (v1.13.0 note, not a behavior change). SessionStart
+ * output is `additionalContext` injected into the session — there is no
+ * `permissionDecision` at this event, so nothing emitted here CAN block a
+ * tool call the way `guard-thresholds.js`'s `ask()` does. Every emitted
+ * segment below is therefore tagged `[INFORMATIONAL]` or
+ * `[ACTION_REQUIRED_LATER]`, never `[BLOCKING]` — if a future edit ever finds
+ * itself wanting to tag a line here `[BLOCKING]`, that is a signal this
+ * hook's role has drifted into something a SessionStart hook cannot actually
+ * do, not an instruction to force the tag on. `[ACTION_REQUIRED_LATER]`
+ * marks overdue kill/health criteria, overdue retention duties, a
+ * reactivated post-launch-validation register, and drift declared-but-not-
+ * reconciled — things the founder must eventually act on, just not by
+ * blocking this session's next tool call. Everything else (waiting-on list,
+ * blueprint status, the last-reconcile line, routine gate/position reporting)
+ * is `[INFORMATIONAL]`. See method-rules §15 and `guard-thresholds.js`'s own
+ * header comment for where real `[BLOCKING]` behavior actually lives in this
+ * plugin's hook layer.
  */
 const fs = require("fs");
 const path = require("path");
@@ -92,30 +110,44 @@ process.stdin.on("end", () => {
           .filter(Boolean)
           .join(", ");
         const active = Array.isArray(st.active) ? st.active.join(",") : st.current_stage;
+        // [BLOCKING]/[ACTION_REQUIRED_LATER]/[INFORMATIONAL] tags (v1.13.0) mark
+        // each segment's urgency class. The "- <idea>:" prefix itself is never
+        // tagged (tests and readers key off it as a stable line anchor); every
+        // segment appended after it carries its own tag. This hook never emits
+        // [BLOCKING] — see the header comment.
         let line =
-          `- ${entry.name}: active [${active ?? "?"}], mode ${st.mode || "analysis"}` +
+          `- ${entry.name}: [INFORMATIONAL] active [${active ?? "?"}], mode ${st.mode || "analysis"}` +
           `; passed [${byStatus("passed").join(",") || "none"}]`;
+        // Post-launch validation (v1.5.0): a deferred V1 whose controlled MVP
+        // release has been declared (declare-drift --release) is due for REAL
+        // evidence collection now — surfaced loudly and first, same class as an
+        // overdue kill criterion, structurally identical to that block below.
+        const plv = st.post_launch_validation && typeof st.post_launch_validation === "object" ? st.post_launch_validation : null;
+        if (plv && plv.status === "reactivated")
+          line += `; [ACTION_REQUIRED_LATER] !! POST-LAUNCH VALIDATION DUE: V1 was deferred and the controlled MVP release was declared${
+            plv.mvp_release_declared_at ? ` at ${plv.mvp_release_declared_at}` : ""
+          } — real problem-evidence collection is due (reopen condition: "${plv.reopen_on || "see " + (plv.register_ref || "post-launch-validation-register.md")}")`;
         const failed = byStatus("failed");
         const open = byStatus("open");
-        if (failed.length) line += `; FAILED [${failed.join(",")}]`;
-        if (open.length) line += `; accepted-open [${open.join(",")}]`;
-        if (waiting) line += `; waiting on: ${waiting}`;
+        if (failed.length) line += `; [INFORMATIONAL] FAILED [${failed.join(",")}]`;
+        if (open.length) line += `; [INFORMATIONAL] accepted-open [${open.join(",")}]`;
+        if (waiting) line += `; [INFORMATIONAL] waiting on: ${waiting}`;
         if (overdue.length)
-          line += `; !! KILL CRITERIA OVERDUE: ${overdue
+          line += `; [ACTION_REQUIRED_LATER] !! KILL CRITERIA OVERDUE: ${overdue
             .map((k) => `"${k.desired_state}" not reached by ${k.by_date} → ${k.then || "review"}`)
             .join("; ")}`;
         if (overdueHealth.length)
-          line += `; !! HEALTH CRITERIA OVERDUE: ${overdueHealth
+          line += `; [ACTION_REQUIRED_LATER] !! HEALTH CRITERIA OVERDUE: ${overdueHealth
             .map((k) => `"${k.desired_state}" not reached by ${k.by_date} → ${k.then || "review"}`)
             .join("; ")}`;
         if (dueDuties.length)
-          line += `; !! PARTICIPANT-DATA RETENTION DUE: ${dueDuties
+          line += `; [ACTION_REQUIRED_LATER] !! PARTICIPANT-DATA RETENTION DUE: ${dueDuties
             .map((d) => `${d.duty_id || "?"}/${d.participant_id || "?"} by ${d.delete_by} (${d.manifest_ref || "private/participant-data-manifest.md"})`)
             .join("; ")} — confirm disposal with the founder over the exact files; never delete unprompted`;
         const bp = st.blueprint && typeof st.blueprint === "object" ? st.blueprint : null;
         if (bp && bp.status === "locked") lockedSpecs.push(entry.name);
         if (bp) {
-          line += `; blueprint(${bp.cycle_id || "?"}): ${bp.status || "?"}, gate BP ${
+          line += `; [INFORMATIONAL] blueprint(${bp.cycle_id || "?"}): ${bp.status || "?"}, gate BP ${
             (bp.gate && bp.gate.status) || "?"
           }`;
           if (bp.amendments && bp.amendments.last_id)
@@ -125,9 +157,9 @@ process.stdin.on("end", () => {
             line += " — stage 6 in progress: resume at the first non-ready row of blueprint-overview.md's index before build work";
         }
         if (lastRec && lastRec.completed_at)
-          line += `; last reconcile ${lastRec.id || "?"} ${lastRec.completed_at} (${lastRec.intake_authority || "?"})`;
+          line += `; [INFORMATIONAL] last reconcile ${lastRec.id || "?"} ${lastRec.completed_at} (${lastRec.intake_authority || "?"})`;
         if (driftPending)
-          line += `; !! DRIFT DECLARED (${maint.drift_declared_at}) not yet reconciled — pack issuing/relabeling, validation runs, and switch-mode are blocked until reconcile completes`;
+          line += `; [ACTION_REQUIRED_LATER] !! DRIFT DECLARED (${maint.drift_declared_at}) not yet reconciled — pack issuing/relabeling, validation runs, and switch-mode are blocked until reconcile completes`;
         lines.push(line);
       } catch {
         /* isolate per idea */
@@ -137,7 +169,7 @@ process.stdin.on("end", () => {
     let ctx =
       "SaaS validation pipeline state (saas-idea-brainstorm plugin):\n" +
       lines.join("\n") +
-      "\nCore rules: (1) evidence must trace to real humans or real data — the model is never an evidence source; " +
+      "\n[INFORMATIONAL] Core rules: (1) evidence must trace to real humans or real data — the model is never an evidence source; " +
       "(2) pass/fail thresholds are written BEFORE any test runs (gate-check verifies the signed snapshot in decision-log); " +
       "(3) a failed gate returns to the previous gate. " +
       "Overdue kill criteria must be surfaced to the user before other pipeline work. " +
@@ -147,7 +179,7 @@ process.stdin.on("end", () => {
     // this. Re-fires on `compact`, so it survives a context reset.
     if (lockedSpecs.length)
       ctx +=
-        "\n\nBuild contract for " + lockedSpecs.map((s) => `ideas/${s}/`).join(", ") + ": the product decisions " +
+        "\n\n[INFORMATIONAL] Build contract for " + lockedSpecs.map((s) => `ideas/${s}/`).join(", ") + ": the product decisions " +
         "for this work are already made and frozen — mvp-pack/ holds what and why plus the cut list, blueprint/ " +
         "holds exactly how (feature specs, field-level schema, UX, API, integrations, NFRs, test plan), and " +
         "blueprint/amendment-log.md, where it exists, is read first because current truth = locked blueprint + " +

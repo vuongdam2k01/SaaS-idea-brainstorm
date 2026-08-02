@@ -19,7 +19,7 @@ gate: F                             # F | C | V1 | V2 | V3 | R1 | R2 | P | LOCK 
 status: draft                       # draft | ready | locked
 evidence_grade: none                # highest grade backing this artifact: A | B | C | D | none
 rung: baseline-auto                 # enhanced-auto | baseline-auto | handoff  (exactly three — see below)
-pipeline_version: 1.10.1
+pipeline_version: 1.13.0
 updated: YYYY-MM-DD
 ---
 ```
@@ -65,6 +65,25 @@ The single source of truth for all evidence. Downstream artifacts cite entries b
 - **Evidence rows (`E-`) vs reality observations (`O-`)**: empirical claims are supported only by graded evidence rows; implemented-reality facts come from scoped observations in reconcile intake (maintenance-rules §5). An `O-` reference may **contradict or narrow** a claim; it can never make one `supported`. If one source serves both — a billing export, say — create ONE observation and let an evidence row cite its `observation_id`; do not duplicate the raw source, and do not let an `O-` id sit in a field that counts as empirical support. Merging the two stores would open a laundering path from "code observed" to "market claim supported".
 - **Grade D never appears in the ledger.** Model-generated material lives in the "Open hypotheses" section of the artifact that produced it.
 
+## source-registry.md (idea root, v1.4.0 — every URL a research agent has fetched)
+
+Answers a founder-observed pain, not a hypothetical one: `competitor-scanner` and `community-review-miner` re-fetching the same page across runs, and stage 1/2 mining opening more rounds than the pre-registered stopping rule ever intended. One row per **canonical URL** (`scripts/lib/url-canon.js`), created on the first fetch, **updated in place** on every later touch — this is a registry of current fetch state, not a decision history, so it is exempt from the append-only convention that governs `decision-log.md`/`audit-trail.md`/`evidence-ledger.md`.
+
+```markdown
+| canonical_url | content_hash | first_seen_run | claims_extracted | rescan_count | last_rescan_justification |
+|---|---|---|---|---|---|
+| https://example.com/reviews | sha256:ab12... | competitor-scanner-run-1 | E4, E7 | 0 | — |
+```
+
+- **`canonical_url`** — `url-canon.js`'s output, never the raw fetched URL: two different query-string spellings of the same page collapse to one row, exactly as `root_source_id` collapses reposts in the evidence ledger.
+- **`content_hash`** — sha256 of the fetched content at `first_seen_run` (or the latest rescan); lets a later run tell "unchanged" from "actually re-read" without re-fetching.
+- **`first_seen_run`** — the agent-run id that first recorded this URL (mirrors the ledger's `via` provenance field).
+- **`claims_extracted`** — evidence-ledger ids (`E-`) this source backs, so a reader can tell whether a re-fetch is chasing a source that already produced everything it was going to.
+- **`rescan_count`** — increments on every fetch after the first; `0` is normal, not suspicious.
+- **`last_rescan_justification`** — **required non-empty the moment `rescan_count > 0`**: why this URL needed a second look (content plausibly changed, prior fetch was incomplete/blocked, a new claim needs re-verification) — never "just checking again". Checked by `scripts/validate-source-registry.js`.
+
+Consulted, never re-derived: research agents check this file **before** fetching a URL (agents/competitor-scanner.md, agents/community-review-miner.md) — a URL already present with `claims_extracted` non-empty is a candidate to skip, not a mandatory fetch. Wired into gate-check Layer 1 as **advisory, non-blocking** for now (`scripts/validate-source-registry.js`) — the founder-observed pain here is redundant fetching, not an unverified ledger, so the registry earns blocking status only once it has run clean across real dogfood use.
+
 ## GUESS labeling
 
 Any model-drafted value inside an artifact that is not yet backed by a ledger entry is written as `[GUESS] <content>`. Canvas cells, personas, threshold suggestions — all start as `[GUESS]`. What removes the tag depends on the claim's domain: **intent claims** (what the founder wants, values, priorities) are lifted by explicit user confirmation; **market, behavioral, and feasibility claims** are lifted only by graded evidence (ledger id) — the founder confirming their own guess about the market does not make it evidence. Record which mechanism lifted each tag.
@@ -80,7 +99,7 @@ Any model-drafted value inside an artifact that is not yet backed by a ledger en
 | 4 | `positioning.md` |
 | 5 | `mvp-pack/` → `mvp-spec.md`, `tech-design.md`, `definition-of-done.md`, `carry-forward.md`, `evidence-quality-report.md` |
 | 6 | `blueprint/` → `blueprint-overview.md`, `feature-specs/fs-NN-<slug>.md` (one per core-loop step/feature), `data-schema.md`, `ux-spec.md`, `api-contract.md`, `integration-specs.md`, `nfr-spec.md`, `test-plan.md`, `build-plan.md`, `interaction-map.md` (when required), `subsystem-specs/ss-NN-<slug>.md` (one per ADR-named engine; frontmatter adds `kind`) — post-LOCK, gate BP; the pack itself is read-only. Beside them, maintenance-phase: `deferred-register.md` (append-only), and post-BP `amendment-log.md` + `amendments/ba-NNN-<slug>.md` (amend-blueprint skill) |
-| Cross-stage | `decision-log.md` (append-only journal, created at init), `audit-trail.md` (append-only, tracked, redacted review record — see below), `founder-charter.md` (append-superseding intent ledger, created at init, ships in mvp-pack — item rules in maintenance-rules §7), `post-mortem.md` (written only when an idea is stopped), `unvalidated-build-decision.md` (written only when the founder builds against a failed mandatory gate — see below) |
+| Cross-stage | `decision-log.md` (append-only journal, created at init), `audit-trail.md` (append-only, tracked, redacted review record — see below), `founder-charter.md` (append-superseding intent ledger, created at init, ships in mvp-pack — item rules in maintenance-rules §7), `post-mortem.md` (written only when an idea is stopped), `unvalidated-build-decision.md` (written only when the founder builds against a failed mandatory gate — see below), `source-registry.md` (v1.4.0, idea root, created on the first research fetch in stage 1 — a **living index**, updated in place on a rescan rather than appended, since it tracks current fetch state rather than decision history — see below), `post-launch-validation-register.md` (v1.5.0, idea root, created by the V1-deferral ceremony — append-only in spirit like `decision-log.md`/`founder-charter.md`; see below) |
 | Post-LOCK (`phase: maintenance` — schema in maintenance-rules §9) | `current-baseline-vN.md`, `reconcile/<id>/manifest-<id>.json` (canonical) + `manifest-<id>.md` (labelled human view) (+ intake/claims files), `validation-runs/<run_id>-spec.md` + `<run_id>-report.md`, `drift-inbox.md`, `health-criteria-vN.md` |
 
 ## decision-log.md (append-only — the idea's decision history)
@@ -104,13 +123,15 @@ nothing. `detail` holds `key=value; key=value` pairs:
 | `will-override` / `invariant-change` | the charter item id, and for an invariant the exact old → new wording |
 | `reconciliation` | `reconcile=<id>; manifest=<path>@<sha256>` |
 | `signing-blocked` | `outcome=declined\|blocked; unmet=<the preflight items that were not met>` — the F signing ceremony ran and did **not** produce a signature. `thresholds.signed_date` stays null so the ceremony re-fires; there is no row for "we decided not to ask" (gate-check Layer 0) |
+| `founder-decision` (v1.4.0) | `authority=<founder\|model-proposed-founder-confirmed>; exact_wording=<the founder's own words, verbatim, per method-rules §9>; reopen_on=<the named condition that would reopen this>` — the reusable primitive for any non-skippable founder ceremony that is not already a `gate-verdict` (first user: `pass_with_deviation`'s deviation acceptance; Patch 2's V1-deferral ceremony reuses it rather than inventing a fourth row shape) |
+| `pre-lock-reconcile` (v1.13.0) | `divergences=<n>; patched=<list>; open_questions=<list>` — one row per `scripts/reconcile-pre-lock.js` run (`skills/status/SKILL.md`, `skills/gate-check/SKILL.md` Layer 0): `divergences` is the count of deterministic findings the script proposed a patch for, `patched` names which of those the user actually confirmed (never all of them by default — patching is never automatic), `open_questions` lists the non-deterministic judgment calls surfaced to the founder (waiting_on conditions that look satisfiable, pending decisions with no waiting_on entry). This is the pre-LOCK, lighter counterpart to the `reconciliation` row above — distinct type, distinct (lighter) mechanism, never a substitute for a real post-LOCK `reconcile` |
 | anything else | free text, or empty |
 
 - **`scope=`** (gate-verdict) — the scope exactly as approved, plus what was explicitly not. A narrowed approval (one segment, one channel, lower spend, shorter window) is recorded as the narrower thing, never rounded up to the full proposal.
 - **`manifest=`** (gate-verdict) — the manifest of the exact artifact set the verdict was made against (`scripts/artifact-manifest.js`, `--purpose gate-input`). Without it a verdict can silently appear to authorize a materially different set of files. Legacy rows without it stay valid and are never backfilled — that would fabricate a hash for content nobody hashed.
 - **`cutoff=` / `reopen_on=`** (gate-verdict, when time-sensitive) — the date the evidence set closed, and the condition that would reopen it ("if the eval threshold is loaded", "if price changes", "after 2026-09-01"). An approval with no validity boundary quietly becomes permanent.
 - **Column count is stable.** A pre-existing journal keeps its own header: append a new versioned table (with a `migration` row pointing at it) rather than rewriting old rows — the log is append-only, so its history includes its own format history.
-`type`: `gate-verdict` (incl. gatekeeper findings count + blockers) | `pivot` (segment/problem/solution — what changed, from what) | `mode-switch` | `sampling-frame-snapshot` (V1 frame text + sha256, appended BEFORE collection starts — gate V1 recomputes and compares) | `threshold-revision` (mirrors state.thresholds.revisions) | `spend` (mirrors state.budget.log) | `market-verdict` | `will-override` (founder knowingly decides against evidence — cite E-ids + charter item) | `invariant-change` (a charter invariant is added/reworded/removed — exact old wording, exact new wording, founder approval; legal even while the charter is still `draft`) | `migration` (schema migration, from → to) | `reconciliation` (summary row: reconcile ID, manifest hash, drift dimensions, intake authority — never replaces the specialized rows above) | `run-signed` (validation-run spec signed: run_id, claim ids, threshold snapshot, window) | `run-verdict` (validation-run outcome: run_id, verdict, report ref) | `criterion-disposition` (LOCK ceremony: kill criterion retired/carried/replaced, provenance) | `source-registry-change` (reality source added/removed/rescoped, user-approved) | `signing-blocked` (the F signing ceremony ran and did NOT produce a signature — see the `detail` table above; was ordered by gate-check but missing from this enum until v1.3.0) | `blueprint-amendment` (amend-blueprint recorded a BA-id against a locked blueprint: targets, class, scope-test outcome) | `blueprint-abandoned` (an in-flight blueprint was deliberately abandoned because a new cycle superseded its pack — names the cycle) | `other`.
+`type`: `gate-verdict` (incl. gatekeeper findings count + blockers) | `pivot` (segment/problem/solution — what changed, from what) | `mode-switch` | `sampling-frame-snapshot` (V1 frame text + sha256, appended BEFORE collection starts — gate V1 recomputes and compares) | `threshold-revision` (mirrors state.thresholds.revisions) | `spend` (mirrors state.budget.log) | `market-verdict` | `will-override` (founder knowingly decides against evidence — cite E-ids + charter item) | `invariant-change` (a charter invariant is added/reworded/removed — exact old wording, exact new wording, founder approval; legal even while the charter is still `draft`) | `migration` (schema migration, from → to) | `reconciliation` (summary row: reconcile ID, manifest hash, drift dimensions, intake authority — never replaces the specialized rows above) | `run-signed` (validation-run spec signed: run_id, claim ids, threshold snapshot, window) | `run-verdict` (validation-run outcome: run_id, verdict, report ref) | `criterion-disposition` (LOCK ceremony: kill criterion retired/carried/replaced, provenance) | `source-registry-change` (reality source added/removed/rescoped, user-approved) | `signing-blocked` (the F signing ceremony ran and did NOT produce a signature — see the `detail` table above; was ordered by gate-check but missing from this enum until v1.3.0) | `founder-decision` (v1.4.0 — a founder ceremony decision not already covered by `gate-verdict`; see the `detail` table above) | `blueprint-amendment` (amend-blueprint recorded a BA-id against a locked blueprint: targets, class, scope-test outcome) | `blueprint-abandoned` (an in-flight blueprint was deliberately abandoned because a new cycle superseded its pack — names the cycle) | `pre-lock-reconcile` (v1.13.0 — `scripts/reconcile-pre-lock.js` ran; see the `detail` table above) | `other`.
 
 ## audit-trail.md (append-only, tracked — the review record that survives a clone)
 
@@ -126,13 +147,13 @@ gatekeeper B4" and could not open B4. So the verbatim report stays private and a
 tracked**:
 
 ```markdown
-## <GATE> attempt <NN> — <YYYY-MM-DD> — <PASS|FAIL|OPEN-ACCEPTED|signing-blocked>
+## <GATE> attempt <NN> — <YYYY-MM-DD> — <PASS|FAIL|OPEN-ACCEPTED|PASS_WITH_DEVIATION|signing-blocked>
 manifest: <path>@<sha256>   ·   verbatim report: private/gatekeeper-<gate>-YYYYMMDD-NN.md (not in git by design)
 blockers: <n> · non-blocking: <n>
 
-| id | severity | finding (redacted) | lands on | status |
-|---|---|---|---|---|
-| B4 | blocker | the ~20x traction figure is unsupported by its own citations; caveat present in the raw scan trail was dropped when promoted | competitive-map.md:80-92 | unremediated |
+| id | fingerprint | severity | finding (redacted) | lands on | status |
+|---|---|---|---|---|---|
+| B4 | a1b2c3...(sha256) | MATERIAL_BLOCKER | the ~20x traction figure is unsupported by its own citations; caveat present in the raw scan trail was dropped when promoted | competitive-map.md:80-92 | unremediated |
 ```
 
 Rules:
@@ -143,8 +164,29 @@ Rules:
 - **Never soften.** A redacted finding that reads milder than the original defeats the purpose; severity
   and wording carry over. If redaction would make a finding unintelligible, say so in the cell rather
   than dropping it.
+- **`severity`** (v1.4.0): `MATERIAL_BLOCKER` | `AUTO_FIXABLE_NON_BLOCKER` | `DEFERRED_RISK` — the vocabulary
+  the `gatekeeper` agent now emits (retired: `blocker`/`major`/`minor`, which let severity drift into a
+  vibe rather than a checkable category). A `MATERIAL_BLOCKER` row without all six required fields (finding
+  id, exact file+section, exact missing/contradictory content, downstream consequence, minimum patch,
+  contract clause) is automatically demoted to `AUTO_FIXABLE_NON_BLOCKER` before it reaches this table —
+  see `agents/gatekeeper.md`.
+- **`fingerprint`** (v1.4.0) — `scripts/finding-fingerprint.js`'s sha256 of `(gate, file, section, issueType, claimId)`,
+  the stable identity of a finding across review rounds and re-checks. Reopening a fingerprint whose latest
+  `status` is `fixed in <attempt>` / `accepted` / `deferred` requires a **cited regression diff** —
+  `finding-fingerprint.js --check-regression` naming what changed — not a fresh restatement of the original
+  concern; without one it stays closed and the reopening attempt is itself a finding.
 - **`status`** tracks remediation across attempts: `unremediated` | `fixed in <attempt>` | `contested` |
-  `withdrawn`. This is how a clone learns that ten blockers were found and none were fixed.
+  `withdrawn` | `accepted` (v1.4.0 — founder/gatekeeper agree the finding stands but is not worth blocking;
+  pairs with a gate's `pass_with_deviation` deviations[] entry) | `deferred` (v1.4.0 — carried forward to a
+  named `revisit_phase` rather than fixed now) | `duplicate` (v1.4.0 — same fingerprint as an earlier row in
+  this file; points at the original instead of restating it) | `regressed` (v1.4.0 — a previously
+  `fixed`/`accepted`/`deferred` fingerprint reopened WITH a cited regression diff). This is how a clone
+  learns that ten blockers were found and none were fixed — or, now, that three were knowingly deferred with
+  a named reason rather than silently dropped.
+- **Column count per section is stable at write time, not globally.** A pre-1.4.0 section keeps its
+  original 5-column shape (no `fingerprint`); only sections written from v1.4.0 onward carry it. This
+  mirrors `decision-log.md`'s own rule — append a new shape going forward, never rewrite an old section
+  to backfill a hash nobody computed at the time.
 - Written by gate-check Layer 2 immediately after the verbatim report is persisted, and by the
   `signing-blocked` path with an empty findings table. One section per gate attempt, appended.
 - The missing `private/` files are **expected absence, not damage** — a clone reading this file has the
@@ -177,7 +219,7 @@ gate: <the failed gate, e.g. V1>
 status: ready
 evidence_grade: <the failed gate's actual evidence grade, honestly>
 rung: baseline-auto
-pipeline_version: 1.10.1
+pipeline_version: 1.13.0
 updated: YYYY-MM-DD
 ---
 # Unvalidated build decision — <title>
@@ -189,6 +231,42 @@ updated: YYYY-MM-DD
 ```
 
 **Owner: gate-check's FAIL override sub-ceremony** — never a stage skill. Gate-check is the only component that simultaneously holds every required input (the formal FAIL, the persisted gatekeeper report, the failed metric vs threshold, the founder's explicit decision, and the authority to append `will-override`), and gate-check may be invoked directly with several DAG branches active, so no stage skill can be relied on to be "the one in progress". Making the evidence-producing stage author its own exception record would also create an avoidable laundering boundary. Gate-check never creates the file automatically on FAIL: it requires the separate non-skippable override checkpoint, and it writes the file and the `will-override` row in one step. Its existence never changes any gate's recorded status or the pack predicate.
+
+## post-launch-validation-register.md (only when V1 has been deferred — v1.5.0)
+
+**Never confuse with `unvalidated-build-decision.md` above.** That artifact exists only after a gate
+was formally checked and FAILED, and the founder chose to build anyway. This one exists only after a
+gate was **never attempted**, and the founder chose — before any evidence collection began — to defer
+it to a controlled post-launch release, with named reopen conditions. Owner: `gate-check`'s
+`--ceremony=defer` (the `gate-check` skill's V1 deferral ceremony), the only component holding the
+founder's exact wording and the authority to write both this file and the `founder-decision`
+decision-log row at the same moment.
+
+```markdown
+---
+artifact: post-launch-validation-register
+idea: <slug>
+stage: 2
+gate: V1
+status: ready
+evidence_grade: none
+rung: baseline-auto
+pipeline_version: 1.13.0
+updated: YYYY-MM-DD
+---
+# Post-launch validation register — <title>
+> V1 (problem-evidence gate) was deferred, not skipped: the founder chose to defer pre-MVP human
+> validation to a controlled MVP release rather than run another pre-build research round. This file
+> is the honest paper trail for what was deferred, why, and the exact conditions that reopen it.
+
+| item | why_deferred | reopen_on | owner | status |
+|---|---|---|---|---|
+| V1 problem-evidence gate | <founder's own reasoning, verbatim or close paraphrase citing the ceremony transcript> | <the founder's exact reopen wording — new contradictory evidence / founder explicitly reopens / hard safety-or-legal conflict, or their own equivalent> | founder | registered |
+```
+
+- **Row shape**: `{item, why_deferred, reopen_on, owner: founder, status: registered\|reactivated\|resolved}`. `owner` is always `founder` — this is a founder-authorized decision, never a model or plugin default.
+- **Created** by the V1 deferral ceremony at the same moment it sets `gates.V1.status: "deferred"` and appends the `founder-decision` decision-log row; **append-only in spirit** like `decision-log.md`/`founder-charter.md` — a row's `status` may move (`registered` → `reactivated` when `declare-drift --release` fires → `resolved` once V1 is actually re-run and passes/fails for real), but the row itself and its `why_deferred`/`reopen_on` text are never rewritten.
+- **Mirrors, does not duplicate**: `reopen_on` here is the same founder wording recorded in `gates.V1.deferred_reopen_on` and `state.post_launch_validation.reopen_on` — one decision, three pointers, never three independently-editable copies.
 
 ## Evidence Quality Report format (`mvp-pack/evidence-quality-report.md`)
 

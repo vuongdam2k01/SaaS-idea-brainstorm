@@ -2,6 +2,20 @@
 /**
  * PreToolUse hook on Write|Edit (saas-idea-brainstorm plugin) — v2.
  * Protects pre-registered commitments from silent edits. Fixes from adversarial review:
+ *
+ * [BLOCKING] (v1.13.0 note, not a behavior change): this hook's `ask()` calls
+ * — which set `permissionDecision: "ask"` on the PreToolUse response — are
+ * the concrete example of a true PERMISSION-GATE `[BLOCKING]` behavior in
+ * this plugin's hook layer: they stop the tool call itself, before it runs,
+ * pending a human decision. `session-start.js` (SessionStart) is
+ * informational by construction — see its own header comment. Worth being
+ * precise about one neighbor: `validate-artifact.js` runs on PostToolUse and
+ * can emit `{decision: "block", reason}` — but by then the write has already
+ * happened; that is corrective feedback handed back to the agent, not a
+ * permission-system gate on a future action. Different mechanism, so it is
+ * not lumped under the same `[BLOCKING]` label here — `ask()`'s
+ * `permissionDecision` gate is the one thing in this hook layer that fits
+ * that word literally. See method-rules §15.
  * - SEMANTIC comparison: simulates the edit and diffs parsed thresholds (partial edits
  *   like old_string:"60" -> new_string:"70" are caught).
  * - Protects EVERY artifact with frontmatter `status: locked` (kill-criteria, DoD,

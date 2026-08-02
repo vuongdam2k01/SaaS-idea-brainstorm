@@ -1,6 +1,6 @@
 {
   "name": "saas-idea-brainstorm",
-  "version": "1.10.1",
+  "version": "1.13.0",
   "description": "Autonomous SaaS idea validation pipeline: takes a raw idea through framing, competitive scan, market validation, feasibility verification, positioning, MVP scope lock, and a post-LOCK implementation blueprint (feature specs, field-level schema, UX, interface contracts, NFRs, test and build plans) so build starts with no product decision left to invent. Produces a Validated, Hypothesis, or Pre-feasibility MVP Pack with strictly graded evidence (A/B/C/D), then a build-ready blueprint locked at gate BP. Post-LOCK maintenance: declare drift any time, reconcile on demand against declared or observed product reality, and route unvalidated changes to scoped validation runs or a new cycle. Analysis mode runs with no integrations; user-installed MCP servers/CLIs (scraping, hosting, analytics, payments, email) unlock higher-autonomy rungs after authenticated probes. Ships a build handoff: generates AGENTS.md/CLAUDE.md, path-scoped rules, /spec and /spec-gap skills, a SessionStart briefing and a hashed read-only spec copy with an id index into the build repository, so the coding agents that implement the product arrive already aware of the locked artifacts instead of inferring the product from the file tree.",
   "author": {
     "name": "vuong.dam"

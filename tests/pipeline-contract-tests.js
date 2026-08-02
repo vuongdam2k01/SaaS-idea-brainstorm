@@ -275,8 +275,13 @@ console.log("== run-#3 absorbed contracts ==");
     !fs.existsSync(path.join(ROOT, "scripts", "validate-prospect-tracker.js")));
   check("V2 requires a reproducible ChatGPT-gap record",
     /reproducible/.test(gc) && /failure criterion written BEFORE judging/.test(gc));
+  // v1.13.0: method-rules had two sections both titled "## 12." (cross-domain
+  // recertification, and this Language section) — a numbering bug, not two
+  // legal ids. Confirmed by grep that every "method-rules §12" reference in
+  // the repo means cross-domain-recertification, so the drive-by fix renumbers
+  // this section to "## 16." (after the new §15) rather than the other one.
   check("method-rules carries a language rule",
-    /## 12\. Language/.test(mr) && /diacritics intact/.test(mr));
+    /## 16\. Language/.test(mr) && /diacritics intact/.test(mr));
   check("pseudonymity covers identifying evidence strings, not just names",
     /Pseudonymity is nominal/.test(mr));
 
@@ -712,8 +717,11 @@ console.log("== privacy retention index: checkable, and non-sensitive by constru
   const dir = path.join(tmpdir("privacy-"), "demo");
   fs.mkdirSync(dir, { recursive: true });
   const statePath = path.join(dir, "state.json");
+  // schema_version 1.5.0 (writer requires current — v1.5.0 as of Patch 2, this
+  // same session); this block tests the privacy/retention-duties mechanism, not
+  // schema-version gating, so it must write under whatever version is current.
   const base = {
-    schema_version: "1.3.0",
+    schema_version: "1.5.0",
     market_shape: "single-sided",
     sides: [],
     pipeline_version: "1.2.0",
@@ -934,8 +942,10 @@ console.log("== waiting_on entries must be able to end ==");
   const dir = path.join(tmpdir("waiting-"), "demo");
   fs.mkdirSync(dir, { recursive: true });
   const statePath = path.join(dir, "state.json");
+  // schema_version 1.5.0 (writer requires current); this block tests the
+  // waiting_on shape, not schema-version gating.
   const base = {
-    schema_version: "1.3.0",
+    schema_version: "1.5.0",
     market_shape: "single-sided",
     sides: [],
     pipeline_version: "1.2.0",
@@ -1685,6 +1695,872 @@ console.log("== build-handoff: a SEPARATE build repository only ==");
     /handoff-to-build/.test(fs.readFileSync(path.join(ROOT, "skills", "stage-6-blueprint", "SKILL.md"), "utf8")));
 }
 
+
+// ---------------------------------------------------------------------------
+console.log("== v1.11.0: url-canon.js collapses same-page spellings ==");
+{
+  const { canonicalize } = require(path.join(ROOT, "scripts", "lib", "url-canon.js"));
+  check(
+    "tracking params are stripped, remaining params sorted",
+    canonicalize("https://Example.com/reviews/?utm_source=x&b=2&a=1") === "https://example.com/reviews/?a=1&b=2"
+  );
+  check("scheme+host are lowercased", canonicalize("HTTPS://EXAMPLE.com/x") === "https://example.com/x");
+  check(
+    "bare-root with and without a trailing slash canonicalize identically",
+    canonicalize("https://example.com/") === canonicalize("https://example.com")
+  );
+  check("a deeper path's trailing slash is preserved", canonicalize("https://example.com/docs/") === "https://example.com/docs/");
+  check("the fragment never survives", canonicalize("https://example.com/x#section") === "https://example.com/x");
+  check(
+    "two spellings of the same page canonicalize identically",
+    canonicalize("https://example.com/x?b=2&utm_campaign=spring&a=1") === canonicalize("https://example.com/x?a=1&b=2")
+  );
+  check("a non-URL (e.g. a private/ file ref) passes through unchanged", canonicalize("private/interview-03.txt") === "private/interview-03.txt");
+}
+
+// ---------------------------------------------------------------------------
+console.log("== v1.11.0: finding-fingerprint.js is a stable, order-sensitive identity ==");
+{
+  const { fingerprint, checkRegression } = require(path.join(ROOT, "scripts", "finding-fingerprint.js"));
+  const a = fingerprint("F", "competitive-map.md", "5-tier map", "fabrication", "E4");
+  const b = fingerprint("F", "competitive-map.md", "5-tier map", "fabrication", "E4");
+  check("computing the same components twice yields the same fingerprint", a === b);
+  check("a sha256 hex string (64 chars)", /^[0-9a-f]{64}$/.test(a));
+  const swapped = fingerprint("F", "E4", "5-tier map", "fabrication", "competitive-map.md");
+  check("component order matters (not a bag of strings)", a !== swapped);
+  const different = fingerprint("F", "competitive-map.md", "5-tier map", "fabrication", "E5");
+  check("a different claim id produces a different fingerprint", a !== different);
+
+  // --check-regression against a real audit-trail.md + Layer-1 manifest, the
+  // shape gate-check actually writes (private/manifest-<gate>-<YYYYMMDD>-<NN>.json).
+  const dir = tmpdir("fp-regress-");
+  fs.mkdirSync(path.join(dir, "private"), { recursive: true });
+  fs.writeFileSync(path.join(dir, "positioning.md"), "thesis v1\n");
+  const helper = require(path.join(ROOT, "scripts", "artifact-manifest.js"));
+  const manifest = helper.create(dir, ["positioning.md"], { purpose: "gate-input", id: "P-20260801-01" });
+  fs.writeFileSync(path.join(dir, "private", "manifest-P-20260801-01.json"), JSON.stringify(manifest, null, 2));
+  const fp = fingerprint("P", "positioning.md", "thesis", "unsupported-claim", "E9");
+  fs.writeFileSync(
+    path.join(dir, "audit-trail.md"),
+    `## P attempt 01 — 2026-08-01 — FAIL\nmanifest: private/manifest-P-20260801-01.json@${manifest.manifest_sha256}\nblockers: 1 · non-blocking: 0\n\n` +
+      `| id | fingerprint | severity | finding (redacted) | lands on | status |\n|---|---|---|---|---|---|\n` +
+      `| B1 | ${fp} | MATERIAL_BLOCKER | the thesis is unsupported | positioning.md | unremediated |\n`
+  );
+  let r = checkRegression(dir, fp);
+  check("unchanged file: check-regression reports no diff", r.ok === true && r.changed === false, JSON.stringify(r));
+  fs.writeFileSync(path.join(dir, "positioning.md"), "thesis v2, now cited\n");
+  r = checkRegression(dir, fp);
+  check("changed file: check-regression reports a diff", r.ok === true && r.changed === true, JSON.stringify(r));
+  r = checkRegression(dir, "0".repeat(64));
+  check("an unknown fingerprint is reported as not found, not a crash", r.ok === false && r.code === "fingerprint-not-found");
+  const dirNoManifest = tmpdir("fp-regress-nomanifest-");
+  fs.writeFileSync(
+    path.join(dirNoManifest, "audit-trail.md"),
+    `## F attempt 01 — 2026-08-01 — FAIL\nmanifest: private/manifest-F-20260801-01.json@abc\nblockers: 1 · non-blocking: 0\n\n` +
+      `| id | fingerprint | severity | finding (redacted) | lands on | status |\n|---|---|---|---|---|---|\n` +
+      `| B1 | ${fp} | MATERIAL_BLOCKER | x | idea-brief.md | unremediated |\n`
+  );
+  r = checkRegression(dirNoManifest, fp);
+  check("no baseline manifest on disk: inconclusive, not a false pass", r.ok === false && r.code === "no-baseline-manifest");
+}
+
+// ---------------------------------------------------------------------------
+console.log("== v1.11.0: validate-source-registry.js cross-checks the ledger ==");
+{
+  const dir = tmpdir("registry-");
+  const ledger =
+    "| id | date | source | root_source_id | type | url_or_ref | retrieved | via | verbatim_or_observation | assumption | grade | bearing | scope_limits | relationship | supersedes |\n" +
+    "|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|\n" +
+    '| E1 | 2026-07-29 | P1 | RS-1 | community | https://example.com/reviews?utm_source=x | 2026-07-29 | miner-run-1 | "quote" | A1 | B | supports | 1 user | — | — |\n';
+  fs.writeFileSync(path.join(dir, "evidence-ledger.md"), ledger);
+
+  const registry = (rows) =>
+    "| canonical_url | content_hash | first_seen_run | claims_extracted | rescan_count | last_rescan_justification |\n" +
+    "|---|---|---|---|---|---|\n" +
+    rows;
+
+  fs.writeFileSync(
+    path.join(dir, "source-registry.md"),
+    registry("| https://example.com/reviews | sha256:ab | competitor-scanner-run-1 | E1 | 0 | — |\n")
+  );
+  let out = JSON.parse(runNode("scripts/validate-source-registry.js", [dir, "--json"]).stdout);
+  check("a URL registered under its canonical form validates clean", out.errors === 0, JSON.stringify(out.findings));
+
+  fs.writeFileSync(
+    path.join(dir, "source-registry.md"),
+    registry("| https://example.com/other | sha256:ab | competitor-scanner-run-1 | E1 | 2 | — |\n")
+  );
+  out = JSON.parse(runNode("scripts/validate-source-registry.js", [dir, "--json"]).stdout);
+  check(
+    "a ledger URL absent from the registry is an error",
+    out.errors > 0 && out.findings.some((f) => f.code === "url-not-registered")
+  );
+  check(
+    "a rescan with no justification is an error",
+    out.findings.some((f) => f.code === "rescan-without-justification")
+  );
+
+  const dirNoRegistry = tmpdir("registry-none-");
+  fs.writeFileSync(path.join(dirNoRegistry, "evidence-ledger.md"), ledger);
+  out = JSON.parse(runNode("scripts/validate-source-registry.js", [dirNoRegistry, "--json"]).stdout);
+  check(
+    "a ledger citing URLs with no registry file at all is an error, not a silent pass",
+    out.errors > 0 && out.findings.some((f) => f.code === "registry-missing")
+  );
+}
+
+// ---------------------------------------------------------------------------
+console.log("== v1.11.0: schema_version 1.3.0 -> 1.4.0 migration (pass_with_deviation, research_budget) ==");
+{
+  const ss = fs.readFileSync(path.join(ROOT, "skills", "method-rules-state-schema", "SKILL.md"), "utf8");
+  // v1.5.0 (Patch 2, same session) supersedes 1.4.0 as the current schema, so the
+  // main JSON example no longer literally reads "1.4.0" — that is the intended
+  // effect of the later bump, not a regression here. What must still be true is
+  // that 1.4.0's own mechanisms (pass_with_deviation, research_budget) and its
+  // migration note remain documented, historically, in the current file.
+  check("state-schema still documents v1.4.0's mechanisms after the 1.5.0 bump", /v1\.4\.0/.test(ss));
+  check("state-schema documents the pass_with_deviation gate status", /pass_with_deviation/.test(ss));
+  check("state-schema documents the research_budget top-level key", /"research_budget":/.test(ss) && /max_new_sources/.test(ss));
+  check("a 1.3.0 -> 1.4.0 migration note exists", /Migration 1\.3\.0 → 1\.4\.0/.test(ss));
+
+  // The writer is the actual enforcement point (method-rules-state-schema "Durability").
+  // schema_version here is 1.5.0, not the 1.4.0 this block's own header names — the
+  // writer only ever accepts the CURRENT schema (state-schema "Durability": legacy
+  // shapes are migrated on read, never re-accepted on write), and 1.5.0 is current
+  // as of this same session's Patch 2. This block still tests 1.4.0's OWN
+  // mechanisms (pass_with_deviation, research_budget), just under the schema
+  // version the writer actually requires now.
+  const dir = path.join(tmpdir("schema14-"), "demo");
+  fs.mkdirSync(dir, { recursive: true });
+  const statePath = path.join(dir, "state.json");
+  const base = {
+    schema_version: "1.5.0",
+    market_shape: "single-sided",
+    sides: [],
+    pipeline_version: "1.12.0",
+    idea: "demo",
+    active: [],
+    gates: {},
+    thresholds: { signed_date: null, revisions: [] },
+    kill_criteria: [],
+    waiting_on: [],
+    artifacts: {},
+    research_budget: { per_task: { max_rounds: 3, max_new_sources: 10 }, log: [] },
+    cycles: [{ id: "C1", status: "validation", parent: null, state: null }],
+    active_cycle: "C1",
+    maintenance: { drift_declared_at: null, active_reconcile: null, last_reconcile: null, current_baseline: null, blocking_claims: [], reality_sources: [] },
+    health_criteria: [],
+    validation_runs: [],
+  };
+  const write = (obj) => {
+    fs.writeFileSync(statePath, JSON.stringify(obj));
+    return runNode("scripts/state-write.js", [statePath], { input: JSON.stringify(obj) });
+  };
+  check("a 1.4.0 state with a well-formed research_budget is accepted", write(base).code === 0);
+  const down = { ...base, schema_version: "1.3.0" };
+  check("a 1.3.0 write is rejected by the writer (requires 1.4.0)", write(down).code === 1);
+
+  const { fingerprint } = require(path.join(ROOT, "scripts", "finding-fingerprint.js"));
+  const fp = fingerprint("F", "idea-brief.md", "intake table", "unresolved-blocker", "K2");
+  const pwd = {
+    ...base,
+    gates: {
+      F: {
+        status: "pass_with_deviation",
+        attempt_count: 2,
+        deviations: [
+          { finding_fingerprint: fp, category: "DEFERRED_RISK", description: "reach channel thin for 2 of 15 prospects", carry_forward: "recheck at V1", revisit_phase: "V1" },
+        ],
+      },
+    },
+  };
+  check("a well-formed pass_with_deviation gate is accepted", write(pwd).code === 0);
+  const noAttempt = JSON.parse(JSON.stringify(pwd));
+  delete noAttempt.gates.F.attempt_count;
+  check("pass_with_deviation with no attempt_count is rejected", write(noAttempt).code === 1);
+  const attempt1 = JSON.parse(JSON.stringify(pwd));
+  attempt1.gates.F.attempt_count = 1;
+  check("pass_with_deviation at attempt_count 1 is rejected (round 1 can never produce it)", write(attempt1).code === 1);
+  const noDeviations = JSON.parse(JSON.stringify(pwd));
+  noDeviations.gates.F.deviations = [];
+  check("pass_with_deviation with empty deviations[] is rejected", write(noDeviations).code === 1);
+  const badFp = JSON.parse(JSON.stringify(pwd));
+  badFp.gates.F.deviations[0].finding_fingerprint = "not-a-hash";
+  check("a deviation with a malformed fingerprint is rejected", write(badFp).code === 1);
+  const badBudget = JSON.parse(JSON.stringify(base));
+  badBudget.research_budget = { per_task: { max_rounds: 0, max_new_sources: 10 }, log: [] };
+  check("research_budget.per_task.max_rounds must be >= 1", write(badBudget).code === 1);
+  const noBudget = { ...base };
+  delete noBudget.research_budget;
+  check("research_budget stays optional (sibling to money-only budget, which is also optional)", write(noBudget).code === 0);
+}
+
+// ---------------------------------------------------------------------------
+console.log("== v1.11.0: gatekeeper severity taxonomy + review-scope freeze wiring ==");
+{
+  const gk = fs.readFileSync(path.join(ROOT, "agents", "gatekeeper.md"), "utf8");
+  check("gatekeeper emits the new three-value severity taxonomy", /MATERIAL_BLOCKER/.test(gk) && /AUTO_FIXABLE_NON_BLOCKER/.test(gk) && /DEFERRED_RISK/.test(gk));
+  check("MATERIAL_BLOCKER's six required fields are named", /all six/.test(gk) && /contract clause/.test(gk));
+  check("reopening a disposed fingerprint requires a cited regression", /cited regression/.test(gk) && /--check-regression/.test(gk));
+  check("multi-LLM output is folded into existing rules, not restated as new (P1-08)", /P1-08/.test(gk) && /diagnostic/.test(gk));
+  check("PASS_WITH_DEVIATION is explicitly not the gatekeeper's own verdict to give", /PASS_WITH_DEVIATION.*never your verdict|never your verdict.*PASS_WITH_DEVIATION/s.test(gk));
+
+  const gc = fs.readFileSync(path.join(ROOT, "skills", "gate-check", "SKILL.md"), "utf8");
+  check("gate-check names the review-scope freeze distinctly from contract immutability", /[Rr]eview-scope freeze/.test(gc) && /Contract changes are not retroactive/.test(gc));
+  check("gate-check states the freeze is within-attempt, not cross-version", /within one gate-check's own attempts|within-one-gate-attempt/i.test(gc) || /within one gate-check/.test(gc));
+  check("gate-check computes PASS_WITH_DEVIATION at round >= 2 with zero MATERIAL_BLOCKER", /PASS_WITH_DEVIATION/.test(gc) && /zero.*MATERIAL_BLOCKER|MATERIAL_BLOCKER.*zero/.test(gc));
+  check("gate-check wires the source-registry check as advisory, non-blocking", /validate-source-registry\.js/.test(gc) && /[Aa]dvisory/.test(gc));
+
+  const gcContracts = fs.readFileSync(path.join(ROOT, "skills", "method-rules-gate-contracts", "SKILL.md"), "utf8");
+  check("the pre-existing cross-version rule still carries its own name unmodified", /## Contract changes are not retroactive/.test(gcContracts));
+}
+
+// ---------------------------------------------------------------------------
+console.log("== v1.11.0: coverage-report registers the new mechanisms ==");
+{
+  const { REQUIREMENTS } = require(path.join(ROOT, "scripts", "coverage-report.js"));
+  const ids = REQUIREMENTS.map((r) => r.id);
+  for (const id of [
+    "gate-status-pass-with-deviation",
+    "pass-with-deviation-needs-deviations",
+    "research-budget-shape",
+    "finding-fingerprint-stable-identity",
+    "reopen-fingerprint-needs-cited-regression",
+    "review-scope-freeze-round2",
+    "url-canonicalization",
+    "source-registry-rescan-needs-justification",
+    "multi-llm-stays-diagnostic",
+  ]) {
+    check(`coverage-report registers "${id}"`, ids.includes(id));
+  }
+}
+
+// ---------------------------------------------------------------------------
+console.log("== v1.12.0: schema_version 1.4.0 -> 1.5.0 migration (V1 deferred track, post_launch_validation, capability phase-relevance) ==");
+{
+  const ss = fs.readFileSync(path.join(ROOT, "skills", "method-rules-state-schema", "SKILL.md"), "utf8");
+  check("state-schema documents schema_version 1.5.0", /"schema_version":\s*"1\.5\.0"/.test(ss));
+  check("state-schema documents gates.V1.status \"deferred\" as legal only for V1", /deferred/.test(ss) && /legal only for V1/.test(ss));
+  check("state-schema names the deferred sibling fields", /deferred_reopen_on/.test(ss) && /deferred_date/.test(ss) && /register_ref/.test(ss));
+  check("state-schema documents the post_launch_validation top-level key", /post_launch_validation/.test(ss) && /reactivated/.test(ss));
+  check("state-schema documents capabilities required_in_phase/required_now/blocks", /required_in_phase/.test(ss) && /required_now/.test(ss) && /"blocks"/.test(ss));
+  check("a 1.4.0 -> 1.5.0 migration note exists", /Migration 1\.4\.0 → 1\.5\.0/.test(ss));
+  check("state-schema explicitly distinguishes deferred from will-override", /will-override/.test(ss));
+
+  const dir = path.join(tmpdir("schema15-"), "demo");
+  fs.mkdirSync(dir, { recursive: true });
+  const statePath = path.join(dir, "state.json");
+  const base = {
+    schema_version: "1.5.0",
+    market_shape: "single-sided",
+    sides: [],
+    pipeline_version: "1.12.0",
+    idea: "demo",
+    active: [],
+    gates: {},
+    thresholds: { signed_date: null, revisions: [] },
+    kill_criteria: [],
+    waiting_on: [],
+    artifacts: {},
+    cycles: [{ id: "C1", status: "validation", parent: null, state: null }],
+    active_cycle: "C1",
+    maintenance: { drift_declared_at: null, active_reconcile: null, last_reconcile: null, current_baseline: null, blocking_claims: [], reality_sources: [] },
+    health_criteria: [],
+    validation_runs: [],
+  };
+  const write = (obj) => {
+    fs.writeFileSync(statePath, JSON.stringify(obj));
+    return runNode("scripts/state-write.js", [statePath], { input: JSON.stringify(obj) });
+  };
+  check("a well-formed 1.5.0 state is accepted", write(base).code === 0, write(base).stderr);
+  check("a 1.4.0 write is now rejected by the writer (requires 1.5.0)", write({ ...base, schema_version: "1.4.0" }).code === 1);
+
+  const deferredGate = () => ({
+    status: "deferred",
+    deferred_reopen_on: "new contradictory post-launch evidence, or founder explicitly reopens",
+    deferred_date: "2026-08-02",
+    register_ref: "post-launch-validation-register.md",
+  });
+  const withV1Deferred = { ...base, gates: { V1: deferredGate() } };
+  check("a well-formed V1 deferred gate is accepted", write(withV1Deferred).code === 0, write(withV1Deferred).stderr);
+
+  const deferredOnV2 = { ...base, gates: { V2: deferredGate() } };
+  check("\"deferred\" on any gate other than V1 is rejected", write(deferredOnV2).code === 1);
+
+  const noReopen = { ...base, gates: { V1: { ...deferredGate(), deferred_reopen_on: "" } } };
+  check("a deferred V1 with empty deferred_reopen_on is rejected", write(noReopen).code === 1);
+
+  const badDate = { ...base, gates: { V1: { ...deferredGate(), deferred_date: "2026-99-99" } } };
+  check("a deferred V1 with an impossible deferred_date is rejected", write(badDate).code === 1);
+
+  const noRegisterRef = { ...base, gates: { V1: (() => { const g = deferredGate(); delete g.register_ref; return g; })() } };
+  check("a deferred V1 with no register_ref is rejected", write(noRegisterRef).code === 1);
+
+  const withPlv = {
+    ...base,
+    post_launch_validation: {
+      register_ref: "post-launch-validation-register.md",
+      status: "pending",
+      mvp_release_declared_at: null,
+      reopen_on: "new contradictory post-launch evidence, or founder explicitly reopens",
+    },
+  };
+  check("a well-formed post_launch_validation is accepted", write(withPlv).code === 0, write(withPlv).stderr);
+  check("post_launch_validation stays optional (absent = never deferred)", write(base).code === 0);
+
+  const plvBadStatus = { ...base, post_launch_validation: { ...withPlv.post_launch_validation, status: "in-progress" } };
+  check("post_launch_validation.status must be in the closed enum", write(plvBadStatus).code === 1);
+
+  const plvUnknownKey = { ...base, post_launch_validation: { ...withPlv.post_launch_validation, extra: "x" } };
+  check("post_launch_validation is a closed key set", write(plvUnknownKey).code === 1);
+
+  const plvReactivated = {
+    ...base,
+    post_launch_validation: { ...withPlv.post_launch_validation, status: "reactivated", mvp_release_declared_at: "2026-08-02T10:00:00Z" },
+  };
+  check("post_launch_validation can be flipped to reactivated with a release timestamp", write(plvReactivated).code === 0, write(plvReactivated).stderr);
+}
+
+// ---------------------------------------------------------------------------
+console.log("== v1.12.0: pack-verdict FOUNDER-AUTHORIZED HYPOTHESIS TRACK (V1 deferred) ==");
+{
+  const dir = path.join(tmpdir("verdict15-"), "demo");
+  fs.mkdirSync(dir, { recursive: true });
+  const statePath = path.join(dir, "state.json");
+  const stateWith = (over = {}, grade = "A") => {
+    const gates = {};
+    for (const g of ["F", "C", "V1", "V2", "V3", "R1", "R2", "P", "LOCK"])
+      gates[g] = { status: over[g] || "passed", evidence_floor: "B", passed_date: null, notes: "" };
+    gates.V3.evidence_grade_observed = grade;
+    fs.writeFileSync(
+      statePath,
+      JSON.stringify({ schema_version: "1.5.0", market_shape: "single-sided", sides: [], pipeline_version: "1.12.0", idea: "demo", gates })
+    );
+    return statePath;
+  };
+
+  let r = runNode("scripts/pack-verdict.js", [stateWith({ V1: "deferred" }), "--json"]);
+  let out = JSON.parse(r.stdout);
+  check(
+    "a deferred V1 wins over VALIDATED even when every other gate is passed and V3 is grade A",
+    out.verdict === "FOUNDER-AUTHORIZED HYPOTHESIS TRACK",
+    r.stdout + r.stderr
+  );
+
+  r = runNode("scripts/pack-verdict.js", [stateWith({ V1: "deferred", V2: "open", R1: "open" }), "--json"]);
+  out = JSON.parse(r.stdout);
+  check(
+    "a deferred V1 wins over Pre-feasibility/Hypothesis too, regardless of how V2/R1 resolve",
+    out.verdict === "FOUNDER-AUTHORIZED HYPOTHESIS TRACK"
+  );
+
+  r = runNode("scripts/pack-verdict.js", [stateWith({ V1: "deferred", LOCK: "pending" }), "--json", "--assuming-lock-pass"]);
+  out = JSON.parse(r.stdout);
+  check(
+    "a deferred V1's prospective label is also FOUNDER-AUTHORIZED HYPOTHESIS TRACK, never VALIDATED",
+    out.verdict === "FOUNDER-AUTHORIZED HYPOTHESIS TRACK" && out.prospective === true
+  );
+
+  r = runNode("scripts/pack-verdict.js", [stateWith({ V1: "pending" }), "--json"]);
+  out = JSON.parse(r.stdout);
+  check(
+    "V1 merely pending (never deferred) is NO PACK via the ordinary unresolved-gate reason, not silently treated as resolved",
+    out.verdict === "NO PACK" && /V1 is "pending"/.test(out.reasons.join(" "))
+  );
+
+  r = runNode("scripts/pack-verdict.js", [stateWith({ V1: "open" }), "--json"]);
+  out = JSON.parse(r.stdout);
+  check(
+    "V1 open (contract forbids it) is still NO PACK via the ordinary open-not-allowed reason — deferred and open are different code paths",
+    out.verdict === "NO PACK" && /V1 is open/.test(out.reasons.join(" "))
+  );
+
+  // Exercise the exported predicate directly, not just the CLI — this is the
+  // pipeline's normative source, and the fixtures should test the real thing.
+  const { verdict } = require(path.join(ROOT, "scripts", "pack-verdict.js"));
+  const allPassed = {};
+  for (const g of ["F", "C", "V1", "V2", "V3", "R1", "R2", "P", "LOCK"]) allPassed[g] = { status: "passed" };
+  const withDeferred = { ...allPassed, V1: { status: "deferred" } };
+  const dv = verdict(withDeferred, "A");
+  check("verdict() itself returns the founder-authorized tier for a deferred V1", dv.verdict === "FOUNDER-AUTHORIZED HYPOTHESIS TRACK");
+  check("verdict() never returns VALIDATED for a deferred V1, even with grade-A V3 and everything else passed", dv.verdict !== "VALIDATED");
+  check("verdict() never returns plain HYPOTHESIS for a deferred V1", dv.verdict !== "HYPOTHESIS");
+
+  // Byte-identical claim: a state that never sets "deferred" anywhere must produce
+  // the exact same three-tier result the pre-1.5.0 predicate always gave.
+  const neverDeferred = verdict(allPassed, "A");
+  check("the pre-existing VALIDATED tier is unchanged for a state that never sets deferred", neverDeferred.verdict === "VALIDATED");
+  const openV2 = { ...allPassed, V2: { status: "open" } };
+  const openResult = verdict(openV2, "A");
+  check("the pre-existing HYPOTHESIS tier is unchanged for a state that never sets deferred", openResult.verdict === "HYPOTHESIS");
+  const openR1 = { ...allPassed, R1: { status: "open" } };
+  const r1Result = verdict(openR1, "A");
+  check("the pre-existing PRE-FEASIBILITY tier is unchanged for a state that never sets deferred", r1Result.verdict === "PRE-FEASIBILITY HYPOTHESIS");
+}
+
+// ---------------------------------------------------------------------------
+console.log("== v1.12.0: V1 deferred track — will-override boundary stays distinct ==");
+{
+  const gcContracts = fs.readFileSync(path.join(ROOT, "skills", "method-rules-gate-contracts", "SKILL.md"), "utf8");
+  check("P's Requires cell now names V1 passed-or-deferred", /V1 \(passed, or `deferred` via the ceremony\)/.test(gcContracts));
+  check("V1's own OPEN-allowed cell still reads No (deferred is not a relaxation of it)", /\| No \[\^v1-deferred\] \|/.test(gcContracts));
+  check("a dedicated \"V1 deferred track\" subsection exists", /## V1 deferred track/.test(gcContracts));
+  check("the deferred-track subsection states ceremony-only", /[Cc]eremony-only/.test(gcContracts));
+  check("the deferred-track subsection states legal only for V1", /[Ll]egal only for V1/.test(gcContracts));
+  check(
+    "the will-override boundary explicitly distinguishes itself from V1-deferral",
+    /Not the same mechanism as V1-deferral/.test(gcContracts)
+  );
+  check(
+    "the pack-verdict predicate documents the 4th tier ahead of the pre-existing three",
+    /Founder-Authorized Hypothesis Track/.test(gcContracts) && gcContracts.indexOf("Founder-Authorized Hypothesis Track") < gcContracts.indexOf("Validated MVP Pack")
+  );
+
+  const gc = fs.readFileSync(path.join(ROOT, "skills", "gate-check", "SKILL.md"), "utf8");
+  check("gate-check documents the V1 deferral ceremony invocation", /gate-check V1 --ceremony=defer/.test(gc));
+  // v1.13.0: gate-check's scattered "auto_continue never covers it" asides were
+  // consolidated into a single cross-reference to method-rules §15 (the new
+  // "Auto-continue & execution policy" section, which names all four
+  // ceremonies including V1-deferral) — this test now checks for that
+  // cross-reference instead of a restated "auto_continue ... never" phrase.
+  check("the V1 deferral ceremony is never auto_continue-skippable", /V1 deferral ceremony[\s\S]{0,2000}method-rules §15/.test(gc));
+  {
+    const mr15 = fs.readFileSync(path.join(ROOT, "skills", "method-rules", "SKILL.md"), "utf8");
+    check("method-rules §15 itself states auto_continue never covers the named ceremonies", /## 15\./.test(mr15) && /auto_continue.{0,80}never covers/.test(mr15));
+  }
+  check("the V1 deferral ceremony has three outcomes: Deferred/Declined/Blocked", /\*\*Deferred\*\*/.test(gc) && /\*\*Declined\*\*/.test(gc) && /\*\*Blocked\*\*/.test(gc));
+  check("the V1 deferral ceremony never writes a will-override row", /[Nn]ever\*\* append\s+a `will-override` row/.test(gc));
+
+  const pv = fs.readFileSync(path.join(ROOT, "scripts", "pack-verdict.js"), "utf8");
+  check("pack-verdict.js never routes the deferred branch through resolved()", /v1Deferred/.test(pv) && /FOUNDER-AUTHORIZED HYPOTHESIS TRACK/.test(pv));
+
+  const artifactSchema = fs.readFileSync(path.join(ROOT, "skills", "method-rules-artifact-schema", "SKILL.md"), "utf8");
+  check("artifact-schema declares post-launch-validation-register.md distinctly from unvalidated-build-decision.md", /post-launch-validation-register\.md/.test(artifactSchema) && /Never confuse with `unvalidated-build-decision\.md`/.test(artifactSchema));
+}
+
+// ---------------------------------------------------------------------------
+console.log("== v1.12.0: phase-relevance.js and setup-audit wiring ==");
+{
+  const { requiredCapabilities, isRequiredNow, earliestPhaseFor } = require(path.join(ROOT, "scripts", "lib", "phase-relevance.js"));
+  check("stage 0 requires no capability", requiredCapabilities("0").length === 0);
+  check("V3 requires payments", requiredCapabilities("2.V3").includes("payments"));
+  check("payments is not relevant at stage 0", !requiredCapabilities("0").includes("payments"));
+  check("isRequiredNow is true when the capability's phase is in state.active", isRequiredNow("payments", ["2.V3"]) === true);
+  check("isRequiredNow is false when no active phase needs the capability", isRequiredNow("payments", ["0.1"]) === false);
+  check("isRequiredNow unions across multiple active phases (the pipeline is a DAG)", isRequiredNow("multi_llm", ["0.1", "3.R1"]) === true);
+  check("earliestPhaseFor names a phase for a phase-gated capability", typeof earliestPhaseFor("payments") === "string");
+  check("an unrecognized phase id requires nothing (never treated as requiring everything)", requiredCapabilities("nonexistent-phase-xyz").length === 0);
+
+  const sa = fs.readFileSync(path.join(ROOT, "skills", "setup-audit", "SKILL.md"), "utf8");
+  check("setup-audit computes required_now from phase-relevance.js", /phase-relevance\.js/.test(sa) && /required_now/.test(sa));
+  check("setup-audit never reports a not-yet-needed capability as more than INFORMATIONAL", /INFORMATIONAL/.test(sa));
+
+  const gk = fs.readFileSync(path.join(ROOT, "agents", "gatekeeper.md"), "utf8");
+  check("gatekeeper forbids faulting an idea for a required_now:false capability gap", /required_now/.test(gk) && /forbidden/.test(gk));
+
+  const codexGk = fs.readFileSync(path.join(ROOT, ".codex", "agents", "gatekeeper.toml"), "utf8");
+  check("the codex gatekeeper mirror carries the same capability-gap item (sync-codex-agents ran)", /required_now/.test(codexGk));
+}
+
+// ---------------------------------------------------------------------------
+console.log("== v1.12.0: declare-drift --release mode, session-start, status ==");
+{
+  const dd = fs.readFileSync(path.join(ROOT, "skills", "declare-drift", "SKILL.md"), "utf8");
+  check("declare-drift documents --release mode", /--release/.test(dd) && /mvp_release_declared_at/.test(dd));
+  check("--release requires V1 to already be deferred", /gates\.V1\.status === "deferred"/.test(dd));
+  check("--release flips post_launch_validation.status to reactivated", /reactivated/.test(dd));
+
+  const status = fs.readFileSync(path.join(ROOT, "skills", "status", "SKILL.md"), "utf8");
+  check("status reports post_launch_validation", /post_launch_validation/.test(status));
+  check("status flags reactivated first and loudly", /reactivated.{0,80}first|first.{0,80}reactivated/is.test(status));
+
+  // session-start: a reactivated post_launch_validation is surfaced loudly.
+  const dir = tmpdir("sessionstart-plv-");
+  const ideaDir = path.join(dir, "ideas", "demo");
+  fs.mkdirSync(ideaDir, { recursive: true });
+  fs.writeFileSync(
+    path.join(ideaDir, "state.json"),
+    JSON.stringify({
+      pipeline_version: "1.12.0",
+      idea: "demo",
+      active: ["2.V1"],
+      mode: "analysis",
+      gates: { V1: { status: "deferred" } },
+      kill_criteria: [],
+      post_launch_validation: {
+        register_ref: "post-launch-validation-register.md",
+        status: "reactivated",
+        mvp_release_declared_at: "2026-08-02T10:00:00Z",
+        reopen_on: "founder declared the controlled MVP release",
+      },
+    })
+  );
+  let out = "";
+  try {
+    out = execFileSync(process.execPath, [path.join(ROOT, "hooks", "scripts", "session-start.js")], {
+      input: JSON.stringify({ cwd: dir }),
+      encoding: "utf8",
+    });
+  } catch (e) {
+    out = (e.stdout || "") + (e.stderr || "");
+  }
+  check("a reactivated post_launch_validation is surfaced", /POST-LAUNCH VALIDATION DUE/.test(out), out.slice(0, 300));
+  check("the reopen condition is named", /founder declared the controlled MVP release/.test(out));
+
+  // A pending (not-yet-reactivated) post_launch_validation must NOT trigger the loud flag.
+  fs.writeFileSync(
+    path.join(ideaDir, "state.json"),
+    JSON.stringify({
+      pipeline_version: "1.12.0",
+      idea: "demo",
+      active: ["2.V1"],
+      mode: "analysis",
+      gates: { V1: { status: "deferred" } },
+      kill_criteria: [],
+      post_launch_validation: { register_ref: "post-launch-validation-register.md", status: "pending", mvp_release_declared_at: null, reopen_on: "x" },
+    })
+  );
+  let out2 = "";
+  try {
+    out2 = execFileSync(process.execPath, [path.join(ROOT, "hooks", "scripts", "session-start.js")], {
+      input: JSON.stringify({ cwd: dir }),
+      encoding: "utf8",
+    });
+  } catch (e) {
+    out2 = (e.stdout || "") + (e.stderr || "");
+  }
+  check("a merely pending post_launch_validation does not trigger the loud flag", !/POST-LAUNCH VALIDATION DUE/.test(out2));
+}
+
+// ---------------------------------------------------------------------------
+console.log("== v1.12.0: coverage-report registers the new mechanisms ==");
+{
+  const { REQUIREMENTS } = require(path.join(ROOT, "scripts", "coverage-report.js"));
+  const ids = REQUIREMENTS.map((r) => r.id);
+  for (const id of [
+    "v1-deferred-status-shape",
+    "v1-defer-ceremony-nonskippable",
+    "pack-verdict-founder-authorized-track",
+    "v1-deferred-never-will-override",
+    "phase-relevance-gating",
+    "capability-gap-not-a-review-finding",
+    "post-launch-validation-reactivated-surfaced",
+  ]) {
+    check(`coverage-report registers "${id}"`, ids.includes(id));
+  }
+}
+
+// Note: the v1.12.0 "version bump propagated" block (which asserted
+// plugin.json's LIVE version equalled 1.12.0) is superseded by this patch's
+// own such block below, following the same precedent the v1.11.0 block set
+// when v1.12.0 landed — a "current version is X" assertion is immediately
+// stale on the next bump, so only the latest patch keeps one; the CHANGELOG
+// itself is the permanent historical record.
+
+// ---------------------------------------------------------------------------
+console.log("== v1.13.0: detect-stale-criteria.js ==");
+{
+  const { detect } = require(path.join(ROOT, "scripts", "detect-stale-criteria.js"));
+
+  const stateWithTriggered = {
+    kill_criteria: [
+      { id: "K1", desired_state: "reach 12 mined individuals", by_date: "2026-07-01", then: "stop", status: "triggered" },
+    ],
+    health_criteria: [
+      { id: "H1", desired_state: "retention holds above 40%", by_date: "2026-07-01", then: "review", status: "triggered" },
+    ],
+  };
+
+  check(
+    "no decision-log at all => no stale findings (nothing to compare against)",
+    detect(stateWithTriggered, "").length === 0
+  );
+
+  const logNoMention = "| date | type | decision | alternatives considered | rationale | evidence | detail |\n" +
+    "|---|---|---|---|---|---|---|\n" +
+    "| 2026-07-15 | pivot | switched segment | - | founder call | - | - |\n";
+  check("a later row that never mentions the criterion => no finding", detect(stateWithTriggered, logNoMention).length === 0);
+
+  const logResolves = "| date | type | decision | alternatives considered | rationale | evidence | detail |\n" +
+    "|---|---|---|---|---|---|---|\n" +
+    "| 2026-07-15 | pivot | K1 resolved: re-measured at 14 mined individuals, cleared | - | founder call | - | - |\n";
+  const found = detect(stateWithTriggered, logResolves);
+  check("a later row naming the id + resolution language => a finding", found.some((f) => f.id === "K1"));
+  check("the proposed patch defaults to cleared (no retirement language)", found.find((f) => f.id === "K1").proposed_status === "cleared");
+
+  const logDisposition = "| date | type | decision | alternatives considered | rationale | evidence | detail |\n" +
+    "|---|---|---|---|---|---|---|\n" +
+    "| 2026-07-20 | criterion-disposition | K1 retired | - | discovery question settled | - | - |\n";
+  const foundDisp = detect(stateWithTriggered, logDisposition);
+  check("a criterion-disposition row naming the id => a finding proposing retired", foundDisp.find((f) => f.id === "K1" && f.proposed_status === "retired") !== undefined);
+
+  const foundHealth = detect(stateWithTriggered, logResolves.replace("K1", "H1"));
+  check("health_criteria never proposes retired (no such status)", foundHealth.find((f) => f.id === "H1").proposed_status === "cleared");
+
+  const stateAlreadyCleared = { kill_criteria: [{ ...stateWithTriggered.kill_criteria[0], status: "cleared" }] };
+  check("a criterion that is not \"triggered\" is never flagged, even with a resolving row", detect(stateAlreadyCleared, logResolves).length === 0);
+
+  // K10 must not false-positive on a K1 word-boundary search.
+  const stateK10 = { kill_criteria: [{ id: "K10", desired_state: "x", by_date: "2026-07-01", then: "stop", status: "triggered" }] };
+  check("word-boundary id matching: K1's resolution text does not falsely resolve K10", detect(stateK10, logResolves).length === 0);
+
+  // CLI: reads only persisted files, never session memory (method-rules §1).
+  const dsc = fs.readFileSync(path.join(ROOT, "scripts", "detect-stale-criteria.js"), "utf8");
+  check("detect-stale-criteria.js states the session-memory constraint as a comment", /session transcripts are never/i.test(dsc) && /method-rules §1/.test(dsc));
+  check("detect-stale-criteria.js never writes state.json", !/fs\.writeFileSync/.test(dsc));
+
+  const dir = tmpdir("stale-cli-");
+  fs.writeFileSync(path.join(dir, "state.json"), JSON.stringify(stateWithTriggered));
+  fs.writeFileSync(path.join(dir, "decision-log.md"), logResolves);
+  let r = runNode("scripts/detect-stale-criteria.js", [dir, "--json"]);
+  check("CLI exits 1 when stale findings exist", r.code === 1);
+  const out = JSON.parse(r.stdout);
+  check("CLI JSON reports the finding with a resolving_row and proposed_status", out.findings.some((f) => f.id === "K1" && f.proposed_status));
+
+  fs.writeFileSync(path.join(dir, "decision-log.md"), logNoMention);
+  r = runNode("scripts/detect-stale-criteria.js", [dir, "--json"]);
+  check("CLI exits 0 when nothing is stale", r.code === 0);
+}
+
+// ---------------------------------------------------------------------------
+console.log("== v1.13.0: reconcile-pre-lock.js ==");
+{
+  const { reconcilePreLock, anyCycleLocked, checkNoPostLaunchLeakIntoWaitingOn } = require(path.join(ROOT, "scripts", "reconcile-pre-lock.js"));
+
+  check("anyCycleLocked is true when a cycle is locked", anyCycleLocked({ cycles: [{ id: "C1", status: "locked" }] }));
+  check("anyCycleLocked is true when a cycle is stopped", anyCycleLocked({ cycles: [{ id: "C1", status: "stopped" }] }));
+  check("anyCycleLocked is false while every cycle is still validation/framing", !anyCycleLocked({ cycles: [{ id: "C1", status: "validation" }] }));
+
+  const preMvpPlv = { register_ref: "post-launch-validation-register.md", status: "pending", mvp_release_declared_at: null, reopen_on: "new contradictory post-launch evidence" };
+  const leaked = {
+    post_launch_validation: preMvpPlv,
+    waiting_on: [
+      { what: "run V1 for real", needed_for: "post-launch-validation-register.md follow-up", resume_when: "MVP ships", owner: "founder", expires_or_recheck_at: null },
+    ],
+  };
+  const divergences = checkNoPostLaunchLeakIntoWaitingOn(leaked);
+  check("a waiting_on entry mentioning the register while pre-MVP => a deterministic divergence", divergences.length === 1);
+  check("the divergence carries a proposed patch", typeof divergences[0].proposed_patch === "string" && divergences[0].proposed_patch.length > 0);
+
+  const notLeaked = { post_launch_validation: preMvpPlv, waiting_on: [{ what: "interview transcripts", needed_for: "V1", resume_when: "transcripts arrive", owner: "founder", expires_or_recheck_at: null }] };
+  check("an unrelated waiting_on entry is never flagged", checkNoPostLaunchLeakIntoWaitingOn(notLeaked).length === 0);
+
+  const postMvp = { post_launch_validation: { ...preMvpPlv, status: "reactivated" }, waiting_on: leaked.waiting_on };
+  check("once reactivated (post-MVP-release), the same entry is no longer a leak", checkNoPostLaunchLeakIntoWaitingOn(postMvp).length === 0);
+
+  check("no post_launch_validation at all => never a leak finding", checkNoPostLaunchLeakIntoWaitingOn({ waiting_on: leaked.waiting_on }).length === 0);
+
+  // reconcilePreLock() combines all three checks; (a)/(b) are always open_questions, never divergences.
+  const combined = reconcilePreLock(leaked, tmpdir("prelock-combine-"));
+  check("reconcilePreLock() surfaces the deterministic (c) leak as a divergence, not a question", combined.divergences.length === 1);
+
+  // CLI guard: refuses once a cycle has reached LOCK.
+  const dirLocked = tmpdir("prelock-locked-");
+  fs.writeFileSync(path.join(dirLocked, "state.json"), JSON.stringify({ cycles: [{ id: "C1", status: "locked" }], waiting_on: [] }));
+  let r = runNode("scripts/reconcile-pre-lock.js", [dirLocked, "--json"]);
+  check("CLI refuses (exit 2) once a cycle has reached LOCK — this is reconcile's scope, not this script's", r.code === 2);
+  check("the refusal names the reconcile skill as the right tool", /reconcile/.test(r.stdout) || /reconcile/.test(r.stderr));
+
+  const dirClean = tmpdir("prelock-clean-");
+  fs.writeFileSync(path.join(dirClean, "state.json"), JSON.stringify({ cycles: [{ id: "C1", status: "validation" }], waiting_on: [] }));
+  r = runNode("scripts/reconcile-pre-lock.js", [dirClean, "--json"]);
+  check("CLI exits 0 on a clean pre-LOCK idea with nothing to surface", r.code === 0);
+
+  const dirLeak = tmpdir("prelock-leak-");
+  fs.writeFileSync(path.join(dirLeak, "state.json"), JSON.stringify({ cycles: [{ id: "C1", status: "validation" }], ...leaked }));
+  r = runNode("scripts/reconcile-pre-lock.js", [dirLeak, "--json"]);
+  check("CLI exits 1 when a divergence is present", r.code === 1);
+
+  // Session-memory constraint, same as detect-stale-criteria.js.
+  const rpl = fs.readFileSync(path.join(ROOT, "scripts", "reconcile-pre-lock.js"), "utf8");
+  check("reconcile-pre-lock.js states the session-memory constraint as a comment", /session.{0,20}memory/i.test(rpl) && /method-rules §1/.test(rpl));
+  check("reconcile-pre-lock.js never writes state.json", !/fs\.writeFileSync/.test(rpl));
+  check("reconcile-pre-lock.js's header distinguishes itself from the post-LOCK reconcile skill", /NOT a duplicate/.test(rpl) && /post-LOCK/.test(rpl));
+}
+
+// ---------------------------------------------------------------------------
+console.log("== v1.13.0: status-metrics.js ==");
+{
+  const { computeWorkCompletion, computeGateCompliance } = require(path.join(ROOT, "scripts", "status-metrics.js"));
+
+  const dir = tmpdir("statusmetrics-");
+  const fm = (stage, status) =>
+    `---\nartifact: x\nidea: demo\nstage: ${stage}\ngate: V1\nstatus: ${status}\nevidence_grade: none\nrung: baseline-auto\npipeline_version: 1.13.0\nupdated: 2026-08-02\n---\nbody\n`;
+  fs.writeFileSync(path.join(dir, "a.md"), fm(2, "draft"));
+  fs.writeFileSync(path.join(dir, "b.md"), fm(2, "ready"));
+  fs.writeFileSync(path.join(dir, "c.md"), fm(2, "locked"));
+  fs.writeFileSync(path.join(dir, "d.md"), fm(0, "ready")); // not in the active stage — must not count
+  fs.mkdirSync(path.join(dir, "private"), { recursive: true });
+  fs.writeFileSync(path.join(dir, "private", "e.md"), fm(2, "draft")); // private/ excluded
+
+  const wc = computeWorkCompletion(dir, ["2.V1"]);
+  check("work completion counts only the active stage's artifacts", wc["2"].total === 3);
+  check("work completion counts draft/ready/locked correctly", wc["2"].draft === 1 && wc["2"].ready === 1 && wc["2"].locked === 1);
+  check("work completion excludes private/", wc["2"].total === 3);
+  check("work completion computes pct_ready_or_locked deterministically", wc["2"].pct_ready_or_locked === Number(((2 / 3) * 100).toFixed(1)));
+
+  const wcEmpty = computeWorkCompletion(dir, ["5.LOCK"]);
+  check("a stage with zero artifacts reports null pct, not a fabricated 0%", wcEmpty["5"].total === 0 && wcEmpty["5"].pct_ready_or_locked === null);
+
+  const gc = computeGateCompliance({
+    gates: {
+      F: { status: "passed" }, C: { status: "passed" }, V1: { status: "deferred" },
+      V2: { status: "open" }, V3: { status: "pass_with_deviation" }, R1: { status: "pending" },
+      R2: { status: "pending" }, P: { status: "pending" }, LOCK: { status: "pending" },
+    },
+    blueprint: { gate: { status: "in_progress" } },
+  });
+  check("gate compliance counts each status bucket correctly", gc.counts.passed === 2 && gc.counts.deferred === 1 && gc.counts.open === 1 && gc.counts.pass_with_deviation === 1 && gc.counts.pending === 4);
+  check("gate compliance reports BP separately, outside the cycle gates object", gc.bp_gate_status === "in_progress");
+  check("gate compliance total matches the number of gates", gc.total === 9);
+
+  // CLI smoke test.
+  fs.writeFileSync(path.join(dir, "state.json"), JSON.stringify({ active: ["2.V1"], gates: { F: { status: "passed" } } }));
+  const r = runNode("scripts/status-metrics.js", [dir, "--json"]);
+  check("CLI exits 0 and emits both metrics", r.code === 0, r.stderr);
+  const out = JSON.parse(r.stdout);
+  check("CLI JSON has work_completion and gate_compliance", !!out.work_completion && !!out.gate_compliance);
+}
+
+// ---------------------------------------------------------------------------
+console.log("== v1.13.0: validate-evidence-ledger.js --summary grade histogram ==");
+{
+  const dir = tmpdir("ledger-summary-");
+  const ledgerPath = path.join(dir, "evidence-ledger.md");
+  const header = "| id | date | source | root_source_id | type | url_or_ref | retrieved | via | verbatim_or_observation | assumption | grade | bearing | scope_limits | relationship | supersedes |\n" +
+    "|----|------|--------|----------------|------|-----------|-----------|-----|-------------------------|------------|-------|---------|--------------|--------------|------------|\n";
+  const row = (id, root, grade) => `| ${id} | 2026-07-29 | src | ${root} | community | https://x | 2026-07-29 | m1 | "q" | A1 | ${grade} | supports | scope | - | - |\n`;
+  fs.writeFileSync(ledgerPath, header + row("E1", "RS-a", "A") + row("E2", "RS-b", "B") + row("E3", "RS-c", "B") + row("E4", "RS-d", "C"));
+
+  const r = runNode("scripts/validate-evidence-ledger.js", [ledgerPath, "--json", "--summary"]);
+  check("CLI exits 0 on a valid ledger with --summary", r.code === 0, r.stderr);
+  const out = JSON.parse(r.stdout);
+  check("grade_histogram.all counts each grade correctly", out.grade_histogram.all.A === 1 && out.grade_histogram.all.B === 2 && out.grade_histogram.all.C === 1 && out.grade_histogram.all.D === 0);
+  check("grade_histogram.live equals .all when nothing is superseded", JSON.stringify(out.grade_histogram.live) === JSON.stringify(out.grade_histogram.all));
+
+  // Without --summary, no histogram is emitted (additive flag, not a default behavior change).
+  const r2 = runNode("scripts/validate-evidence-ledger.js", [ledgerPath, "--json"]);
+  const out2 = JSON.parse(r2.stdout);
+  check("without --summary, no grade_histogram key is present", !("grade_histogram" in out2));
+
+  // A superseded row must not count in the live histogram.
+  fs.writeFileSync(ledgerPath, header + row("E1", "RS-a", "A") + row("E2", "RS-b", "B").replace("| - |\n", "| E1 |\n"));
+  const r3 = runNode("scripts/validate-evidence-ledger.js", [ledgerPath, "--json", "--summary"]);
+  const out3 = JSON.parse(r3.stdout);
+  check("a superseded row's grade counts in .all but not in .live", out3.grade_histogram.all.A === 1 && out3.grade_histogram.live.A === 0);
+}
+
+// ---------------------------------------------------------------------------
+console.log("== v1.13.0: method-rules §15 auto-continue policy + §12/§16 renumbering ==");
+{
+  const mr = fs.readFileSync(path.join(ROOT, "skills", "method-rules", "SKILL.md"), "utf8");
+  check("method-rules has exactly one section numbered 12 (the cross-domain-recertification one)", (mr.match(/^## 12\./gm) || []).length === 1);
+  check("method-rules has exactly one section numbered 15 (the new auto-continue policy)", (mr.match(/^## 15\./gm) || []).length === 1);
+  check("method-rules has exactly one section numbered 16 (the renumbered Language section)", (mr.match(/^## 16\./gm) || []).length === 1);
+  check("§15 names all four non-skippable ceremonies", /F-signing/.test(mr) && /LOCK charter/.test(mr) && /override sub-ceremony|FAIL override/.test(mr) && /V1-deferral/.test(mr));
+  {
+    const s15 = mr.slice(mr.indexOf("## 15."), mr.indexOf("## 16."));
+    check("§15 cross-references §7 for outward actions", /§7/.test(s15));
+  }
+  check("§15 states auto_continue never suppresses surfacing", /never suppresses.{0,30}surfacing/i.test(mr));
+  check("§15 cross-references guard-thresholds.js's ask() as the hook-layer BLOCKING example", /guard-thresholds\.js/.test(mr) && /ask\(\)/.test(mr));
+
+  const gc = fs.readFileSync(path.join(ROOT, "skills", "gate-check", "SKILL.md"), "utf8");
+  const oldPhraseCount = (gc.match(/does NOT cover|never covers it\b/g) || []).length;
+  check("gate-check no longer restates the general auto_continue rule inline (consolidated to §15)", oldPhraseCount === 0);
+  const crossRefCount = (gc.match(/method-rules §15/g) || []).length;
+  check("gate-check cross-references method-rules §15 at least 4 times (one per ceremony instance)", crossRefCount >= 4);
+}
+
+// ---------------------------------------------------------------------------
+console.log("== v1.13.0: gate-check Layer 0 wires the two new detectors ==");
+{
+  const gc = fs.readFileSync(path.join(ROOT, "skills", "gate-check", "SKILL.md"), "utf8");
+  check("gate-check Layer 0 runs reconcile-pre-lock.js before any ceremony", /reconcile-pre-lock\.js/.test(gc));
+  check("gate-check Layer 0 runs detect-stale-criteria.js before any ceremony", /detect-stale-criteria\.js/.test(gc));
+  check("gate-check states patches are applied only via state-write.js on explicit confirmation", /state-write\.js[\s\S]{0,200}(never auto|only.{0,20}confirm)|(never auto|only.{0,20}confirm)[\s\S]{0,200}state-write\.js/i.test(gc));
+  check("gate-check scopes reconcile-pre-lock.js to no cycle having reached LOCK", /no cycle.{0,40}(has )?reached LOCK|reached LOCK[\s\S]{0,60}no cycle/i.test(gc));
+
+  const status = fs.readFileSync(path.join(ROOT, "skills", "status", "SKILL.md"), "utf8");
+  check("status runs reconcile-pre-lock.js as its first mechanical step", /reconcile-pre-lock\.js/.test(status));
+  check("status runs detect-stale-criteria.js under kill-criteria reporting", /detect-stale-criteria\.js/.test(status));
+  check("status reports the four separate gate metrics by name", /Work completion/.test(status) && /Formal gate compliance/.test(status) && /Evidence confidence/.test(status) && /Build readiness/.test(status));
+  check("status names the six explicit per-gate fields replacing ambiguous accepted-open reporting", ["analysis_complete", "gate_passed", "risk_accepted", "validation_deferred", "revisit_phase", "blocks_current_phase"].every((f) => status.includes(f)));
+
+  const schema = fs.readFileSync(path.join(ROOT, "skills", "method-rules-artifact-schema", "SKILL.md"), "utf8");
+  check("decision-log type enum includes pre-lock-reconcile", /`pre-lock-reconcile`/.test(schema));
+  check("the pre-lock-reconcile detail shape is documented", /divergences=<n>; patched=<list>; open_questions=<list>/.test(schema));
+}
+
+// ---------------------------------------------------------------------------
+console.log("== v1.13.0: session-start.js tagging + guard-thresholds.js BLOCKING comment ==");
+{
+  const dir = tmpdir("sessionstart-tags-");
+  const ideaDir = path.join(dir, "ideas", "demo");
+  fs.mkdirSync(ideaDir, { recursive: true });
+  fs.writeFileSync(
+    path.join(ideaDir, "state.json"),
+    JSON.stringify({
+      pipeline_version: "1.13.0",
+      idea: "demo",
+      active: ["2.V1"],
+      mode: "analysis",
+      gates: { F: { status: "passed" } },
+      kill_criteria: [{ id: "K1", desired_state: "x", by_date: "2026-01-01", then: "stop", status: "armed" }],
+      waiting_on: [{ what: "transcripts", needed_for: "V1", resume_when: "arrive", owner: "founder" }],
+    })
+  );
+  const out = execFileSync(process.execPath, [path.join(ROOT, "hooks", "scripts", "session-start.js")], {
+    input: JSON.stringify({ cwd: dir }),
+    encoding: "utf8",
+  });
+  check("session-start line still anchors on \"- demo:\" with no tag before it", out.includes("- demo:"));
+  check("overdue kill criteria are tagged ACTION_REQUIRED_LATER", /ACTION_REQUIRED_LATER[\s\S]{0,10}!! KILL CRITERIA OVERDUE/.test(out));
+  check("waiting-on is tagged INFORMATIONAL", /INFORMATIONAL[\s\S]{0,10}waiting on:/.test(out));
+  check("session-start.js never emits a [BLOCKING] tag anywhere", !out.includes("[BLOCKING]"));
+
+  const ss = fs.readFileSync(path.join(ROOT, "hooks", "scripts", "session-start.js"), "utf8");
+  check("session-start.js documents that it never blocks", /THIS HOOK NEVER BLOCKS/.test(ss));
+
+  const gt = fs.readFileSync(path.join(ROOT, "hooks", "scripts", "guard-thresholds.js"), "utf8");
+  check("guard-thresholds.js documents its ask() calls as the hook-layer BLOCKING example", /\[BLOCKING\]/.test(gt) && /ask\(\)/.test(gt));
+}
+
+// ---------------------------------------------------------------------------
+console.log("== v1.13.0: coverage-report registers the new mechanisms ==");
+{
+  const { REQUIREMENTS } = require(path.join(ROOT, "scripts", "coverage-report.js"));
+  const ids = REQUIREMENTS.map((r) => r.id);
+  for (const id of [
+    "stale-triggered-criteria-detection",
+    "pre-lock-reconcile-divergence-detection",
+    "status-work-completion-pct",
+    "status-gate-compliance-counts",
+    "status-evidence-confidence-synthesis",
+    "status-build-readiness-synthesis",
+    "auto-continue-execution-policy",
+  ]) {
+    check(`coverage-report registers "${id}"`, ids.includes(id));
+  }
+  // The pre-LOCK and any post-LOCK reconcile entries must never collide.
+  const dupes = ids.filter((id, i) => ids.indexOf(id) !== i);
+  check("no duplicate requirement ids in coverage-report", dupes.length === 0, dupes.join(", "));
+}
+
+// ---------------------------------------------------------------------------
+console.log("== v1.13.0: version bump propagated ==");
+{
+  const claude = JSON.parse(fs.readFileSync(path.join(ROOT, ".claude-plugin", "plugin.json"), "utf8"));
+  check("plugin.json is 1.13.0", claude.version === "1.13.0");
+  const codex = JSON.parse(fs.readFileSync(path.join(ROOT, ".codex-plugin", "plugin.json"), "utf8"));
+  check("codex manifest matches", codex.version === "1.13.0");
+  const changelog = fs.readFileSync(path.join(ROOT, "CHANGELOG.md"), "utf8");
+  check("CHANGELOG.md has a v1.13.0 entry", /## v1\.13\.0/.test(changelog));
+  check(
+    "the v1.13.0 entry names the founder's observed pain (stale waiting_on/gate state, conflated status reporting)",
+    /## v1\.13\.0[\s\S]{0,1500}stale/i.test(changelog)
+  );
+}
 
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

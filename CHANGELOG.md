@@ -5,6 +5,163 @@ multi-session conflict inventory and its resolution log) was development residue
 from the working tree — it remains recoverable in git history at commit `fd7732b` and earlier
 (`git show fd7732b:plugin/conflicts-inventory.md`, etc.).
 
+## v1.13.0 — 2026-08-02 · status stops lying by omission; stale state stops going unnoticed
+
+Patch 3 of the 3-patch series (see v1.11.0, v1.12.0) — the last one. The founder's other two
+observed pains from actually running the pipeline: **`waiting_on` and gate state going stale or
+inconsistent with reality** (a kill criterion left `status: "triggered"` long after a decision-log
+row had plainly resolved it; entries sitting in `waiting_on` that no longer matched what the
+artifacts showed), and **`status` conflating four different things into one number** — "work done",
+"gates formally passed", "evidence strength", and "ready to build" — so a founder reading the output
+could not tell which of those it was actually reporting, and it sometimes did not match what the
+artifacts on disk showed at all.
+
+- **`scripts/detect-stale-criteria.js`** (new) — any `kill_criteria`/`health_criteria` entry still
+  `status: "triggered"` that a later `decision-log.md` row plainly resolves (names the criterion id,
+  or is a `criterion-disposition` row) is a finding with a proposed patch (`cleared` or `retired`,
+  per what the resolving row implies). Reads only `state.json` + `decision-log.md` — **never session
+  memory** (method-rules §1, stated as a comment in the script itself). Wired into `status` (kill
+  -criteria reporting) and `gate-check` Layer 0 (before any ceremony); findings are surfaced for
+  confirmation and a patch is applied — if at all — only via `state-write.js` on the user's explicit
+  confirmation, never automatically (same posture this plugin already uses for privacy-duty
+  disposal).
+- **`scripts/reconcile-pre-lock.js`** (new) — the pre-LOCK-scoped, lighter counterpart to the
+  existing post-LOCK-only `reconcile` skill (it is not a duplicate: no locked baseline, no claim
+  register, no two-phase publish exists before LOCK, so this only checks `waiting_on[]` entries that
+  look satisfiable, a real pending founder decision with no `waiting_on` entry, and — new since
+  Patch 2 — a `post_launch_validation` register item that leaked into `waiting_on` before the MVP
+  release was declared). Refuses to run once any cycle has reached LOCK (the mirror of `reconcile`'s
+  own "no cycle has reached LOCK yet" guard). Deterministic divergences get a proposed patch;
+  judgment calls that require reading artifact prose are surfaced as open questions only. New
+  decision-log `type: "pre-lock-reconcile"` (`method-rules-artifact-schema`). Wired into `status` and
+  `gate-check` Layer 0 as the first mechanical step.
+- **`status` reports four separate metrics instead of one conflated "Gates" line**: work completion %
+  (artifact status counts for the active stage, deterministic arithmetic), formal gate compliance
+  (counts by status including `pass_with_deviation`/`deferred`), evidence confidence (ledger grade
+  histogram + `V3.evidence_grade_observed`, reported together rather than averaged into a false
+  precision), and build readiness (LOCK/BP/blueprint synthesis, folded in rather than duplicated).
+  The old ambiguous "accepted-open" line is replaced with six explicit per-gate fields —
+  `analysis_complete`, `gate_passed`, `risk_accepted`, `validation_deferred`, `revisit_phase`,
+  `blocks_current_phase` — computed from fields Patches 1–2 already added, no further schema change.
+  **`scripts/status-metrics.js`** (new) computes the two purely-arithmetic metrics so `status` stays
+  a thin reporting layer; **`scripts/validate-evidence-ledger.js`** gains a `--summary` flag (grade
+  histogram) rather than a second validator.
+- **`method-rules` gains §15 "Auto-continue & execution policy"**: `auto_continue` proceeds within a
+  stage and across non-blocked stage transitions, and stops only for a named non-skippable ceremony
+  (F-signing / LOCK-charter / the FAIL override sub-ceremony / V1-deferral — cross-referenced by
+  name), any outward action (§7), an unrecoverable tool failure, a safety/legal constraint, or a
+  kill/health-criterion trigger — and never suppresses *surfacing* a non-blocking finding, only the
+  confirmation gate on something already blocking. `gate-check`'s scattered "auto_continue never
+  covers it" asides are consolidated into a single cross-reference to §15. Drive-by fix: method-rules
+  had two sections both numbered "## 12." (a numbering bug, not two legal ids) — the duplicate
+  `Language` section is renumbered `## 16.` so the new policy section can be `## 15.` in sequence.
+- `hooks/scripts/session-start.js` lines are now tagged `[BLOCKING]` / `[ACTION_REQUIRED_LATER]` /
+  `[INFORMATIONAL]` (labeling only — this hook has never blocked anything, since SessionStart output
+  carries no `permissionDecision`; every emitted line is `[INFORMATIONAL]` or
+  `[ACTION_REQUIRED_LATER]`, never `[BLOCKING]`, and the header comment now says so explicitly).
+  `hooks/scripts/guard-thresholds.js` gains a comment (mirrored in §15) identifying its `ask()` calls
+  as the one place in the hook layer that gates a tool call itself before it runs — everything else
+  informs or corrects after the fact.
+- `scripts/coverage-report.js` gains 7 entries for the mechanisms above.
+
+Tests: **440** contract tests, 198 hook tests, 0 failures.
+
+## v1.12.0 — 2026-08-02 · V1 gets a deferred/hypothesis track instead of an endless pre-build loop
+
+Patch 2 of the 3-patch series (see v1.11.0). The founder's actual intended flow on some ideas is
+passive research → analysis → spike → positioning → scope lock → blueprint → **build MVP** →
+controlled release → **then** real human validation — but V1 (problem-evidence) was, by design, the
+one validation gate with no accepted-open path (unlike V2/V3/R2). With no honest way to record "defer
+this to post-launch", the pipeline's only two options were: force another pre-build research round the
+founder had already decided not to run, or let a pack that never collected real problem evidence read
+as if it had. Neither is acceptable, and the second is the more dangerous failure — a silently
+mislabeled pack undermines the entire point of graded evidence.
+
+- **`gates.V1.status` gains `deferred`** (`schema_version` 1.4.0 → 1.5.0), **legal only for V1** —
+  parallel to how `open` is gate-specific, and enforced in code (`state-write.js` rejects `deferred`
+  on any other gate), not just prose. Requires `{deferred_reopen_on, deferred_date, register_ref}`;
+  `deferred_reopen_on` is the founder's own wording, never auto-generated (offered three example
+  categories as prompts: new contradictory evidence / founder explicitly reopens / a hard
+  safety-or-legal conflict). Set only by `gate-check`'s new Layer-0 **`--ceremony=defer`** invocation
+  — structurally parallel to the F-signing and LOCK-charter ceremonies, never `auto_continue`-skippable,
+  ceremony-only (returns to the caller, never falls into Layer 1).
+- **`scripts/pack-verdict.js` gains a 4th verdict tier**, checked before the pre-existing three:
+  `gates.V1.status === "deferred"` → `FOUNDER-AUTHORIZED HYPOTHESIS TRACK`, regardless of how
+  V2/V3/R1/R2 resolve — never `VALIDATED`, never plain `HYPOTHESIS`. `deferred` is its own bucket,
+  never folded into the `resolved()` helper's true/false, so it can never be silently treated as
+  either a `passed` or an `open` gate. The pre-existing three-tier logic is unchanged for any state
+  that never sets `deferred` (fixtures assert this explicitly).
+- **Kept structurally distinct from `will-override`, on purpose.** A will-override is for a gate that
+  was formally checked and FAILED; V1-deferral is for a gate **never attempted at all**, by explicit
+  founder choice, with named reopen conditions. Different decision-log `type` (`founder-decision`,
+  reusing Patch 1's primitive — not `will-override`), different artifact
+  (`post-launch-validation-register.md`, not `unvalidated-build-decision.md`), different
+  `pack-verdict.js` code path. `method-rules-gate-contracts` documents this explicitly in a new "V1
+  deferred track" subsection and in the will-override boundary section, so the distinction survives
+  future edits.
+- **`post-launch-validation-register.md`** (new artifact, idea root) tracks what was deferred, why,
+  and the exact reopen condition. **`declare-drift --release`** (reusing the existing "something
+  happened in the world" entry point) is how the founder later declares the controlled MVP release:
+  it sets the new top-level `post_launch_validation.mvp_release_declared_at` and flips
+  `post_launch_validation.status` to `reactivated` — surfaced loudly and first by both
+  `session-start.js` and `status` from that point on, the same way an overdue kill criterion is.
+- **Capability phase-relevance**: `scripts/lib/phase-relevance.js` (new, mirrors `lib/spec-index.js`'s
+  sharing pattern) gives `setup-audit` a static phase→capability map so `capabilities.<cap>` gains
+  `required_in_phase`/`required_now`/`blocks[]` and a not-yet-needed capability is never reported as
+  more than `INFORMATIONAL`. `agents/gatekeeper.md` gains a matching checklist item: faulting an idea
+  for a `required_now: false` capability gap is a finding against the review, not the idea.
+- `scripts/coverage-report.js` gains 8 entries for the mechanisms above.
+
+Tests: **437** contract tests, 198 hook tests, 0 failures.
+
+## v1.11.0 — 2026-08-02 · gate reviews converge; research agents stop re-scanning the same page
+
+Patch 1 of a 3-patch series answering 21 requirements the founder wrote up from actually running the
+pipeline (per the moratorium, method-rules §14: every rule here cites an observed failure, not a design
+argument). Two pains, both real: **gatekeeper review rounds that never converged** — round 2 (and 3)
+would fail a gate over a *different* wording/editorial nitpick than round 1 raised, so a founder fixing
+everything asked for still never reached a verdict; and **research agents re-scanning identical URLs**
+across runs, with no pre-registered stop on how much fetching a task was allowed to spend.
+
+- **Gatekeeper severity taxonomy replaced**: `blocker`/`major`/`minor` (a vibe) →
+  `MATERIAL_BLOCKER`/`AUTO_FIXABLE_NON_BLOCKER`/`DEFERRED_RISK` (a checklist). A `MATERIAL_BLOCKER`
+  needs all six fields (finding id, exact file+section, exact missing/contradictory content, downstream
+  consequence, minimum patch, contract clause) or it is automatically demoted — no more failing a gate
+  on a claim too vague to act on.
+- **Review-scope freeze** (`skills/gate-check/SKILL.md`, new — kept under its own name, never merged
+  with the pre-existing "Contract changes are not retroactive" rule in `method-rules-gate-contracts`:
+  that one is cross-pipeline-version immutability of a *passed* gate; this one is within-one-gate-check
+  consistency between round 1 and round 2 of the *same* attempt). Round 2 may only re-litigate round 1's
+  `MATERIAL_BLOCKER` fingerprints plus genuine regressions — it can never introduce a new blocking
+  category the first round never saw. If round 2 comes back with zero `MATERIAL_BLOCKER`, the recorded
+  outcome is the new gate status `pass_with_deviation` (with a `deviations[]`/`attempt_count` paper
+  trail, founder-confirmed via the new `founder-decision` decision-log type), not a third round.
+- **`scripts/finding-fingerprint.js`** (new) — a stable sha256 identity per finding
+  (gate/file/section/issue_type/claim_id), so "is this the same finding as last round" is a hash
+  comparison, not a human's memory. `--check-regression` compares a finding's file against the Layer-1
+  manifest from its last disposition, so reopening a `fixed`/`accepted`/`deferred` finding requires a
+  cited diff — restating the original concern is now recorded as `duplicate`, not a fresh blocker.
+- **`scripts/lib/url-canon.js`** + **`source-registry.md`** (new tracked artifact, idea root) +
+  **`scripts/validate-source-registry.js`** — every URL a research agent fetches gets one row, keyed on
+  its canonical form (tracking params stripped, host/scheme lowercased, query order normalized).
+  `competitor-scanner` and `community-review-miner` now consult it before fetching and carry a
+  `research_budget` (`max_rounds`/`max_new_sources`, new state.json top-level key, sibling to the
+  money-only `budget` — never a repurposing of it) with explicit stop conditions, mirroring the
+  error-analysis saturation rule (`stage-3-verify`) that already bounds trace review the same way. The
+  registry check is wired into gate-check Layer 1 **advisory, non-blocking** — a brand-new mechanism
+  earns blocking status after it has run clean on real use, not the day it ships.
+- **Folded in, not restated**: multi-LLM/secondary-model output (a Codex cross-check, an autonomous
+  cross-model agreement score) stays diagnostic-only — it may justify reopening a gate, never satisfies
+  one, per the pre-existing "model is never an evidence source" (rule 1) and "no cross-domain
+  recertification" (§12) rules. `agents/gatekeeper.md` item 24 applies those rules to a second model's
+  output; it is not a new rule.
+- `schema_version` 1.3.0 → 1.4.0: `gates.*.status` gains `pass_with_deviation`; new top-level
+  `research_budget`. `audit-trail.md`'s row schema gains a `fingerprint` column and its `status` enum
+  gains `accepted|deferred|duplicate|regressed` (versioned table, old rows untouched, per the file's own
+  append-only convention). `scripts/coverage-report.js` gains 13 entries for the mechanisms above.
+
+Tests: **364** contract tests, 198 hook tests, 0 failures.
+
 ## v1.10.1 — 2026-08-01 · the secondary-LLM probe recognises a provider that was already there
 
 `setup-audit` probe 2 looked for `OPENAI_API_KEY` / `GEMINI_API_KEY` and nothing else. A founder on a

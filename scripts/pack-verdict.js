@@ -15,6 +15,12 @@
  *       (stage 5 needs the label before the LOCK gate runs, because the label goes
  *        INTO the pack the gate reviews; the output is marked PROSPECTIVE)
  * Exit codes: 0 = a pack is issuable, 1 = not finished (no pack), 2 = unusable input.
+ *
+ * v1.5.0: a 4th verdict tier, "FOUNDER-AUTHORIZED HYPOTHESIS TRACK", fires whenever
+ * `gates.V1.status === "deferred"` (set only by gate-check's `--ceremony=defer`) —
+ * checked before, and independent of, the pre-existing three-tier VALIDATED /
+ * HYPOTHESIS / PRE-FEASIBILITY logic, which stays byte-identical for any state that
+ * never sets `deferred`. See "V1 deferred track" in method-rules-gate-contracts.
  */
 "use strict";
 const fs = require("fs");
@@ -31,6 +37,14 @@ function verdict(gates, v3Grade, opts = {}) {
   const passed = (name) => g(name) === "passed";
   const open = (name) => g(name) === "open";
   const resolved = (name) => passed(name) || open(name);
+
+  // v1.5.0: gates.V1.status "deferred" is the founder-authorized skip of pre-MVP
+  // human validation (gate-check's `--ceremony=defer`). It is a THIRD bucket,
+  // structurally distinct from both "passed" and "open" — it must never make
+  // resolved("V1") true, or a deferred V1 would silently look exactly like an
+  // open one to every caller of resolved(). Checked and handled separately
+  // below; resolved() itself is byte-identical to the pre-1.5.0 helper.
+  const v1Deferred = g("V1") === "deferred";
 
   const reasons = [];
   // Stage 5 needs the label BEFORE the LOCK gate runs (it goes into the pack that
@@ -49,10 +63,29 @@ function verdict(gates, v3Grade, opts = {}) {
   const prospective = !passed("LOCK");
   for (const name of PACK_GATES) {
     if (name === "LOCK" && prospective) continue; // assumed, and labelled as such
+    // A deferred V1 is checked in its own branch below, never through resolved() —
+    // it is neither "passed" nor "open" (V1's OPEN-allowed cell stays No), so
+    // letting it fall into this loop's ordinary resolved()/open() checks would
+    // either wrongly reject it here or wrongly satisfy it via `open`.
+    if (name === "V1" && v1Deferred) continue;
     if (!resolved(name)) reasons.push(`${name} is "${g(name)}" (must be passed, or open where the contract allows)`);
     else if (open(name) && !OPENABLE.includes(name)) reasons.push(`${name} is open, which its contract does not allow`);
   }
   if (reasons.length) return { verdict: "NO PACK", prospective, reasons, inputs: snapshot(gates, v3Grade) };
+
+  // v1.5.0 4th verdict tier — checked BEFORE the Pre-feasibility/Hypothesis/Validated
+  // selection below. A deferred V1 can never produce VALIDATED or a plain HYPOTHESIS
+  // label, regardless of how V2/V3/R1/R2 resolve: those two labels are reserved for
+  // a V1 that was actually attempted. Never reachable via will-override's code path —
+  // that mechanism does not touch this function's return value at all.
+  if (v1Deferred) {
+    return {
+      verdict: "FOUNDER-AUTHORIZED HYPOTHESIS TRACK",
+      prospective,
+      reasons: ["V1 is deferred: founder-authorized skip of pre-MVP human validation, on named reopen conditions — see post-launch-validation-register.md"],
+      inputs: snapshot(gates, v3Grade),
+    };
+  }
 
   if (open("R1"))
     return {

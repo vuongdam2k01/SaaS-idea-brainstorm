@@ -44,8 +44,8 @@ process.stdin.on("end", () => {
   // the old shape") — accepting an older version was a proven freeze-bypass
   // (downgrade attack). 1.3.0 adds market_shape + sides[] (two-sided support);
   // migration from 1.2.0 = add defaults (single-sided, []), never fabricate a shape.
-  if (obj.schema_version !== "1.3.0") {
-    console.error(`REJECTED: unsupported schema_version "${obj.schema_version}" (writer requires 1.3.0 — migrate first: absent market_shape defaults to "single-sided", sides to []; legacy states are migrated on first touch, never written back as-is)`);
+  if (obj.schema_version !== "1.5.0") {
+    console.error(`REJECTED: unsupported schema_version "${obj.schema_version}" (writer requires 1.5.0 — migrate first: absent market_shape defaults to "single-sided", sides to []; absent research_budget gets the plugin defaults; capabilities.<cap> gain required_in_phase/required_now/blocks[] on next setup-audit run; legacy states are migrated on first touch, never written back as-is)`);
     process.exit(1);
   }
   // market_shape + sides[] (v1.3.0): founder-confirmed market shape; sides carry
@@ -89,7 +89,7 @@ process.stdin.on("end", () => {
     console.error('REJECTED: "active" must be an array of task ids');
     process.exit(1);
   }
-  const GATE_STATUSES = ["pending", "in_progress", "passed", "failed", "open"];
+  const GATE_STATUSES = ["pending", "in_progress", "passed", "failed", "open", "pass_with_deviation", "deferred"];
   if (!obj.gates || typeof obj.gates !== "object" || Array.isArray(obj.gates)) {
     console.error('REJECTED: "gates" must be a non-null object');
     process.exit(1);
@@ -99,7 +99,11 @@ process.stdin.on("end", () => {
       console.error(`REJECTED: gate "${g}" has invalid status "${v && v.status}"`);
       process.exit(1);
     }
+    if (v.status === "pass_with_deviation") validateDeviations(g, v);
+    if (v.status === "deferred") validateV1Deferred(g, v);
   }
+  if (obj.research_budget !== undefined) validateResearchBudget(obj.research_budget);
+  if (obj.post_launch_validation !== undefined) validatePostLaunchValidation(obj.post_launch_validation);
   // kill_criteria shape (review finding: retired trigger-polarity "state" field
   // must never reappear — the schema is stable-id + desired-state polarity)
   if (!Array.isArray(obj.kill_criteria)) {
@@ -112,8 +116,12 @@ process.stdin.on("end", () => {
   validateWaitingOn(obj.waiting_on, "waiting_on");
   const HC_STATUSES = ["armed", "triggered", "cleared"];
   validateKillCriteria(obj.kill_criteria, "kill_criteria");
-  // v1.2 maintenance/cycle shape validation
-  if (obj.schema_version === "1.3.0") {
+  // v1.2+ maintenance/cycle shape validation (schema_version is already pinned to
+  // "1.5.0" by the gate above — this stays its own conditional, unchanged in
+  // spirit since v1.2.0, rather than being flattened into the outer check, so a
+  // future schema bump does not have to hunt through this whole block to find
+  // where the version string is assumed).
+  if (obj.schema_version === "1.5.0") {
     if (!Array.isArray(obj.cycles) || !obj.cycles.length) {
       console.error('REJECTED: v1.2 state requires a non-empty "cycles" index');
       process.exit(1);
@@ -552,6 +560,139 @@ function validateKillCriteria(list, label) {
   }
 }
 
+/**
+ * gates.<g>.status "pass_with_deviation" (v1.4.0) requires its sibling fields —
+ * a status with no recorded deviations would be indistinguishable from a plain
+ * `passed` gate that simply forgot to journal what was carried forward.
+ */
+function validateDeviations(gateName, gate) {
+  const DEV_CATEGORIES = ["AUTO_FIXABLE_NON_BLOCKER", "DEFERRED_RISK"];
+  if (!Array.isArray(gate.deviations) || !gate.deviations.length) {
+    console.error(`REJECTED: gate "${gateName}" is pass_with_deviation but "deviations" is missing/empty — it must name what was carried forward`);
+    process.exit(1);
+  }
+  for (const d of gate.deviations) {
+    if (
+      !d ||
+      typeof d !== "object" ||
+      typeof d.finding_fingerprint !== "string" ||
+      !/^[0-9a-f]{64}$/.test(d.finding_fingerprint) ||
+      !DEV_CATEGORIES.includes(d.category) ||
+      typeof d.description !== "string" ||
+      !d.description.trim() ||
+      typeof d.carry_forward !== "string" ||
+      !d.carry_forward.trim()
+    ) {
+      console.error(
+        `REJECTED: gate "${gateName}" deviations[] entry needs {finding_fingerprint: 64-hex sha256, category: ${DEV_CATEGORIES.join(
+          "|"
+        )}, description, carry_forward, revisit_phase?}: ${JSON.stringify(d)}`
+      );
+      process.exit(1);
+    }
+    if (d.revisit_phase !== undefined && d.revisit_phase !== null && typeof d.revisit_phase !== "string") {
+      console.error(`REJECTED: gate "${gateName}" deviation revisit_phase must be a string or null: ${JSON.stringify(d)}`);
+      process.exit(1);
+    }
+  }
+  if (!Number.isInteger(gate.attempt_count) || gate.attempt_count < 2) {
+    console.error(`REJECTED: gate "${gateName}" is pass_with_deviation but "attempt_count" must be an integer ≥ 2 (round 1 can never produce this status — see gate-check's review-scope freeze)`);
+    process.exit(1);
+  }
+}
+
+/**
+ * gates.V1.status "deferred" (v1.5.0) — legal ONLY on V1, parallel to how "open"
+ * is restricted by the gate contracts (though this one is enforced in CODE, not
+ * just prose, because pack-verdict.js already hard-codes V1 out of the OPENABLE
+ * list and a "deferred" on any other gate would be an entirely different,
+ * unspecified thing). Requires sibling fields so the deferral is never a bare
+ * status flip with no recorded founder decision behind it.
+ */
+function validateV1Deferred(gateName, gate) {
+  if (gateName !== "V1") {
+    console.error(`REJECTED: gate "${gateName}" has status "deferred" — that value is legal ONLY for gates.V1 (parallel to how "open" is gate-specific per the gate contracts); no other gate may carry it`);
+    process.exit(1);
+  }
+  if (typeof gate.deferred_reopen_on !== "string" || !gate.deferred_reopen_on.trim()) {
+    console.error('REJECTED: gates.V1 is "deferred" but "deferred_reopen_on" is missing/empty — the founder\'s own reopen wording is required, never auto-generated');
+    process.exit(1);
+  }
+  if (!isRealDate(gate.deferred_date)) {
+    console.error(`REJECTED: gates.V1 is "deferred" but "deferred_date" is not a real YYYY-MM-DD (got ${JSON.stringify(gate.deferred_date)})`);
+    process.exit(1);
+  }
+  if (typeof gate.register_ref !== "string" || !gate.register_ref.trim()) {
+    console.error('REJECTED: gates.V1 is "deferred" but "register_ref" is missing/empty — must point at post-launch-validation-register.md');
+    process.exit(1);
+  }
+}
+
+/**
+ * post_launch_validation (v1.5.0, optional root key — absent means "V1 has never
+ * been deferred on this idea", same convention as the absent `blueprint` key).
+ * Closed key set: a founder decision's index, not a place for anything else to
+ * accumulate.
+ */
+function validatePostLaunchValidation(plv) {
+  const PLV_STATUSES = ["pending", "active", "reactivated", "closed"];
+  const PLV_KEYS = ["register_ref", "status", "mvp_release_declared_at", "reopen_on"];
+  if (!plv || typeof plv !== "object" || Array.isArray(plv)) {
+    console.error('REJECTED: "post_launch_validation" must be an object {register_ref, status, mvp_release_declared_at, reopen_on}');
+    process.exit(1);
+  }
+  for (const k of Object.keys(plv)) {
+    if (!PLV_KEYS.includes(k)) {
+      console.error(`REJECTED: post_launch_validation carries unknown key "${k}" (closed set: ${PLV_KEYS.join(", ")})`);
+      process.exit(1);
+    }
+  }
+  if (typeof plv.register_ref !== "string" || !plv.register_ref.trim()) {
+    console.error('REJECTED: post_launch_validation.register_ref must be a non-empty string');
+    process.exit(1);
+  }
+  if (!PLV_STATUSES.includes(plv.status)) {
+    console.error(`REJECTED: post_launch_validation.status must be one of ${PLV_STATUSES.join("|")}`);
+    process.exit(1);
+  }
+  if (plv.mvp_release_declared_at !== null && typeof plv.mvp_release_declared_at !== "string") {
+    console.error('REJECTED: post_launch_validation.mvp_release_declared_at must be null or a timestamp string');
+    process.exit(1);
+  }
+  if (typeof plv.reopen_on !== "string" || !plv.reopen_on.trim()) {
+    console.error('REJECTED: post_launch_validation.reopen_on must be a non-empty string (the founder\'s own reopen wording, mirrored from gates.V1.deferred_reopen_on)');
+    process.exit(1);
+  }
+}
+
+/**
+ * research_budget (v1.4.0, optional top-level key, sibling to the money-only
+ * `budget` — never a repurposing of it). Bounds research-agent saturation the
+ * same way error-analysis already bounds trace review.
+ */
+function validateResearchBudget(rb) {
+  if (!rb || typeof rb !== "object" || Array.isArray(rb)) {
+    console.error('REJECTED: "research_budget" must be an object {per_task: {max_rounds, max_new_sources}, log: []}');
+    process.exit(1);
+  }
+  const pt = rb.per_task;
+  if (
+    !pt ||
+    typeof pt !== "object" ||
+    !Number.isInteger(pt.max_rounds) ||
+    pt.max_rounds < 1 ||
+    !Number.isInteger(pt.max_new_sources) ||
+    pt.max_new_sources < 1
+  ) {
+    console.error('REJECTED: research_budget.per_task must be {max_rounds: integer ≥ 1, max_new_sources: integer ≥ 1}');
+    process.exit(1);
+  }
+  if (!Array.isArray(rb.log)) {
+    console.error('REJECTED: research_budget.log must be an array (empty is fine, but the key must be a present array)');
+    process.exit(1);
+  }
+}
+
 function atomicWrite(obj, target) {
   try {
     if (fs.existsSync(target)) fs.copyFileSync(target, target + ".bak");
@@ -603,12 +744,14 @@ function writeFragment(obj, resolvedTarget) {
     console.error('REJECTED: fragment "gates" must be a non-null object');
     process.exit(1);
   }
-  const GATE_STATUSES = ["pending", "in_progress", "passed", "failed", "open"];
+  const GATE_STATUSES = ["pending", "in_progress", "passed", "failed", "open", "pass_with_deviation", "deferred"];
   for (const [g, v] of Object.entries(obj.gates)) {
     if (!v || !GATE_STATUSES.includes(v.status)) {
       console.error(`REJECTED: fragment gate "${g}" has invalid status "${v && v.status}"`);
       process.exit(1);
     }
+    if (v.status === "pass_with_deviation") validateDeviations(g, v);
+    if (v.status === "deferred") validateV1Deferred(g, v);
   }
   validateKillCriteria(obj.kill_criteria, "fragment kill_criteria");
   // Root-index correspondence: the idea root state.json must list this cycle with

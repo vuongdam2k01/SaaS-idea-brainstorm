@@ -123,6 +123,26 @@ artifact: solution-directions ... gate: V2 ...
   "extended" status — a status the overdue scan skips is a duty that goes quiet.
 ```
 
+## post-launch-validation-register.md — only when V1 has been deferred (v1.5.0)
+```markdown
+---
+artifact: post-launch-validation-register ... gate: V1 ... status: ready
+---
+# Post-launch validation register — <title>
+> V1 (problem-evidence gate) was deferred, not skipped: the founder chose to defer pre-MVP human
+> validation to a controlled MVP release rather than run another pre-build research round. This file
+> is the honest paper trail for what was deferred, why, and the exact conditions that reopen it.
+> Created by `gate-check V1 --ceremony=defer`, never hand-written.
+
+| item | why_deferred | reopen_on | owner | status |
+|---|---|---|---|---|
+| V1 problem-evidence gate | | | founder | registered |
+> `reopen_on` is the founder's own wording (offered the three example categories as prompts — new
+> contradictory evidence / founder explicitly reopens / hard safety-or-legal conflict — but never
+> auto-generated). `status` moves registered → reactivated (on `declare-drift --release`) →
+> resolved (once V1 is actually re-run); the row's `why_deferred`/`reopen_on` text is never rewritten.
+```
+
 ## landing-kit.md
 ```markdown
 ---

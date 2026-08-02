@@ -427,7 +427,7 @@ console.log("== v1.2 state-write: schema accept + cycle freeze ==");
   const dir = mkIdea("t7", null);
   const sp = path.join(dir, "state.json");
   const v12 = {
-    schema_version: "1.3.0",
+    schema_version: "1.5.0",
     market_shape: "single-sided",
     sides: [], pipeline_version: "1.2.0", idea: "t7", mode: "analysis", active: [],
     gates: { LOCK: { status: "passed" } },
@@ -457,7 +457,7 @@ console.log("== v1.2 state-write: schema accept + cycle freeze ==");
   down.gates.LOCK.status = "pending";
   delete down.cycles; delete down.active_cycle; delete down.maintenance; delete down.health_criteria; delete down.validation_runs;
   res = run(down, sp);
-  check("schema downgrade write => rejected", !res.ok && /requires 1\.3\.0/.test(res.err));
+  check("schema downgrade write => rejected", !res.ok && /requires 1\.5\.0/.test(res.err));
   // frozen inline cycle: changing gates must be rejected
   const mut = JSON.parse(JSON.stringify(v12));
   mut.gates.LOCK.status = "pending";
@@ -1106,7 +1106,7 @@ console.log("== stage 6: gate BP frontmatter + blueprint state block ==");
   const ideaDir = mkIdea("t15", null);
   const sp = path.join(ideaDir, "state.json");
   const base = {
-    schema_version: "1.3.0",
+    schema_version: "1.5.0",
     market_shape: "single-sided",
     sides: [], pipeline_version: "1.4.0", idea: "t15", mode: "analysis", active: [],
     gates: { LOCK: { status: "passed" } },

@@ -16,7 +16,7 @@ gate: LOCK
 status: draft            # locked at gate LOCK
 evidence_grade: <highest backing grade>
 rung: <rung>
-pipeline_version: 1.10.1
+pipeline_version: 1.13.0
 updated: YYYY-MM-DD
 ---
 # MVP Spec — <title>   [label COMPUTED by `scripts/pack-verdict.js`, never chosen]

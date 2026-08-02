@@ -67,6 +67,23 @@ Custom questions for this idea:
 - **Result:** ___% → PASS / FAIL
 - Fail → pivot segment (back to 0.4) or pivot problem (back to 0.1 with new data)
 
+### ▶ V1 deferred track (v1.5.0 — only if the founder chooses to defer V1 instead of running it now)
+
+> V1 has no accepted-open path (unlike V2/V3/R2) — it is either run for real, or explicitly deferred
+> via `gate-check V1 --ceremony=defer` (never hand-written here). Deferring is not skipping: it
+> commits to running V1 for real once a named condition fires, typically a controlled MVP release.
+
+**post-launch-validation-register.md**
+
+| item | why_deferred | reopen_on | owner | status |
+|---|---|---|---|---|
+| V1 problem-evidence gate | | | founder | registered |
+
+- `reopen_on` is the founder's own wording — offered as prompts (new contradictory evidence /
+  founder explicitly reopens / hard safety-or-legal conflict), never auto-generated.
+- The resulting pack label is `FOUNDER-AUTHORIZED HYPOTHESIS TRACK` — never `Validated`, never a
+  plain `Hypothesis` — regardless of how V2/V3/R1/R2 resolve (`scripts/pack-verdict.js`).
+
 ---
 
 ## Gate V2 — Solution direction works

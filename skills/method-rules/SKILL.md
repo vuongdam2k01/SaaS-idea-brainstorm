@@ -187,7 +187,44 @@ Corollary for reviews: "this could go wrong" is a finding only when paired with 
 subtraction. The plugin is now more thoroughly specified than any part of it that has ever executed
 end-to-end successfully, and **that ratio — designed vs exercised — is the live risk**.
 
-## 12. Language
+## 15. Auto-continue & execution policy
+
+`auto_continue: true` lets work proceed **within a stage** and **across non-blocked stage
+transitions** without a human confirmation at every step. It is not a blanket license to skip
+checkpoints — it stops, every time, for exactly five things:
+
+- **(a) A named non-skippable ceremony.** F-signing (gate-check Layer 0), the LOCK charter
+  finalization ceremony (gate-check Layer 0), the FAIL override sub-ceremony (gate-check Layer 3),
+  and the V1-deferral ceremony (`gate-check V1 --ceremony=defer`) are each, individually, in the
+  same non-skippable class: `auto_continue` never covers any of them, by name, every time they are
+  invoked. These are commitments, not routine progress.
+- **(b) Any outward action** — cross-reference §7: deploying anything public, sending outreach,
+  publishing a payment link, ad spend, delivering pilot output to a real contact. `auto_continue`
+  never covers an outward action.
+- **(c) An unrecoverable tool failure** — a script that cannot run, a file that cannot be read or
+  written, an agent whose output was lost before being persisted (§1's session-transcript rule
+  means an unpersisted result cannot simply be "remembered" and carried forward).
+- **(d) A safety or legal constraint** — anything the pipeline should refuse regardless of what
+  `auto_continue` says.
+- **(e) A kill- or health-criterion trigger** — an armed criterion whose `by_date` has passed, or
+  whose desired state was not reached, is raised to the user before proceeding, whatever the
+  verdict in progress (§5, gate-check Layer 3).
+
+**Auto-continue never suppresses *surfacing* a non-blocking finding or warning — it only skips the
+human confirmation gate on something already established as blocking.** A `DEFERRED_RISK` finding,
+an advisory (non-blocking) validator warning, a `pass_with_deviation` deviation once it is already
+on record — none of these need a fresh checkpoint to be reported; what `auto_continue` may skip is
+asking the user to approve something that was going to be approved anyway, never the act of telling
+them what is true. Confusing "not blocking" with "not worth saying" would quietly make
+`auto_continue` a reporting suppressor, which it was never meant to be and which no founder request
+for "just keep going" implicitly authorizes.
+
+**Hook-layer note**: `hooks/scripts/guard-thresholds.js`'s `ask()` calls (`permissionDecision: "ask"`)
+are the one place in the hook layer that gates a tool call itself before it runs — everything else
+in the hook layer (SessionStart's `session-start.js`, PostToolUse's `validate-artifact.js`) is
+informational or after-the-fact corrective feedback, not a permission gate.
+
+## 16. Language
 
 Answer, and write every artifact, in the **founder's language** — detect it from their first message and record it as `state.language`. Do not answer a Vietnamese founder in English and wait to be asked; a founder who cannot read the reply cannot correct it, and the whole method depends on them correcting you.
 

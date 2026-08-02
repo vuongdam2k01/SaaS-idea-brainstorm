@@ -14,6 +14,28 @@ Given a problem statement and target segment, map the competitive landscape acro
 4. **General AI tools** — using ChatGPT/Claude directly. For AI products this is often the most dangerous tier.
 5. **Do nothing** — the status quo. Per The JOLT Effect (Dixon & McKenna, 2M+ sales calls analyzed), 40–60% of B2B purchase processes end in "no decision".
 
+## Research budget (v1.4.0)
+
+Answers a founder-observed pain distinct from evidence quality: research rounds that never end, and
+the same URL fetched again across runs. This mirrors `stage-3-verify`'s existing error-analysis
+saturation rule (~20 consecutive traces with no new failure category = stop) — same discipline,
+applied to sources instead of traces.
+
+- **Before fetching anything**, check `source-registry.md` at the idea root (if it exists) for the
+  URL's canonical form. A URL already registered with `claims_extracted` non-empty is a candidate to
+  **skip**, not a mandatory re-fetch — cite what it already gave you instead of re-reading it.
+- **Bounds**: read `state.research_budget.per_task` (`max_rounds`, `max_new_sources`) if present;
+  absent means the plugin defaults apply (3 rounds, 10 new sources for a scan of this size). A "round"
+  is one batch of searches against one tier; do not silently keep going once both are exhausted —
+  report what you found and stop.
+- **Stop conditions** (any one ends the scan for a tier): two consecutive new sources add no new
+  competitor and no new pricing/capability fact · the market verdict is already determinable from what
+  you have (a clearly proven or clearly empty market does not need a 4th confirming source) · the round
+  or new-source budget is exhausted. Report which condition stopped you, per tier, in your output.
+- Every URL you actually fetch becomes (or updates) a `source-registry.md` row — record it even though
+  you cannot write files yourself: hand the caller `{canonical_url, content_hash, claims_extracted}`
+  per fetched source so it can persist the registry alongside your raw report.
+
 ## Method
 
 - Search by **problem keywords** (jobs-to-be-done language), not just solution keywords. Also search "how do you handle X" and "alternative to Y" in niche communities.
@@ -51,6 +73,11 @@ Capabilities MUST carry state:
 proven-money | red-flag-empty | crowded-but-bad, with 2-3 sentence justification
 ## Unreachable sources
 list of sites that blocked access (so the caller can hand off to the user)
+## Sources fetched (for source-registry.md)
+| canonical_url | content_hash (sha256 of what you read, if computable) | claims_extracted |
+|---|---|---|
+## Research budget
+per tier: rounds used / max_rounds, new sources found / max_new_sources, stop reason
 ```
 
 Label everything honestly. This map is a DRAFT until calibrated against real customer words in stage 2 — say so in your output.
