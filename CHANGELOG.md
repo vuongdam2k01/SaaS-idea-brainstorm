@@ -1,5 +1,59 @@
 # Changelog
 
+## v1.14.0 — 2026-08-03 · subtraction pass: the moratorium gets a number, four restatements become one
+
+The founder's observed complaint (2026-08-03), not a hypothetical: the plugin escalates minor issues
+into heavyweight, uniformly-applied machinery, and its own growth-control rule (method-rules §14, the
+requirement moratorium adopted v1.7.0) had never actually been invoked on its "(b) removes an existing
+requirement of at least equal weight" clause across seven releases (v1.8.0–v1.13.0) — every one of them
+cited only clause (a), and `coverage-report.js` itself listed `requirement-moratorium` as tier `prose`:
+"nothing checks it". This release does not add process; it acts on what the moratorium already claims
+to require, and cites two genuine over-restatements found in a full read of the six `method-rules-*`
+skills as the "(b)" subtraction.
+
+- **The "designed vs exercised" ratio is now a tracked number, not just a phrase.** `scripts/
+  coverage-history.json` (new) records one snapshot per release — `{version, date, total,
+  deterministic}` — and `scripts/coverage-report.js` gains a `growth_since_last_snapshot` field
+  (`--json`) and a printed `GROWTH since vX.Y.Z` line comparing the current requirement count to the
+  last snapshot, plus a `--snapshot` subcommand that appends the current count for the version in
+  `plugin.json` (refuses to duplicate an already-recorded version). This does **not** mechanically
+  verify that a new requirement's cited observed failure is honest — that stays a human/model
+  judgement, and `requirement-moratorium` stays tier `prose` for exactly that reason. What it does is
+  make the count itself impossible to lose track of without reading CHANGELOG.md by hand, which is how
+  this session found the seven-release gap in the first place. New requirement
+  `requirement-count-growth-tracked` (tier `code`) is the one addition in this release; it is the
+  moratorium's own enforcement, so it pays for itself.
+- **Four restatements of the will-override / V1-deferral distinction collapse to one.** The full
+  explanation ("a will-override presupposes a gate that was formally checked and FAILED; V1-deferral is
+  for a gate never attempted at all...") was written out in full in `method-rules-gate-contracts`
+  (twice, in its own two sections), `method-rules-state-schema`, and `method-rules-artifact-schema`.
+  Three of the four now cross-reference `method-rules-gate-contracts`'s "Will-override boundary"
+  section, the one place that keeps the full text; no unique content (e.g. artifact-schema's "Owner:"
+  line) was cut. Same treatment for the `simulate`/`handoff-only` rung-removal rationale, restated in
+  full in both `method-rules` §8 and `method-rules-artifact-schema`'s rung section — `method-rules` §8
+  now states the fact and points to the canonical rationale instead of repeating it. ~450 words removed,
+  zero rules changed.
+- **Explicitly out of scope for this release, and why:** an Explore-agent audit of all six
+  `method-rules-*` skills, run this session, found the six-way file split load-bearing (skills
+  cross-reference each other by exact name; each file's core content is genuinely distinct reference
+  material) — merging them was considered and rejected, not skipped. Retuning the gatekeeper's 25-item
+  checklist to apply less scrutiny at low-stakes gates (F/C) was also considered and rejected for this
+  release: method-rules §14 itself requires an observed failure or an equal-weight removal before a
+  requirement changes, and "gate F doesn't need the full checklist" is a design argument, not an
+  observation — exactly the thing §14 exists to refuse. It needs real dogfood-run evidence of where the
+  checklist spends effort without catching anything, which the pipeline does not yet have (`ideas/` is
+  currently empty; the three prior dogfood runs never reached this deep into the pipeline).
+
+- **Codex cross-review (`codex exec review --uncommitted`) caught a real data-loss bug before it
+  shipped**: `loadHistory()`'s first draft swallowed every read error — a missing file AND a corrupt
+  one — into an empty array, which meant a malformed `coverage-history.json` (a bad merge, an
+  interrupted write) would make `--snapshot` believe no prior history existed and overwrite the file
+  with a single entry, destroying every earlier release's snapshot. Fixed: only `ENOENT` is treated as
+  "no history yet"; any other read/parse error now aborts loudly instead of being silently absorbed.
+
+Tests: **+20** contract-test assertions covering the mechanisms above (grand total reported by the
+suite at release time), 0 failures.
+
 The full working record (design rounds, adversarial review transcripts, dogfood run reports, the
 multi-session conflict inventory and its resolution log) was development residue and has been removed
 from the working tree — it remains recoverable in git history at commit `fd7732b` and earlier

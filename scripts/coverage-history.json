@@ -1,0 +1,14 @@
+[
+  {
+    "version": "1.13.0",
+    "date": "2026-08-02",
+    "total": 174,
+    "deterministic": 110
+  },
+  {
+    "version": "1.14.0",
+    "date": "2026-08-03",
+    "total": 175,
+    "deterministic": 111
+  }
+]

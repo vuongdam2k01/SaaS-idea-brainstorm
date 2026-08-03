@@ -18,7 +18,7 @@ gate: BP
 status: draft                    # ready when its checklist has no unanswered cell; locked at gate BP
 evidence_grade: none             # blueprint files are design contracts, not evidence claims
 rung: baseline-auto
-pipeline_version: 1.13.0
+pipeline_version: 1.14.0
 updated: YYYY-MM-DD
 ---
 ```
@@ -380,7 +380,7 @@ cycle_id: C<n>
 mutation_policy: append-only
 publication_status: draft
 as_of: YYYY-MM-DD
-pipeline_version: 1.13.0
+pipeline_version: 1.14.0
 updated: YYYY-MM-DD
 ---
 # Deferred register (NON-PRODUCT deferrals only — a deferred product decision fails the level-2 test)

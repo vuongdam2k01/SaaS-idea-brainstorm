@@ -70,7 +70,7 @@ Privacy: real names, contact details, and payment identities live ONLY in `ideas
 
 Every task runs at the best available rung — there are exactly **three**: **enhanced-auto** (integration present) → **baseline-auto** (native tools) → **handoff** (prepare a complete kit; the user executes outside; results come back for analysis). Missing integrations never block the pipeline — they change the rung and the resulting evidence grade. Record which rung produced each artifact.
 
-**There is no `simulate` rung** (removed in v1.2.0). Simulation is not an execution capability, it is epistemic provenance: it maps onto grade D / `[GUESS]`, which never enters the ledger and never satisfies a gate (rule 2). A rung named `simulate` invited the reasoning "simulation completed the task". When evidence cannot be obtained, the honest outcomes are a **handoff** or an **accepted-open gate** — never a simulated completion. `handoff-only` is likewise gone: it duplicated `handoff` and the capability's own `status: unavailable|unknown`.
+**There is no `simulate` rung** (removed in v1.2.0) — full rationale and the legacy-migration rule live in `method-rules-artifact-schema`'s rung section. In short: simulation is epistemic provenance, not an execution capability, so it maps onto grade D / `[GUESS]` (rule 2) rather than a rung; the honest outcomes when evidence cannot be obtained are a **handoff** or an **accepted-open gate**, never a simulated completion.
 
 ## 9. Founder-intent extraction (the charter)
 

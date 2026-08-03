@@ -19,7 +19,7 @@ gate: F                             # F | C | V1 | V2 | V3 | R1 | R2 | P | LOCK 
 status: draft                       # draft | ready | locked
 evidence_grade: none                # highest grade backing this artifact: A | B | C | D | none
 rung: baseline-auto                 # enhanced-auto | baseline-auto | handoff  (exactly three — see below)
-pipeline_version: 1.13.0
+pipeline_version: 1.14.0
 updated: YYYY-MM-DD
 ---
 ```
@@ -219,7 +219,7 @@ gate: <the failed gate, e.g. V1>
 status: ready
 evidence_grade: <the failed gate's actual evidence grade, honestly>
 rung: baseline-auto
-pipeline_version: 1.13.0
+pipeline_version: 1.14.0
 updated: YYYY-MM-DD
 ---
 # Unvalidated build decision — <title>
@@ -234,13 +234,11 @@ updated: YYYY-MM-DD
 
 ## post-launch-validation-register.md (only when V1 has been deferred — v1.5.0)
 
-**Never confuse with `unvalidated-build-decision.md` above.** That artifact exists only after a gate
-was formally checked and FAILED, and the founder chose to build anyway. This one exists only after a
-gate was **never attempted**, and the founder chose — before any evidence collection began — to defer
-it to a controlled post-launch release, with named reopen conditions. Owner: `gate-check`'s
-`--ceremony=defer` (the `gate-check` skill's V1 deferral ceremony), the only component holding the
-founder's exact wording and the authority to write both this file and the `founder-decision`
-decision-log row at the same moment.
+**Never confuse with `unvalidated-build-decision.md` above** — see `method-rules-gate-contracts`'s
+"Will-override boundary" section for the full distinction (formally-failed-and-overridden vs
+never-attempted-and-deferred). Owner: `gate-check`'s `--ceremony=defer` (the `gate-check` skill's V1
+deferral ceremony), the only component holding the founder's exact wording and the authority to write
+both this file and the `founder-decision` decision-log row at the same moment.
 
 ```markdown
 ---
@@ -251,7 +249,7 @@ gate: V1
 status: ready
 evidence_grade: none
 rung: baseline-auto
-pipeline_version: 1.13.0
+pipeline_version: 1.14.0
 updated: YYYY-MM-DD
 ---
 # Post-launch validation register — <title>

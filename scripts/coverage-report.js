@@ -18,6 +18,15 @@
  * Usage: node scripts/coverage-report.js [--json]
  */
 "use strict";
+const fs = require("fs");
+const path = require("path");
+
+const ROOT = path.resolve(__dirname, "..");
+// Overridable so tests can point --snapshot at a throwaway copy instead of mutating the tracked
+// history/plugin.json on every test run — a snapshot is a real release action, not a side effect
+// a test suite should perform on the repo it is testing.
+const HISTORY_PATH = process.env.COVERAGE_HISTORY_PATH || path.join(__dirname, "coverage-history.json");
+const PLUGIN_JSON_PATH = process.env.COVERAGE_PLUGIN_JSON_PATH || path.join(ROOT, ".claude-plugin", "plugin.json");
 
 // tier: "code"      — a script rejects the violation deterministically
 //       "hook"      — a hook rejects it at write time (code, but bypassable if hooks are off)
@@ -107,7 +116,8 @@ const REQUIREMENTS = [
   { id: "bp-determinism-inherited", where: "gate-contracts-bp subsystem layer", tier: "code", by: "validate-blueprint.js CAP determinism inheritance (removes ~40 duplicated cells)" },
   { id: "bp-profile-declared", where: "stage-6-blueprint-templates", tier: "code", by: "validate-blueprint.js ANCHORS bp:profile (a simple product provably skips optional layers)" },
   { id: "bp-quantitative-assumptions-listed", where: "gate-contracts-bp", tier: "agent", by: "level-2 coldstart + gatekeeper (a number nobody observed is how green checks and a wrong product coexist)" },
-  { id: "requirement-moratorium", where: "method-rules §14", tier: "prose", by: "INTENTIONAL: a process rule for the humans and models extending this plugin — no mechanism can enforce 'cite an observed failure'" },
+  { id: "requirement-moratorium", where: "method-rules §14", tier: "prose", by: "INTENTIONAL: a process rule for the humans and models extending this plugin — no mechanism can enforce 'cite an observed failure'; the growth NUMBER §14 talks about is tracked separately, see requirement-count-growth-tracked" },
+  { id: "requirement-count-growth-tracked", where: "method-rules §14 corollary (\"designed vs exercised\" ratio)", tier: "code", by: "scripts/coverage-history.json + coverage-report.js growth reporting/--snapshot" },
 
   // ---- v1.8.0 build handoff (awareness injection for the DOWNSTREAM repo; adds no founder judgement)
   { id: "handoff-requires-locked-bp", where: "handoff-to-build", tier: "code", by: "build-handoff.js state.blueprint locked+passed guard (--draft stamps every file instead)" },
@@ -241,6 +251,49 @@ const REQUIREMENTS = [
   { id: "deletion-never-automatic", where: "method-rules §7", tier: "prose", by: "intentional by design — nothing in the plugin deletes; adding enforcement would mean adding deletion code" },
 ];
 
+function loadHistory() {
+  let raw;
+  try {
+    raw = fs.readFileSync(HISTORY_PATH, "utf8");
+  } catch (e) {
+    if (e.code === "ENOENT") return []; // no snapshots recorded yet — legitimately empty
+    throw e; // permission error etc. — surface it, never silently treat as "no history"
+  }
+  return JSON.parse(raw); // malformed JSON must throw, not be swallowed into an empty array
+  // (a swallowed parse error here would make --snapshot believe there is no prior history and
+  // overwrite the file with a single new entry, destroying every earlier release's snapshot)
+}
+
+// method-rules §14's corollary names "designed vs exercised" as the plugin's live risk, but until
+// now nothing recorded the requirement count from one version to the next — the ratio was only
+// checkable by manually diffing CHANGELOG entries. This makes the number itself a first-class,
+// tracked output, separate from (and much smaller a claim than) mechanically verifying that a new
+// requirement's cited "observed failure" is honest — that part stays a human/model judgement.
+function growthSinceLastSnapshot(total) {
+  const history = loadHistory();
+  if (!history.length) return null;
+  const prev = history[history.length - 1];
+  return { prev_version: prev.version, prev_total: prev.total, delta: total - prev.total };
+}
+
+// Records a new snapshot for the CURRENT plugin.json version. Run this once per release, after the
+// requirement list for that version is final — never mid-session, and never for a version already
+// recorded (a snapshot is a historical fact, not something a re-run should silently overwrite).
+function snapshot(total, deterministic) {
+  const pluginJson = JSON.parse(fs.readFileSync(PLUGIN_JSON_PATH, "utf8"));
+  const version = pluginJson.version;
+  const history = loadHistory();
+  if (history.some((h) => h.version === version)) {
+    process.stdout.write(`coverage-history.json already has an entry for ${version} — not overwriting. Bump plugin.json first.\n`);
+    return 1;
+  }
+  const today = new Date().toISOString().slice(0, 10);
+  history.push({ version, date: today, total, deterministic });
+  fs.writeFileSync(HISTORY_PATH, JSON.stringify(history, null, 2) + "\n");
+  process.stdout.write(`snapshot recorded: ${version} — ${total} requirements (${deterministic} deterministic)\n`);
+  return 0;
+}
+
 function main(argv) {
   const jsonOut = argv.includes("--json");
   const tiers = { code: [], hook: [], agent: [], prose: [] };
@@ -248,12 +301,16 @@ function main(argv) {
   const total = REQUIREMENTS.length;
   const deterministic = tiers.code.length + tiers.hook.length;
   const pct = (n) => `${((n / total) * 100).toFixed(0)}%`;
+  const growth = growthSinceLastSnapshot(total);
+
+  if (argv.includes("--snapshot")) return snapshot(total, deterministic);
 
   const summary = {
     total,
     deterministic,
     deterministic_pct: Number(((deterministic / total) * 100).toFixed(1)),
     by_tier: Object.fromEntries(Object.entries(tiers).map(([k, v]) => [k, v.length])),
+    growth_since_last_snapshot: growth,
   };
 
   if (jsonOut) {
@@ -268,6 +325,19 @@ function main(argv) {
   process.stdout.write(`  prose  ${String(tiers.prose.length).padStart(3)}  ${pct(tiers.prose.length)}  nothing checks it\n\n`);
   process.stdout.write(`  DETERMINISTIC (code+hook): ${deterministic}/${total} = ${pct(deterministic)}\n`);
   process.stdout.write(`  MODEL-DEPENDENT (agent+prose): ${total - deterministic}/${total} = ${pct(total - deterministic)}\n\n`);
+  if (growth) {
+    const sign = growth.delta > 0 ? "+" : "";
+    process.stdout.write(
+      `  GROWTH since v${growth.prev_version}: ${sign}${growth.delta} requirement(s) (${growth.prev_total} → ${total})\n` +
+        (growth.delta > 0
+          ? "  Every requirement added since the last snapshot must cite an observed failure or remove one\n" +
+            "  of at least equal weight (method-rules §14) — this number does not check that, it only makes\n" +
+            "  the count impossible to lose track of.\n\n"
+          : "\n")
+    );
+  } else {
+    process.stdout.write("  GROWTH: no prior snapshot in coverage-history.json — run --snapshot after this release.\n\n");
+  }
   process.stdout.write("Unchecked by anything (tier `prose`):\n");
   for (const r of tiers.prose) process.stdout.write(`  - ${r.id}  (${r.where})\n`);
   process.stdout.write(

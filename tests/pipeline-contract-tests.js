@@ -2547,18 +2547,119 @@ console.log("== v1.13.0: coverage-report registers the new mechanisms ==");
   check("no duplicate requirement ids in coverage-report", dupes.length === 0, dupes.join(", "));
 }
 
+// Note: the v1.13.0 "version bump propagated" block (which asserted plugin.json's
+// LIVE version equalled 1.13.0) is superseded by this patch's own such block below,
+// following the same precedent set at v1.12.0/v1.13.0 above — a "current version is
+// X" assertion is immediately stale on the next bump, so only the latest patch keeps
+// one; the CHANGELOG itself is the permanent historical record. The v1.13.0 CHANGELOG
+// content checks stay, just without the live-version assertions.
+
 // ---------------------------------------------------------------------------
-console.log("== v1.13.0: version bump propagated ==");
+console.log("== v1.13.0: CHANGELOG entry (content, not live version) ==");
 {
-  const claude = JSON.parse(fs.readFileSync(path.join(ROOT, ".claude-plugin", "plugin.json"), "utf8"));
-  check("plugin.json is 1.13.0", claude.version === "1.13.0");
-  const codex = JSON.parse(fs.readFileSync(path.join(ROOT, ".codex-plugin", "plugin.json"), "utf8"));
-  check("codex manifest matches", codex.version === "1.13.0");
   const changelog = fs.readFileSync(path.join(ROOT, "CHANGELOG.md"), "utf8");
   check("CHANGELOG.md has a v1.13.0 entry", /## v1\.13\.0/.test(changelog));
   check(
     "the v1.13.0 entry names the founder's observed pain (stale waiting_on/gate state, conflated status reporting)",
     /## v1\.13\.0[\s\S]{0,1500}stale/i.test(changelog)
+  );
+}
+
+// ---------------------------------------------------------------------------
+console.log("== v1.14.0: subtraction pass — moratorium growth tracking + duplicate-prose cuts ==");
+{
+  const COV = path.join(ROOT, "scripts", "coverage-report.js");
+  const { REQUIREMENTS } = require(COV);
+  const ids = REQUIREMENTS.map((r) => r.id);
+  check("coverage-report registers \"requirement-count-growth-tracked\"", ids.includes("requirement-count-growth-tracked"));
+  const dupes = ids.filter((id, i) => ids.indexOf(id) !== i);
+  check("no duplicate requirement ids in coverage-report", dupes.length === 0, dupes.join(", "));
+
+  const history = JSON.parse(fs.readFileSync(path.join(ROOT, "scripts", "coverage-history.json"), "utf8"));
+  check("coverage-history.json has a 1.13.0 baseline entry", history.some((h) => h.version === "1.13.0"));
+  check("coverage-history.json entries carry version/date/total", history.every((h) => h.version && h.date && Number.isInteger(h.total)));
+
+  const jsonOut = JSON.parse(String(execFileSync("node", [COV, "--json"], { stdio: "pipe" })));
+  check("coverage-report --json exposes growth_since_last_snapshot", "growth_since_last_snapshot" in jsonOut.summary);
+  // Compare against whatever the LATEST recorded snapshot is, not a hardcoded version — this repo's
+  // own coverage-history.json gains a real entry per release, so "the baseline" moves over time.
+  const latestSnapshot = history[history.length - 1];
+  check("growth is measured against the latest recorded snapshot",
+    jsonOut.summary.growth_since_last_snapshot.prev_version === latestSnapshot.version);
+  check(
+    "growth delta equals current total minus the baseline total",
+    jsonOut.summary.growth_since_last_snapshot.delta === jsonOut.summary.total - jsonOut.summary.growth_since_last_snapshot.prev_total
+  );
+
+  const textOut = String(execFileSync("node", [COV], { stdio: "pipe" }));
+  check("text report prints a GROWTH line", textOut.includes(`GROWTH since v${latestSnapshot.version}`));
+
+  // --snapshot must never mutate the repo's own tracked history as a side effect of running this
+  // suite, so exercise it against a throwaway copy pointed at by env overrides.
+  const snapRoot = tmpdir("coverage-snapshot");
+  const tmpHistory = path.join(snapRoot, "coverage-history.json");
+  const tmpPlugin = path.join(snapRoot, "plugin.json");
+  fs.writeFileSync(tmpHistory, JSON.stringify([{ version: "1.13.0", date: "2026-08-02", total: 174, deterministic: 110 }], null, 2));
+  fs.writeFileSync(tmpPlugin, JSON.stringify({ version: "1.13.0" }, null, 2));
+  const snapEnv = { ...process.env, COVERAGE_HISTORY_PATH: tmpHistory, COVERAGE_PLUGIN_JSON_PATH: tmpPlugin };
+  const runSnapshot = () => {
+    try { return { ok: true, out: String(execFileSync("node", [COV, "--snapshot"], { stdio: "pipe", env: snapEnv })) }; }
+    catch (e) { return { ok: false, out: String((e.stdout || "") + (e.stderr || "")) }; }
+  };
+  const dup = runSnapshot();
+  check("--snapshot refuses to overwrite an existing version's entry", !dup.ok && /already has an entry for 1\.13\.0/.test(dup.out));
+  const historyAfterDup = JSON.parse(fs.readFileSync(tmpHistory, "utf8"));
+  check("a refused snapshot does not mutate the history file", historyAfterDup.length === 1);
+  fs.writeFileSync(tmpPlugin, JSON.stringify({ version: "1.14.0" }, null, 2));
+  const fresh = runSnapshot();
+  check("--snapshot records a new version's entry", fresh.ok && /snapshot recorded: 1\.14\.0/.test(fresh.out));
+  const historyAfterFresh = JSON.parse(fs.readFileSync(tmpHistory, "utf8"));
+  check("the new entry is appended, not replacing the baseline", historyAfterFresh.length === 2 && historyAfterFresh[0].version === "1.13.0" && historyAfterFresh[1].version === "1.14.0");
+
+  // Codex review finding: a corrupt/unreadable history file must never be silently treated as "no
+  // history" — that would let --snapshot overwrite it and destroy every prior release's snapshot.
+  fs.writeFileSync(tmpHistory, "{ not valid json");
+  const corrupt = runSnapshot();
+  check("a malformed history file aborts --snapshot instead of being treated as empty",
+    !corrupt.ok && !/snapshot recorded/.test(corrupt.out));
+  check("--snapshot does not overwrite a malformed history file on failure",
+    fs.readFileSync(tmpHistory, "utf8") === "{ not valid json");
+
+  // The three restated will-override/V1-deferral passages collapsed to cross-references; the
+  // canonical explanation (gate-contracts' "Will-override boundary" section) stays intact.
+  const gc = fs.readFileSync(path.join(ROOT, "skills", "method-rules-gate-contracts", "SKILL.md"), "utf8");
+  check("gate-contracts keeps ONE full will-override/V1-deferral explanation (the boundary section)",
+    /## Will-override boundary/.test(gc) && /presupposes a gate that was formally checked and formally FAILED/.test(gc));
+  check("gate-contracts' V1-deferred-track bullet now cross-references instead of restating",
+    /Never a `will-override`.*see "Will-override boundary" below/.test(gc));
+
+  const ss = fs.readFileSync(path.join(ROOT, "skills", "method-rules-state-schema", "SKILL.md"), "utf8");
+  check("state-schema's gates.V1.status field cross-references the boundary section instead of restating it",
+    /Never confuse with `will-override`.*see `method-rules-gate-contracts`/.test(ss));
+
+  const as = fs.readFileSync(path.join(ROOT, "skills", "method-rules-artifact-schema", "SKILL.md"), "utf8");
+  check("artifact-schema's post-launch-validation-register section cross-references instead of restating",
+    /Never confuse with `unvalidated-build-decision\.md` above.*see `method-rules-gate-contracts`/.test(as));
+  check("artifact-schema still states who owns writing the register (unique content, not cut)",
+    /Owner: `gate-check`'s `--ceremony=defer`/.test(as));
+
+  const mr = fs.readFileSync(path.join(ROOT, "skills", "method-rules", "SKILL.md"), "utf8");
+  check("method-rules §8 still states there is no simulate rung, but points to artifact-schema for the full rationale",
+    /There is no `simulate` rung/.test(mr) && /full rationale.*method-rules-artifact-schema/.test(mr));
+}
+
+// ---------------------------------------------------------------------------
+console.log("== v1.14.0: version bump propagated ==");
+{
+  const claude = JSON.parse(fs.readFileSync(path.join(ROOT, ".claude-plugin", "plugin.json"), "utf8"));
+  check("plugin.json is 1.14.0", claude.version === "1.14.0");
+  const codex = JSON.parse(fs.readFileSync(path.join(ROOT, ".codex-plugin", "plugin.json"), "utf8"));
+  check("codex manifest matches", codex.version === "1.14.0");
+  const changelog = fs.readFileSync(path.join(ROOT, "CHANGELOG.md"), "utf8");
+  check("CHANGELOG.md has a v1.14.0 entry", /## v1\.14\.0/.test(changelog));
+  check(
+    "the v1.14.0 entry names the founder's observed complaint (token waste / unearned escalation)",
+    /## v1\.14\.0[\s\S]{0,2000}(waste|escalat)/i.test(changelog)
   );
 }
 

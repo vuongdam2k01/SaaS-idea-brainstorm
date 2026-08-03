@@ -52,13 +52,10 @@ rather than skipping it forever.
   TRACK`, wins over every other tier the moment `gates.V1.status === "deferred"`, regardless of how
   V2/V3/R1/R2 resolve — a pack built on a deferred V1 is never confusable with one where V1 was
   actually attempted and passed.
-- **Never a `will-override`.** A will-override (see the boundary section below) is for a gate that
-  was **attempted and FAILED**; V1-deferral is for a gate **never attempted at all**, by explicit
-  founder choice, with named reopen conditions. Different decision-log `type`
-  (`founder-decision`, never `will-override`), different artifact
-  (`post-launch-validation-register.md`, never `unvalidated-build-decision.md`), different code path
-  in `pack-verdict.js`. Conflating the two would let an unattempted gate read as an attempted-and-
-  overridden one, which misrepresents what actually happened.
+- **Never a `will-override`** — see "Will-override boundary" below for the full distinction
+  (attempted-and-FAILED vs never-attempted-and-deferred; different decision-log `type`, artifact, and
+  `pack-verdict.js` path). Conflating the two would let an unattempted gate read as an
+  attempted-and-overridden one.
 
 ## Gate BP → its own skill
 
